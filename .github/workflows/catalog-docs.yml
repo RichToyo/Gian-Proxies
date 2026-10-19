@@ -1,0 +1,66 @@
+name: Publish Catalog Documentation
+on:
+  workflow_dispatch:
+    inputs:
+      base_catalog_repository:
+        description: Approved base Catalog repository (RichLogic/Gian-Proxies or RichToyo/Gian-Proxies)
+        required: true
+        type: string
+      base_catalog_tag:
+        description: Signed Catalog tag in that base repository whose executables remain unchanged
+        required: true
+        type: string
+      sequence:
+        description: New sequence above legacy 6, the verified base, and published catalog-v1 generations on RichToyo/Gian-Proxies and RichLogic/Gian-Proxies
+        required: true
+        type: string
+      issued_at:
+        description: Explicit ISO-8601 issue time
+        required: true
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: catalog-publication
+  cancel-in-progress: false
+jobs:
+  sign-publish:
+    if: github.repository == 'RichToyo/Gian-Proxies' && github.ref == 'refs/heads/main'
+    environment: catalog-production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Scan publication source for public English
+        run: node scripts/check-public-english.mjs --ref "${{ github.sha }}"
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/verify-source.mjs
+      - run: pnpm --filter @gian/shared build
+      - run: pnpm --filter @gian/proxy-catalog-contract test
+      - run: node --test catalog/proxy-information/project.test.mjs scripts/catalog-docs-policy.test.mjs
+      - name: Download the existing signed Catalog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REPOSITORY: ${{ inputs.base_catalog_repository }}
+          BASE_TAG: ${{ inputs.base_catalog_tag }}
+        run: |
+          node --input-type=module -e "import { assertApprovedBaseCatalog } from './scripts/catalog-docs-policy.mjs'; assertApprovedBaseCatalog(process.env.BASE_REPOSITORY, process.env.BASE_TAG);"
+          gh api "repos/$BASE_REPOSITORY/releases/tags/$BASE_TAG" | jq -e '(.draft == false) and (.prerelease == false)'
+          gh release download "$BASE_TAG" --repo "$BASE_REPOSITORY" --dir previous-catalog
+      - name: Verify retained executables, sign and publish English documents
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIAN_CATALOG_SIGNING_KEY_PEM: ${{ secrets.GIAN_CATALOG_SIGNING_KEY_PEM }}
+          BASE_CATALOG_REPOSITORY: ${{ inputs.base_catalog_repository }}
+          BASE_CATALOG_TAG: ${{ inputs.base_catalog_tag }}
+          SEQUENCE: ${{ inputs.sequence }}
+          ISSUED_AT: ${{ inputs.issued_at }}
+        run: node scripts/release-product.mjs catalog-docs previous-catalog "$SEQUENCE" "$ISSUED_AT"

@@ -1,0 +1,169 @@
+export type SessionStatus = 'idle' | 'running' | 'needs-approval' | 'stale' | 'closed' | 'error';
+
+/** Claude CLI's `--permission-mode` values accepted by the current
+ *  cc-proxy catalog. Plan mode is intentionally not advertised: accepting
+ *  ExitPlanMode would require the Proxy to change a future turn mode, which
+ *  gian.proxy/2.x has no request semantic for. */
+export type PermissionMode =
+  | 'default'
+  | 'manual'
+  | 'acceptEdits'
+  | 'auto'
+  | 'dontAsk'
+  | 'bypassPermissions'
+  | 'plan';
+
+export interface TextInputItem {
+  type: 'text';
+  text: string;
+}
+
+export interface LocalImageInputItem {
+  type: 'localImage';
+  path: string;
+}
+
+export interface LocalFileInputItem {
+  type: 'localFile';
+  path: string;
+  name?: string;
+  mime?: string;
+  size?: number;
+}
+
+export type InputItem = TextInputItem | LocalImageInputItem | LocalFileInputItem;
+
+export interface ClaudeMcpServer {
+  name: string;
+  url: string;
+  headers: Record<string, string>;
+}
+
+export interface SessionRecord {
+  id: string;
+  cwd: string;
+  /** Claude Code session ID used with --session-id / --resume. */
+  claudeSessionId: string;
+  model: string | null;
+  status: SessionStatus;
+  activeTurnId: string | null;
+  lastError: string | null;
+  /** Whether the Claude Code process is currently alive for this session. */
+  processAlive: boolean;
+  /** Host-provided, Session-scoped HTTP MCP servers. Never serialized. */
+  mcpServers: ClaudeMcpServer[];
+  /** Runtime-only hint: true when the host supplied a claudeSessionId at
+   *  createSession time (adoption / reconnect). The first spawn must use
+   *  `--resume <id>` to pick up the existing on-disk JSONL; later spawns
+   *  also use `--resume`. Never persisted — the proxy is stateless. */
+  wasResumed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PendingApproval {
+  approvalId: string;
+  sessionId: string;
+  requestId: string;
+  toolName: string;
+  description: string;
+  inputPreview: string;
+  createdAt: string;
+  /** Optional discriminator surfaced to the host so it can pick a specialized
+   *  UI without re-deriving from toolName. Currently used for
+   *  `'exit_plan_mode'` — set when toolName === 'ExitPlanMode'. */
+  category?: string;
+}
+
+export interface InitializePayload {
+  mode: 'spawn';
+  protocolVersion: string;
+  methods: string[];
+}
+
+export interface CapabilitiesPayload {
+  protocolVersion: string;
+  models: ModelCapabilities[];
+  modes: import('@gian/shared').ProxyModeCapabilities[];
+  slashCommands: import('@gian/shared').SlashCommand[];
+}
+
+/** Claude CLI's `--effort` values as reported by `claude --help`. Keep this
+ *  open-ended so new Claude Code effort levels do not require a Gian build. */
+export type EffortLevel = string;
+
+export interface ModelCapabilities {
+  id: string;
+  model: string;
+  displayName: string;
+  description: string;
+  hidden: boolean;
+  isDefault: boolean;
+  /** Null means Claude Code did not report a default; omit `--effort`. */
+  defaultEffort: EffortLevel | null;
+  supportedEfforts: EffortLevel[];
+}
+
+export interface CreateSessionParams {
+  cwd: string;
+  model?: string | null;
+  /** When set, the proxy uses this as the Claude Code session id and marks
+   *  the session as `--resume`-ready (adoption / host reconnect flow).
+   *  When omitted, the proxy generates a fresh UUID and the next spawn
+   *  uses `--session-id <new>` for a clean conversation. */
+  claudeSessionId?: string;
+  /** A native id may name a freshly prepared zero-turn fork. In that case
+   *  the next turn must use --session-id rather than --resume. */
+  resumeExisting?: boolean;
+  mcpServers?: ClaudeMcpServer[];
+}
+
+export interface GetSessionParams {
+  sessionId: string;
+}
+
+export interface StartTurnParams {
+  sessionId: string;
+  input: InputItem[];
+  model?: string | null;
+  /** Claude CLI `--permission-mode` value. Passed through verbatim. */
+  permissionMode?: PermissionMode | null;
+  /** Reasoning effort. Maps to Claude CLI `--effort <level>`. Field is named
+   *  `thinking` to match the shared host-facing convention used across
+   *  executors; translated internally to `--effort`. */
+  thinking?: EffortLevel | null;
+  /** Session display name (SESSION-NAME-001). Applied as Claude CLI `--name`
+   *  only on the first (`--session-id`) turn so a session created with a name
+   *  is identifiable in `claude --resume` listings. Later turns ignore it —
+   *  renames are propagated host-side via the JSONL `custom-title` line. */
+  displayName?: string | null;
+}
+
+export interface InterruptTurnParams {
+  sessionId: string;
+}
+
+export interface ApprovalResponseParams {
+  sessionId: string;
+  approvalId: string;
+  behavior: 'allow' | 'deny';
+  /** Structured answers for an AskUserQuestion-flavored approval. Keyed
+   *  by question text; values are the user's selected option label(s).
+   *  When present, the proxy tunnels them through deny+message because
+   *  current Claude `-p` does not honor updatedInput answers. */
+  answers?: Record<string, string | string[]>;
+}
+
+export interface SessionSnapshotParams {
+  sessionId: string;
+}
+
+export interface CloseSessionParams {
+  sessionId: string;
+}
+
+export interface JsonRpcLikeRequest {
+  id?: number | string;
+  method?: string;
+  params?: unknown;
+}

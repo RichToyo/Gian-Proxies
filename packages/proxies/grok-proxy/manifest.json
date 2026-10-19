@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 4,
+  "id": "grok",
+  "displayName": "Grok Build",
+  "pluginVersion": "0.3.11",
+  "entry": "proxy.mjs",
+  "protocol": {
+    "name": "gian.proxy",
+    "range": ">=2.2 <3.0"
+  },
+  "process": {
+    "scope": "session"
+  },
+  "runtime": {
+    "kind": "external",
+    "id": "grok",
+    "displayName": "Grok CLI",
+    "verifiedVersions": [
+      "1.0.62"
+    ]
+  },
+  "branding": {
+    "logo": {
+      "light": {
+        "path": "assets/logo-light.png",
+        "mediaType": "image/png",
+        "sha256": "2c645c9b9ab3a2d0669f8ac5cb41edd6e8917093d0f611ebfe99e50b4f2d233e"
+      },
+      "dark": {
+        "path": "assets/logo-dark.png",
+        "mediaType": "image/png",
+        "sha256": "2c645c9b9ab3a2d0669f8ac5cb41edd6e8917093d0f611ebfe99e50b4f2d233e"
+      }
+    }
+  }
+}

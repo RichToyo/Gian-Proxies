@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 4,
+  "id": "com.zhipu.zcode",
+  "displayName": "ZCode",
+  "pluginVersion": "0.4.4",
+  "entry": "proxy.mjs",
+  "protocol": {
+    "name": "gian.proxy",
+    "range": ">=2.2 <3.0"
+  },
+  "process": {
+    "scope": "shared"
+  },
+  "runtime": {
+    "kind": "external",
+    "id": "zcode",
+    "displayName": "ZCode Runtime",
+    "verifiedVersions": [
+      "0.16.9"
+    ]
+  },
+  "branding": {
+    "logo": {
+      "light": {
+        "path": "assets/logo-light.png",
+        "mediaType": "image/png",
+        "sha256": "5725ded891aa51f9f44d25b8fdab9cdbe4a04f4358821764bbb034600c2477a3"
+      },
+      "dark": {
+        "path": "assets/logo-dark.png",
+        "mediaType": "image/png",
+        "sha256": "5725ded891aa51f9f44d25b8fdab9cdbe4a04f4358821764bbb034600c2477a3"
+      }
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "claude": {
+    "en": {
+      "displayName": "Claude Code",
+      "tagline": "Anthropic Claude Code sessions in Gian."
+    },
+    "zh-CN": {
+      "displayName": "Claude Code",
+      "tagline": "Anthropic Claude Code sessions in Gian."
+    }
+  },
+  "codex": {
+    "en": {
+      "displayName": "Codex",
+      "tagline": "OpenAI Codex sessions in Gian."
+    },
+    "zh-CN": {
+      "displayName": "Codex",
+      "tagline": "OpenAI Codex sessions in Gian."
+    }
+  },
+  "kimi": {
+    "en": {
+      "displayName": "Kimi Code",
+      "tagline": "Moonshot Kimi Code sessions in Gian."
+    },
+    "zh-CN": {
+      "displayName": "Kimi Code",
+      "tagline": "Moonshot Kimi Code sessions in Gian."
+    }
+  },
+  "ai.deepseek.harness": {
+    "en": {
+      "displayName": "DeepSeek Harness",
+      "tagline": "DeepSeek Harness sessions in Gian."
+    },
+    "zh-CN": {
+      "displayName": "DeepSeek Harness",
+      "tagline": "DeepSeek Harness sessions in Gian."
+    }
+  },
+  "com.zhipu.zcode": {
+    "en": {
+      "displayName": "ZCode",
+      "tagline": "Zhipu ZCode sessions in Gian."
+    },
+    "zh-CN": {
+      "displayName": "ZCode",
+      "tagline": "Zhipu ZCode sessions in Gian."
+    }
+  },
+  "grok": {
+    "en": {
+      "displayName": "Grok Build",
+      "tagline": "xAI Grok Build sessions in Gian."
+    },
+    "zh-CN": {
+      "displayName": "Grok Build",
+      "tagline": "xAI Grok Build sessions in Gian."
+    }
+  }
+}

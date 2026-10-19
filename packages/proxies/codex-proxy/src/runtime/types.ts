@@ -1,0 +1,174 @@
+import type {
+  ApprovalPolicy,
+  ApprovalsReviewer,
+  CollaborationMode,
+  ConfiguredPermissions,
+  InputItem,
+  SandboxMode,
+  SandboxPolicy,
+  ThinkingLevel,
+} from '../core/types.js';
+
+export interface RuntimeNotification {
+  method: string;
+  params?: unknown;
+}
+
+export interface RuntimeServerRequest extends RuntimeNotification {
+  id: number | string;
+}
+
+export interface RuntimeEventSource {
+  on(event: 'debug', handler: (message: string) => void): void;
+  on(event: 'notification', handler: (message: RuntimeNotification) => void): void;
+  on(event: 'serverRequest', handler: (message: RuntimeServerRequest) => void): void;
+  on(event: 'runtimeStopped', handler: (cause: Error) => void): void;
+}
+
+/** A Codex thread normalized for Gian's native-session picker. */
+export interface CodexNativeThreadSummary {
+  id: string;
+  displayName?: string;
+  cwd?: string;
+  updatedAt?: string;
+}
+
+export interface CodexRuntime extends RuntimeEventSource {
+  ensureStarted(): Promise<void>;
+  /** Start a fresh thread using Codex's effective config. */
+  startThread(options: {
+    textOnly?: boolean;
+    cwd: string;
+    model?: string | null;
+    ephemeral?: boolean;
+    config?: Record<string, unknown>;
+  }): Promise<{ thread: { id: string }; configuredPermissions: ConfiguredPermissions }>;
+  resumeThread(threadId: string, options?: { config?: Record<string, unknown> }): Promise<{
+    thread: { id: string };
+    configuredPermissions: ConfiguredPermissions;
+  }>;
+  forkThread(threadId: string, options?: {
+    lastTurnId?: string;
+    beforeTurnId?: string;
+    cwd?: string;
+    config?: Record<string, unknown>;
+  }): Promise<{
+    thread: { id: string };
+    configuredPermissions: ConfiguredPermissions;
+  }>;
+  /** Append raw Responses API items without starting a model Turn. */
+  injectThreadItems(threadId: string, items: Array<Record<string, unknown>>): Promise<unknown>;
+  readThread(threadId: string): Promise<{ thread: unknown }>;
+  compactThread(threadId: string): Promise<unknown>;
+  startTurn(
+    threadId: string,
+    input: InputItem[],
+    options?: {
+      model?: string | null;
+      thinking?: ThinkingLevel | null;
+      /** Per-turn sandbox override (codex `sandboxPolicy` on TurnStartParams). */
+      sandbox?: SandboxMode | null;
+      /** Exact sandbox policy captured from the thread response. */
+      sandboxPolicy?: SandboxPolicy | null;
+      /** Codex v2 `turn/start.runtimeWorkspaceRoots`. */
+      runtimeWorkspaceRoots?: string[] | null;
+      /** Named permissions profile captured from the thread response. */
+      permissions?: string | null;
+      /** Per-turn approval policy override. */
+      approvalPolicy?: ApprovalPolicy | null;
+      /** Per-turn approvals reviewer override. `auto_review` lets codex's
+       *  subagent decide without surfacing to the proxy. */
+      approvalsReviewer?: ApprovalsReviewer | null;
+      /** Per-turn collaboration mode override. `plan` constrains agent
+       *  behavior to exploration + planning. */
+      collaborationMode?: CollaborationMode | null;
+      reasoningSummary?: 'none' | 'auto' | 'concise' | 'detailed' | null;
+      serviceTier?: 'fast' | 'flex' | null;
+    },
+  ): Promise<{ turn: { id: string; status: string } }>;
+  interruptTurn(threadId: string, turnId: string): Promise<unknown>;
+  /** `turn/steer` — append user input to the in-flight turn (non-interrupting).
+   *  Optional for runtimes that do not expose model discovery. */
+  steerTurn?(threadId: string, turnId: string, input: InputItem[]): Promise<{ turnId: string }>;
+  /** Set a thread's user-facing display name (SESSION-NAME-001). Maps to the
+   *  app-server `thread/name/set` RPC so the name shows in `codex resume` /
+   *  Codex app listings. Optional for runtimes without app discovery. */
+  setThreadName?(threadId: string, name: string): Promise<unknown>;
+  /** List persisted Codex threads through app-server `thread/list`. Older
+   *  runtimes may not expose this RPC, so protocol adapters retain rollout
+   *  discovery as a compatibility fallback. */
+  listNativeThreads?(cwd?: string): Promise<CodexNativeThreadSummary[]>;
+  archiveThread?(threadId: string): Promise<unknown>;
+  respond(id: number | string, result: unknown): Promise<unknown>;
+  listAllModels(): Promise<unknown[]>;
+  listSkills(cwd?: string): Promise<SkillsListResponse>;
+  /** Native effective Hook inventory (app-server `hooks/list`). Read-only:
+   *  never runs a hook, never modifies trust. */
+  listHooks?(cwd?: string): Promise<HooksListResponse>;
+  unsubscribeThread?(threadId: string): Promise<unknown>;
+  stop(): Promise<void>;
+}
+
+/**
+ * Subset of codex `skills/list` v2 RPC response we actually consume.
+ * Full schema: codex app-server generate-json-schema → SkillsListResponse.
+ */
+export interface SkillsListResponse {
+  data: SkillsListEntry[];
+}
+
+export interface SkillsListEntry {
+  cwd: string;
+  errors: Array<{ message: string; path: string }>;
+  skills: SkillMetadata[];
+}
+
+export interface SkillMetadata {
+  name: string;
+  description: string;
+  enabled: boolean;
+  path: string;
+  scope: 'user' | 'repo' | 'system' | 'admin';
+  shortDescription?: string | null;
+  interface?: SkillInterface | null;
+}
+
+export interface SkillInterface {
+  displayName?: string | null;
+  shortDescription?: string | null;
+  defaultPrompt?: string | null;
+  brandColor?: string | null;
+  iconLarge?: string | null;
+  iconSmall?: string | null;
+}
+
+/** Subset of codex `hooks/list` v2 RPC response we consume (P0 evidence:
+ *  `generate-json-schema` → HooksListResponse). */
+export interface HooksListResponse {
+  data: HooksListEntry[];
+}
+
+export interface HooksListEntry {
+  cwd: string;
+  errors: Array<{ message: string; path: string }>;
+  hooks: HookMetadata[];
+  warnings: string[];
+}
+
+export interface HookMetadata {
+  key: string;
+  eventName: string;
+  matcher?: string | null;
+  handlerType: 'command' | 'prompt' | 'agent';
+  command?: string | null;
+  pluginId?: string | null;
+  sourcePath?: string | null;
+  source?: string | null;
+  isManaged?: boolean | null;
+  enabled: boolean;
+  timeoutSec?: number | null;
+  trustStatus?: 'managed' | 'untrusted' | 'trusted' | 'modified' | null;
+  currentHash?: string | null;
+  displayOrder?: number | null;
+  statusMessage?: string | null;
+}

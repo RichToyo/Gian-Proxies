@@ -1,0 +1,314 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "grok",
+  "currentVersion": "0.3.11",
+  "entries": [
+    {
+      "version": "0.3.11",
+      "firstPublishedAt": "2026-10-17T18:11:27Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-grok-v0.3.11",
+          "publishedAt": "2026-10-17T18:11:27Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.11",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.11/gian-proxy-grok-0.3.11-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "e151359dc4ffb8a9196248c468a48be6a9cf9437e9fc0b087bd30e698fa23312",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.11/gian-proxy-grok-0.3.11-darwin-arm64.tar.gz",
+            "sha256": "0afbe4cfdb8dbac9309e5cf2f510686ec49505ad0813c7f7714b3b3e93ca9736",
+            "size": 179419
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.62"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Grok CLI to 1.0.62 (promoted to stable on x.ai/cli, the official GCS mirror and npm @xai-official/grok latest; bytes identical from x.ai and GCS). The spawn flags and ACP initialize contract are verified on the new binary (agentVersion 1.0.62, grokShell, unchanged capability shape; raw handshake evidence preserved); per-version notes for 1.0.53–1.0.62 are NOT_OBSERVED in the accessible official changelog, whose latest entry remains 1.0.52 — recorded honestly rather than blocking the promoted stable channel. Known limitation unchanged: native approval cards under auto/always_approve snapshots remain unverified (an authenticated session is required). The wire protocol range is unchanged. Artifacts pass hosted qualification; real model turns were not run for this release.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.11",
+            "https://github.com/RichLogic/Gian-Proxies/blob/proxy-grok-v0.3.11/packages/proxies/grok-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "version": "0.3.10",
+      "firstPublishedAt": "2026-10-16T18:20:15Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-grok-v0.3.10",
+          "publishedAt": "2026-10-16T18:20:15Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.10",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.10/gian-proxy-grok-0.3.10-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "16726d2009228531f55a4aea7096b41a863d7d5f23961143346df7e16800bdcd",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.10/gian-proxy-grok-0.3.10-darwin-arm64.tar.gz",
+            "sha256": "ecd28cdec333005817235dc97bad24b5b3caf0df82de53562f0519ed372c1b06",
+            "size": 179419
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.60"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Grok CLI to 1.0.60 (promoted to stable on x.ai/cli, the official GCS mirror and npm @xai-official/grok latest; bytes identical from x.ai and GCS). The spawn flags and ACP initialize contract are verified on the new binary (agentVersion 1.0.60, grokShell, unchanged capability shape); per-version notes for 1.0.53–1.0.60 are NOT_OBSERVED in the accessible official changelog, which currently shows 1.0.52 as its latest entry — recorded honestly rather than blocking the promoted stable channel. Known limitation unchanged: native approval cards under auto/always_approve snapshots remain unverified (an authenticated session is required). The wire protocol range is unchanged. Artifacts pass hosted qualification; real model turns were not run for this release.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.10",
+            "https://github.com/RichLogic/Gian-Proxies/blob/proxy-grok-v0.3.10/packages/proxies/grok-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "version": "0.3.9",
+      "firstPublishedAt": "2026-10-15T10:55:40Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-grok-v0.3.9",
+          "publishedAt": "2026-10-15T10:55:40Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.9",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.9/gian-proxy-grok-0.3.9-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "13927cc0dbbae99509f48b3229386dbe2a1b05e2bd8d86bc06da0bf7e8581280",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.9/gian-proxy-grok-0.3.9-darwin-arm64.tar.gz",
+            "sha256": "c5bf451ab6fc1330f5a44bf92becdd551bf2fdac73fe553940a59c2742c2fb28",
+            "size": 179419
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.52"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Grok CLI to 1.0.52 (bytes identical from x.ai/cli and the official GCS mirror). The spawn flags and the ACP initialize contract are verified on the new binary; extension methods stay lazily confirmed per attach. Known limitation: the native approval cards observed for compound shell commands under 1.0.46 despite auto/always_approve snapshots remain unverified on 1.0.52 (an authenticated session is required); no fix is claimed. The wire protocol range is unchanged. Artifacts pass hosted qualification; real model turns were not run for this release.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.9",
+            "https://github.com/RichLogic/Gian-Proxies/blob/proxy-grok-v0.3.9/packages/proxies/grok-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "version": "0.3.8",
+      "firstPublishedAt": "2026-10-11T05:51:45Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-grok-v0.3.8",
+          "publishedAt": "2026-10-11T05:51:45Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.8",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.8/gian-proxy-grok-0.3.8-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "2f19e32e2461647f679e2c4aafa077f95f36e1543b6e95440306a3ad8464bbe4",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.8/gian-proxy-grok-0.3.8-darwin-arm64.tar.gz",
+            "sha256": "b6dca6e39d7aadd5cf2cfc0d1dd1c098aac4def2455f8957cc92823d5a1ea145",
+            "size": 179414
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.46"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Grok CLI to 1.0.46. Catalog inspection no longer delays shutdown: failed cleanup and empty snapshots are retried and only inspection children are force-stopped. Confirmation prompts explicitly declare the action that may omit answers. The standalone package uses public Proxy Protocol SDK 1.0.2; the wire protocol range is unchanged. Real model turns were not run for this release.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.8",
+            "https://github.com/RichLogic/Gian-Proxies/blob/proxy-grok-v0.3.8/packages/proxies/grok-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "version": "0.3.7",
+      "firstPublishedAt": "2026-10-07T07:19:09Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-grok-v0.3.7",
+          "publishedAt": "2026-10-07T07:19:09Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.7",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.7/gian-proxy-grok-0.3.7-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "69720ac628ad824b84ac77b02253ea633c71e0f11578b0a0c4dc703200c2142e",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.7/gian-proxy-grok-0.3.7-darwin-arm64.tar.gz",
+            "sha256": "1d9d73e52e4f4417426bb04a784a3b886242a6f288f8eb97852dc21f14bf968a",
+            "size": 179251
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.41"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Fix session/turn configuration boundaries, model changes, native event and interaction projection. Required answers are optional only for explicitly declared Question cancellation actions. Fork is available only after native CLI support is confirmed. The standalone package uses public Proxy Protocol SDK 1.0.2; the wire protocol range and managed Grok CLI 1.0.41 remain unchanged.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.7",
+            "https://github.com/RichLogic/Gian-Proxies/blob/proxy-grok-v0.3.7/packages/proxies/grok-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "version": "0.3.6",
+      "firstPublishedAt": "2026-09-25T11:45:02Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-grok-v0.3.6",
+          "publishedAt": "2026-09-25T11:45:02Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.6",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.6/gian-proxy-grok-0.3.6-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "5d5c44bd06be7e905454e6e175354d42a520a307217b4c95577c2b06f42da422",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.6/gian-proxy-grok-0.3.6-darwin-arm64.tar.gz",
+            "sha256": "5ca12d259980b023aeabcaf9be8a762e2b8a34f4127bb9d985acf5693615e74b",
+            "size": 156867
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.41"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "fixed",
+          "text": "Publish the managed Grok Runtime beside the Proxy in the same trusted GitHub Release so released Gian clients can download and verify it through Catalog.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.6"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "version": "0.3.5",
+      "firstPublishedAt": "2026-09-25T11:27:45Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-grok-v0.3.5",
+          "publishedAt": "2026-09-25T11:27:45Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.5",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.5/gian-proxy-grok-0.3.5-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "91fcff2528bcdb4dcfa7d11144234c9047e5852ce15ed9436184d92485d6f946",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-grok-v0.3.5/gian-proxy-grok-0.3.5-darwin-arm64.tar.gz",
+            "sha256": "90eeeec3c00c3ddfa4760075b69e81cb95495253b608ce9d84a9346a1b153d11",
+            "size": 156867
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.41"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "added",
+          "text": "Real Grok 4.7 sessions support local files, tool approval, history replay and structured events.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-grok-v0.3.5"
+          ]
+        },
+        {
+          "category": "changed",
+          "text": "Narrow x.ai extensions to methods actually exposed by Grok CLI 1.0.41; unregistered Steer, Rename, Fork, Side Chat and native delete are not advertised in Catalog.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/commit/c458424b5030bb93dd7d127fa5d091ec127e6bbd"
+          ]
+        },
+        {
+          "category": "fixed",
+          "text": "Allow interaction responses to overtake an active Turn so tool approval cannot deadlock the request loop.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/commit/10d4d7c0b60632c5cd53c8da6661020052f5a177"
+          ]
+        }
+      ],
+      "unknowns": []
+    }
+  ],
+  "withdrawnVersions": []
+}

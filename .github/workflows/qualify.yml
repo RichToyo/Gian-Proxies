@@ -1,0 +1,44 @@
+name: Qualify Proxy Artifacts
+on:
+  workflow_dispatch:
+    inputs:
+      owner_no_tests:
+        description: Owner-selected direct Claude fixes build without any tests
+        required: false
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: proxy-qualification
+  cancel-in-progress: false
+jobs:
+  qualify:
+    if: github.repository == 'RichToyo/Gian-Proxies' && github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.0
+      - name: Scan publication source for public English
+        run: node scripts/check-public-english.mjs --ref "${{ github.sha }}"
+      - run: pnpm install --frozen-lockfile
+      - name: Qualify the independently buildable product
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIAN_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+          GIAN_PROXY_OWNER_NO_TESTS: ${{ inputs.owner_no_tests }}
+        run: pnpm qualify
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proxy-artifacts-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/release
+          if-no-files-found: error
+          retention-days: 14

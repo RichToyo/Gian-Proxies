@@ -1,0 +1,22 @@
+{
+  "name": "gian-proxies",
+  "private": true,
+  "type": "module",
+  "description": "Official Gian Proxy packages and signed Catalog",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "preinstall": "node scripts/check-node.cjs",
+    "build": "node scripts/release-product.mjs build",
+    "qualify": "node scripts/release-product.mjs qualify",
+    "publish": "node scripts/release-product.mjs publish",
+    "catalog:release": "node scripts/release-product.mjs catalog"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.7.2"
+  }
+}

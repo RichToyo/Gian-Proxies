@@ -1,0 +1,470 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { test } from 'node:test';
+
+import {
+  AgentSideConnection,
+  ClientSideConnection,
+  ndJsonStream,
+  type Agent,
+  type Client,
+  type InitializeRequest,
+  type InitializeResponse,
+  type ForkSessionRequest,
+  type ListSessionsRequest,
+  type LoadSessionRequest,
+  type NewSessionRequest,
+  type PromptRequest,
+  type RequestPermissionResponse,
+  type ResumeSessionRequest,
+  type SetSessionConfigOptionRequest,
+} from '@agentclientprotocol/sdk';
+
+import {
+  GROK_SPAWN_PREFIX,
+  GrokAcpClient,
+  grokChildProcessEnv,
+  type GrokAcpExit,
+  type GrokAcpTransportFactory,
+} from '../src/runtime/grok-acp-client.js';
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve(value: T): void;
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
+function inMemoryTransport(
+  agentFactory: (client: AgentSideConnection) => Agent,
+): GrokAcpTransportFactory {
+  return async (client) => {
+    const clientToAgent = new TransformStream<Uint8Array, Uint8Array>();
+    const agentToClient = new TransformStream<Uint8Array, Uint8Array>();
+    const agentStream = ndJsonStream(agentToClient.writable, clientToAgent.readable);
+    const clientStream = ndJsonStream(clientToAgent.writable, agentToClient.readable);
+    const exit = deferred<GrokAcpExit>();
+
+    new AgentSideConnection(agentFactory, agentStream);
+
+    return {
+      connection: new ClientSideConnection(() => client, clientStream),
+      exit: exit.promise,
+      async stop() {
+        exit.resolve({ code: 0, signal: null });
+      },
+    };
+  };
+}
+
+class RecordingAgent {
+  initializeRequest: InitializeRequest | null = null;
+  newRequest: NewSessionRequest | null = null;
+  loadRequest: LoadSessionRequest | null = null;
+  resumeRequest: ResumeSessionRequest | null = null;
+  forkRequest: ForkSessionRequest | null = null;
+  listRequest: ListSessionsRequest | null = null;
+  promptRequest: PromptRequest | null = null;
+  configRequest: SetSessionConfigOptionRequest | null = null;
+  cancelSessionId: string | null = null;
+  permissionResponse: RequestPermissionResponse | null = null;
+
+  constructor(
+    private readonly client: Pick<Client, 'requestPermission' | 'sessionUpdate'>,
+    private readonly capabilities: NonNullable<InitializeResponse['agentCapabilities']> = {
+      loadSession: true,
+      sessionCapabilities: {
+        list: {},
+        resume: {},
+      },
+    },
+  ) {}
+
+  async initialize(params: InitializeRequest): Promise<InitializeResponse> {
+    this.initializeRequest = params;
+    return {
+      protocolVersion: 1,
+      agentInfo: { name: 'fake-grok', version: '0.0.0-test' },
+      agentCapabilities: this.capabilities,
+      authMethods: [{ id: 'login', name: 'Login', type: 'terminal', args: ['login'] }],
+    };
+  }
+
+  async newSession(params: NewSessionRequest) {
+    this.newRequest = params;
+    return { sessionId: 'native-new' };
+  }
+
+  async loadSession(params: LoadSessionRequest) {
+    this.loadRequest = params;
+    return {};
+  }
+
+  async resumeSession(params: ResumeSessionRequest) {
+    this.resumeRequest = params;
+    return {};
+  }
+
+  async unstable_forkSession(params: ForkSessionRequest) {
+    this.forkRequest = params;
+    return { sessionId: 'native-fork' };
+  }
+
+  async listSessions(params: ListSessionsRequest) {
+    this.listRequest = params;
+    return {
+      sessions: [{
+        sessionId: 'native-new',
+        cwd: '/workspace/one',
+        title: 'Native session',
+        updatedAt: '2026-07-28T00:00:00.000Z',
+      }],
+    };
+  }
+
+  async prompt(params: PromptRequest) {
+    this.promptRequest = params;
+    await this.client.sessionUpdate({
+      sessionId: params.sessionId,
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: 'hello' },
+      },
+    });
+    this.permissionResponse = await this.client.requestPermission({
+      sessionId: params.sessionId,
+      toolCall: {
+        toolCallId: 'tool-1',
+        title: 'Run command',
+        kind: 'execute',
+      },
+      options: [
+        { optionId: 'opaque-allow', name: 'Allow', kind: 'allow_once' },
+        { optionId: 'opaque-reject', name: 'Reject', kind: 'reject_once' },
+      ],
+    });
+    return { stopReason: 'end_turn' as const };
+  }
+
+  async cancel(params: { sessionId: string }) {
+    this.cancelSessionId = params.sessionId;
+  }
+
+  async setSessionConfigOption(params: SetSessionConfigOptionRequest) {
+    this.configRequest = params;
+    return { configOptions: [] };
+  }
+
+  async unstable_setSessionModel(params: { sessionId: string; modelId: string }) {
+    this.configRequest = params as unknown as SetSessionConfigOptionRequest;
+    return {};
+  }
+}
+
+test('locks the Grok ACP argv prefix that disables MCP tools', () => {
+  assert.deepEqual([...GROK_SPAWN_PREFIX], [
+    '--deny',
+    'MCPTool(*)',
+    '--disallowed-tools',
+    'search_tool,use_tool',
+  ]);
+});
+
+test('requested sandbox overrides an inherited GROK_SANDBOX', () => {
+  const env = grokChildProcessEnv({
+    PATH: '/usr/bin',
+    GROK_SANDBOX: 'off',
+    GROK_HOME: '/inherited',
+    GIAN_AGENT_HOME: '/served',
+  }, 'read-only');
+  assert.equal(env.GROK_SANDBOX, 'read-only');
+  assert.equal(env.GROK_DISABLE_AUTOUPDATER, '1');
+  assert.equal(env.GROK_HOME, '/served');
+  assert.equal(env.PATH, '/usr/bin');
+});
+
+test('requires an absolute managed binary path', () => {
+  assert.throws(
+    () => new GrokAcpClient({ binaryPath: 'grok', cwd: '/tmp' }),
+    /binaryPath must be an absolute path/,
+  );
+});
+
+test('fails startup promptly when the managed binary does not exist', async () => {
+  const client = new GrokAcpClient({
+    binaryPath: '/definitely-not-installed/gian-grok-test',
+    cwd: '/tmp',
+    startupTimeoutMs: 5_000,
+  });
+
+  await assert.rejects(
+    client.ensureStarted(),
+    (error: unknown) => (
+      error instanceof Error
+      && 'code' in error
+      && error.code === 'ENOENT'
+    ),
+  );
+});
+
+test('force-stop reaps an inspection child without the EOF and SIGTERM grace periods', async (t) => {
+  const home = await mkdtemp(join(tmpdir(), 'grok-inspection-stop-'));
+  const client = new GrokAcpClient({
+    binaryPath: resolve('test/fixtures/fake-grok-cli.mjs'),
+    cwd: home,
+    env: {
+      HOME: home,
+      GIAN_AGENT_HOME: home,
+      GROK_TEST_IGNORE_SHUTDOWN: '1',
+    },
+  });
+  t.after(async () => {
+    await client.stop({ force: true });
+    await rm(home, { recursive: true, force: true });
+  });
+  const stopped = deferred<{ expected: boolean; signal: NodeJS.Signals | null }>();
+  client.on('runtimeStopped', event => { stopped.resolve(event); });
+  await client.ensureStarted();
+  const started = performance.now();
+  await client.stop({ force: true });
+  const elapsed = performance.now() - started;
+  assert.ok(elapsed < 2_000, `inspection stop waited ${elapsed}ms for graceful shutdown`);
+  assert.deepEqual(await stopped.promise, { code: null, signal: 'SIGKILL', expected: true });
+  assert.equal(client.negotiated, null);
+});
+
+test('ordinary process stop preserves the graceful EOF shutdown path', async (t) => {
+  const home = await mkdtemp(join(tmpdir(), 'grok-graceful-stop-'));
+  const client = new GrokAcpClient({
+    binaryPath: resolve('test/fixtures/fake-grok-cli.mjs'),
+    cwd: home,
+    env: {
+      HOME: home,
+      GIAN_AGENT_HOME: home,
+      GROK_TEST_IGNORE_SHUTDOWN: '0',
+    },
+  });
+  t.after(async () => {
+    await client.stop({ force: true });
+    await rm(home, { recursive: true, force: true });
+  });
+  const stopped = deferred<{ expected: boolean; signal: NodeJS.Signals | null }>();
+  client.on('runtimeStopped', event => { stopped.resolve(event); });
+  await client.ensureStarted();
+  await client.stop();
+  assert.deepEqual(await stopped.promise, { code: 0, signal: null, expected: true });
+});
+
+test('negotiates ACP v1 without filesystem or terminal reverse capabilities', async () => {
+  let agent!: RecordingAgent;
+  const client = new GrokAcpClient({
+    binaryPath: '/managed/grok',
+    cwd: '/workspace',
+    transportFactory: inMemoryTransport((remoteClient) => {
+      agent = new RecordingAgent(remoteClient);
+      return agent as unknown as Agent;
+    }),
+  });
+
+  const negotiated = await client.ensureStarted();
+
+  assert.equal(negotiated.protocolVersion, 1);
+  assert.deepEqual(agent.initializeRequest, {
+    protocolVersion: 1,
+    clientInfo: {
+      name: 'gian-grok-proxy',
+      version: '0.2.0',
+    },
+    clientCapabilities: {
+      auth: {
+        terminal: false,
+      },
+      fs: {
+        readTextFile: false,
+        writeTextFile: false,
+      },
+      terminal: false,
+    },
+    _meta: {
+      clientIdentifier: 'gian-grok-proxy',
+    },
+  });
+
+  await client.stop();
+});
+
+test('preserves cwd and mcpServers across new, load, resume, and fork', async () => {
+  let agent!: RecordingAgent;
+  const client = new GrokAcpClient({
+    binaryPath: '/managed/grok',
+    cwd: '/workspace',
+    transportFactory: inMemoryTransport((remoteClient) => {
+      agent = new RecordingAgent(remoteClient);
+      return agent as unknown as Agent;
+    }),
+  });
+
+  await client.newSession({ cwd: '/workspace/one', mcpServers: [] });
+  await client.loadSession({
+    sessionId: 'native-load',
+    cwd: '/workspace/two',
+    mcpServers: [],
+  });
+  await client.resumeSession({
+    sessionId: 'native-resume',
+    cwd: '/workspace/three',
+    mcpServers: [],
+  });
+  await client.forkSession({
+    sessionId: 'native-parent',
+    cwd: '/workspace/four',
+    mcpServers: [],
+  });
+
+  assert.deepEqual(agent.newRequest, {
+    cwd: '/workspace/one',
+    mcpServers: [],
+  });
+  assert.deepEqual(agent.loadRequest, {
+    sessionId: 'native-load',
+    cwd: '/workspace/two',
+    mcpServers: [],
+  });
+  assert.deepEqual(agent.resumeRequest, {
+    sessionId: 'native-resume',
+    cwd: '/workspace/three',
+    mcpServers: [],
+  });
+  assert.deepEqual(agent.forkRequest, {
+    sessionId: 'native-parent',
+    cwd: '/workspace/four',
+    mcpServers: [],
+  });
+
+  await client.stop();
+});
+
+test('routes session updates and returns the exact native permission option', async () => {
+  let agent!: RecordingAgent;
+  const updates: string[] = [];
+  const client = new GrokAcpClient({
+    binaryPath: '/managed/grok',
+    cwd: '/workspace',
+    permissionHandler: async (request) => {
+      assert.deepEqual(
+        request.options.map((option) => option.optionId),
+        ['opaque-allow', 'opaque-reject'],
+      );
+      return {
+        outcome: {
+          outcome: 'selected',
+          optionId: 'opaque-allow',
+        },
+      };
+    },
+    transportFactory: inMemoryTransport((remoteClient) => {
+      agent = new RecordingAgent(remoteClient);
+      return agent as unknown as Agent;
+    }),
+  });
+  client.on('sessionUpdate', (notification) => {
+    updates.push(notification.sessionId);
+  });
+
+  const response = await client.prompt({
+    sessionId: 'native-new',
+    prompt: [{ type: 'text', text: 'hello' }],
+  });
+
+  assert.equal(response.stopReason, 'end_turn');
+  assert.deepEqual(updates, ['native-new']);
+  assert.deepEqual(agent.permissionResponse, {
+    outcome: {
+      outcome: 'selected',
+      optionId: 'opaque-allow',
+    },
+  });
+
+  await client.stop();
+});
+
+test('defaults an unhandled permission request to cancelled', async () => {
+  let agent!: RecordingAgent;
+  const client = new GrokAcpClient({
+    binaryPath: '/managed/grok',
+    cwd: '/workspace',
+    transportFactory: inMemoryTransport((remoteClient) => {
+      agent = new RecordingAgent(remoteClient);
+      return agent as unknown as Agent;
+    }),
+  });
+
+  await client.prompt({
+    sessionId: 'native-new',
+    prompt: [{ type: 'text', text: 'hello' }],
+  });
+
+  assert.deepEqual(agent.permissionResponse, {
+    outcome: { outcome: 'cancelled' },
+  });
+
+  await client.stop();
+});
+
+test('capability-gates session close instead of sending an unsupported RPC', async () => {
+  const client = new GrokAcpClient({
+    binaryPath: '/managed/grok',
+    cwd: '/workspace',
+    transportFactory: inMemoryTransport(
+      (remoteClient) => new RecordingAgent(remoteClient) as unknown as Agent,
+    ),
+  });
+
+  await assert.rejects(
+    client.closeSession({ sessionId: 'native-new' }),
+    /does not advertise session\/close/,
+  );
+
+  await client.stop();
+});
+
+test('forwards list, config, cancel, and marks an explicit stop as expected', async () => {
+  let agent!: RecordingAgent;
+  const stopped = deferred<boolean>();
+  const client = new GrokAcpClient({
+    binaryPath: '/managed/grok',
+    cwd: '/workspace',
+    transportFactory: inMemoryTransport((remoteClient) => {
+      agent = new RecordingAgent(remoteClient);
+      return agent as unknown as Agent;
+    }),
+  });
+  client.on('runtimeStopped', (event) => {
+    stopped.resolve(event.expected);
+  });
+
+  const listed = await client.listSessions({ cwd: '/workspace/one' });
+  await client.setSessionModel({
+    sessionId: 'native-new',
+    modelId: 'grok-4.6',
+  });
+  await client.cancel('native-new');
+  await client.stop();
+
+  assert.equal(listed.sessions[0]?.sessionId, 'native-new');
+  assert.deepEqual(agent.listRequest, { cwd: '/workspace/one' });
+  assert.deepEqual(agent.configRequest, {
+    sessionId: 'native-new',
+    modelId: 'grok-4.6',
+  });
+  assert.equal(agent.cancelSessionId, 'native-new');
+  assert.equal(await stopped.promise, true);
+});

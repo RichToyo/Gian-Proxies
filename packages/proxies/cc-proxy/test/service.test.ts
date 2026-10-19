@@ -1,0 +1,1683 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { proxyNotificationSchema } from '@gian/proxy-protocol';
+
+import { CcProxyService, formatQuestionAnswers } from '../src/core/service.js';
+import { AppError } from '../src/core/errors.js';
+import { ClaudeMcpRuntime } from '../src/runtime/claude-mcp-runtime.js';
+import { ClaudeProtocolV2Adapter, type WireRequest } from '../src/protocol/v2-adapter.js';
+import type { ClaudeRuntime, ClaudeRuntimeEvents } from '../src/runtime/types.js';
+import {
+  parseClaudeAssistantUsage,
+  parseClaudeResultUsage,
+  parseEffortLevelsFromHelp,
+  isClaudeCompactBoundary,
+  shouldRetryWithoutNoSessionPersistence,
+  classifyClaudeStreamEvent,
+  unknownClaudeEventKey,
+} from '../src/runtime/claude-mcp-runtime.js';
+import type { ModelCapabilities } from '../src/core/types.js';
+import {
+  CLAUDE_STREAM_JSON_MALFORMED_MODEL_USAGE_V1,
+  CLAUDE_STREAM_JSON_MALFORMED_V1,
+  CLAUDE_STREAM_JSON_UNKNOWN,
+  CLAUDE_STREAM_JSON_V1,
+  CLAUDE_STREAM_JSON_V1_COMPACTION,
+} from './fixtures/claude-stream-json-v1.js';
+
+class FakeRuntime extends EventEmitter<ClaudeRuntimeEvents> implements ClaudeRuntime {
+  readonly spawnCalls: Array<{
+    sessionId: string;
+    claudeSessionId: string;
+    cwd: string;
+    model?: string | null;
+    isResume: boolean;
+  }> = [];
+  readonly messages: Array<{
+    sessionId: string;
+    content: string;
+    options?: {
+      permissionMode?: import('../src/core/types.js').PermissionMode | null;
+      effort?: import('../src/core/types.js').EffortLevel | null;
+      displayName?: string | null;
+      additionalDirectories?: string[];
+    };
+  }> = [];
+  readonly permissionResponses: Array<{
+    sessionId: string;
+    requestId: string;
+    behavior: 'allow' | 'deny';
+    extra?: { updatedInput?: Record<string, unknown>; message?: string };
+  }> = [];
+  readonly resetCalls: Array<{ sessionId: string; newClaudeSessionId: string }> = [];
+  models: ModelCapabilities[] = [];
+  private readonly aliveSessions = new Set<string>();
+  started = false;
+  stopped = false;
+
+  async start(): Promise<number> {
+    this.started = true;
+    return 43123;
+  }
+
+  async spawnSession(options: {
+    sessionId: string;
+    claudeSessionId: string;
+    cwd: string;
+    model?: string | null;
+    isResume: boolean;
+  }): Promise<void> {
+    this.spawnCalls.push(options);
+    this.aliveSessions.add(options.sessionId);
+  }
+
+  detectedModelId: string | null = null;
+
+  setSessionModel(_sessionId: string, _model: string | null): void {
+    this.detectedModelId = null;
+  }
+
+  async sendMessage(
+    sessionId: string,
+    content: string,
+    options?: {
+      permissionMode?: import('../src/core/types.js').PermissionMode | null;
+      effort?: import('../src/core/types.js').EffortLevel | null;
+      displayName?: string | null;
+      additionalDirectories?: string[];
+    },
+  ): Promise<void> {
+    const entry: {
+      sessionId: string;
+      content: string;
+      options?: {
+        permissionMode?: import('../src/core/types.js').PermissionMode | null;
+        effort?: import('../src/core/types.js').EffortLevel | null;
+        displayName?: string | null;
+        additionalDirectories?: string[];
+      };
+    } = { sessionId, content };
+    if (options !== undefined) entry.options = options;
+    this.messages.push(entry);
+  }
+
+  resetClaudeSessionId(sessionId: string, newClaudeSessionId: string): void {
+    this.resetCalls.push({ sessionId, newClaudeSessionId });
+  }
+
+  async respondPermission(
+    sessionId: string,
+    requestId: string,
+    behavior: 'allow' | 'deny',
+    extra?: { updatedInput?: Record<string, unknown>; message?: string },
+  ): Promise<void> {
+    // Only include `extra` on the recorded row when present so existing
+    // tests that deepEqual against `{sessionId, requestId, behavior}` keep
+    // matching unchanged.
+    const entry: {
+      sessionId: string;
+      requestId: string;
+      behavior: 'allow' | 'deny';
+      extra?: { updatedInput?: Record<string, unknown>; message?: string };
+    } = { sessionId, requestId, behavior };
+    if (extra !== undefined) entry.extra = extra;
+    this.permissionResponses.push(entry);
+  }
+
+  killSession(sessionId: string): void {
+    this.aliveSessions.delete(sessionId);
+  }
+
+  isSessionAlive(sessionId: string): boolean {
+    return this.aliveSessions.has(sessionId);
+  }
+
+  getDetectedModelId(_sessionId: string): string | null {
+    return this.detectedModelId;
+  }
+
+  async stop(): Promise<void> {
+    this.stopped = true;
+    this.aliveSessions.clear();
+  }
+
+  getModels() {
+    return this.models;
+  }
+
+  async awaitModelDiscovery() {
+    /* no-op */
+  }
+}
+
+test('parseEffortLevelsFromHelp reads Claude CLI choices without a Gian enum', () => {
+  const help = `
+Options:
+  --effort <level>                      Effort level for the current session
+                                        (low, medium, high, xhigh, max)
+  --model <model>                       Model for the current session.
+`;
+  assert.deepEqual(parseEffortLevelsFromHelp(help), ['low', 'medium', 'high', 'xhigh', 'max']);
+});
+
+test('shouldRetryWithoutNoSessionPersistence detects older Claude CLI rejection', () => {
+  assert.equal(
+    shouldRetryWithoutNoSessionPersistence("error: unknown option '--no-session-persistence'"),
+    true,
+  );
+  assert.equal(
+    shouldRetryWithoutNoSessionPersistence('authentication failed'),
+    false,
+  );
+});
+
+test('Claude stream result keeps OAuth API errors out of the success channel', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-proxy-auth-error-'));
+  const fakeClaude = join(dir, 'claude');
+  writeFileSync(fakeClaude, [
+    '#!/usr/bin/env node',
+    "console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: true, terminal_reason: 'api_error', result: 'Failed to authenticate: OAuth session expired' }));",
+  ].join('\n'));
+  chmodSync(fakeClaude, 0o755);
+
+  const oldClaudeBin = process.env.CLAUDE_BIN;
+  process.env.CLAUDE_BIN = fakeClaude;
+  const runtime = new ClaudeMcpRuntime();
+  const replies: string[] = [];
+  runtime.on('channelReply', (_sessionId, text) => replies.push(text));
+  const exited = new Promise<ClaudeRuntimeEvents['processExited']>((resolve) => {
+    runtime.once('processExited', (...args) => resolve(args));
+  });
+
+  try {
+    await runtime.spawnSession({
+      sessionId: 'session-auth-error',
+      claudeSessionId: '00000000-0000-4000-8000-000000000081',
+      cwd: dir,
+      model: null,
+      isResume: false,
+    });
+    await runtime.sendMessage('session-auth-error', 'hello', {
+      permissionMode: 'bypassPermissions',
+    });
+    const [, code, signal, detail] = await exited;
+    assert.deepEqual(replies, []);
+    assert.equal(code, 0);
+    assert.equal(signal, null);
+    assert.equal(detail, 'Failed to authenticate: OAuth session expired');
+  } finally {
+    await runtime.stop();
+    if (oldClaudeBin === undefined) delete process.env.CLAUDE_BIN;
+    else process.env.CLAUDE_BIN = oldClaudeBin;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Claude non-zero exits surface bounded stderr as the runtime error detail', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-proxy-stderr-error-'));
+  const fakeClaude = join(dir, 'claude');
+  writeFileSync(fakeClaude, [
+    '#!/usr/bin/env node',
+    "console.error('invalid runtime option from current Claude CLI');",
+    'process.exit(2);',
+  ].join('\n'));
+  chmodSync(fakeClaude, 0o755);
+
+  const oldClaudeBin = process.env.CLAUDE_BIN;
+  process.env.CLAUDE_BIN = fakeClaude;
+  const runtime = new ClaudeMcpRuntime();
+  const exited = new Promise<ClaudeRuntimeEvents['processExited']>((resolve) => {
+    runtime.once('processExited', (...args) => resolve(args));
+  });
+  try {
+    await runtime.spawnSession({
+      sessionId: 'session-stderr-error',
+      claudeSessionId: '00000000-0000-4000-8000-000000000082',
+      cwd: dir,
+      model: null,
+      isResume: false,
+    });
+    await runtime.sendMessage('session-stderr-error', 'hello', {
+      permissionMode: 'bypassPermissions',
+    });
+    const [, code, signal, detail] = await exited;
+    assert.equal(code, 2);
+    assert.equal(signal, null);
+    assert.equal(detail, 'invalid runtime option from current Claude CLI');
+  } finally {
+    await runtime.stop();
+    if (oldClaudeBin === undefined) delete process.env.CLAUDE_BIN;
+    else process.env.CLAUDE_BIN = oldClaudeBin;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('manual stop isolates late child exits from a replacement session turn', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-proxy-stale-exit-'));
+  const fakeClaude = join(dir, 'claude');
+  const counterPath = join(dir, 'spawn-count');
+  writeFileSync(fakeClaude, [
+    '#!/usr/bin/env node',
+    "const fs = require('node:fs');",
+    "const path = process.env.CLAUDE_STALE_EXIT_COUNTER;",
+    "const count = Number(fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '0') + 1;",
+    "fs.writeFileSync(path, String(count));",
+    "if (count < 3) {",
+    "  process.on('SIGTERM', () => setTimeout(() => process.exit(0), 100));",
+    "  setInterval(() => undefined, 1_000);",
+    "} else {",
+    "  setTimeout(() => console.log(JSON.stringify({ type: 'result', subtype: 'success', result: 'replacement completed' })), 50);",
+    "}",
+  ].join('\n'));
+  chmodSync(fakeClaude, 0o755);
+
+  const oldClaudeBin = process.env.CLAUDE_BIN;
+  const oldCounter = process.env.CLAUDE_STALE_EXIT_COUNTER;
+  process.env.CLAUDE_BIN = fakeClaude;
+  process.env.CLAUDE_STALE_EXIT_COUNTER = counterPath;
+  const runtime = new ClaudeMcpRuntime();
+  const exits: Array<ClaudeRuntimeEvents['processExited']> = [];
+  runtime.on('processExited', (...args) => exits.push(args));
+  const sessionId = 'session-stale-exit';
+  const waitForSpawnCount = async (expected: number) => {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const count = existsSync(counterPath) ? Number(readFileSync(counterPath, 'utf8')) : 0;
+      if (count >= expected) return;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    throw new Error(`fake Claude process ${expected} did not start`);
+  };
+
+  try {
+    const spawn = () => runtime.spawnSession({
+      sessionId,
+      claudeSessionId: '00000000-0000-4000-8000-000000000089',
+      cwd: dir,
+      model: null,
+      isResume: true,
+    });
+
+    await spawn();
+    await runtime.sendMessage(sessionId, 'first turn', { permissionMode: 'bypassPermissions' });
+    await waitForSpawnCount(1);
+    runtime.killSession(sessionId);
+
+    await spawn();
+    await runtime.sendMessage(sessionId, 'replacement turn', { permissionMode: 'bypassPermissions' });
+    await waitForSpawnCount(2);
+    await new Promise(resolve => setTimeout(resolve, 250));
+
+    assert.deepEqual(
+      exits,
+      [],
+      'the stopped child must not report processExited into the replacement registration',
+    );
+    assert.equal(runtime.isSessionAlive(sessionId), true);
+
+    runtime.killSession(sessionId);
+    await new Promise(resolve => setTimeout(resolve, 150));
+    assert.deepEqual(exits, [], 'a removed replacement registration also owns no later exit event');
+
+    await spawn();
+    const activeExit = new Promise<ClaudeRuntimeEvents['processExited']>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error('active Claude child did not emit processExited')),
+        1_000,
+      );
+      runtime.once('processExited', (...args) => {
+        clearTimeout(timer);
+        resolve(args);
+      });
+    });
+    await runtime.sendMessage(sessionId, 'ordinary completed turn', {
+      permissionMode: 'bypassPermissions',
+    });
+    await waitForSpawnCount(3);
+    const exit = await activeExit;
+    assert.equal(exit[0], sessionId);
+    assert.equal(exits.length, 1, 'the active registered child still emits one terminal signal');
+  } finally {
+    await runtime.stop();
+    if (oldClaudeBin === undefined) delete process.env.CLAUDE_BIN;
+    else process.env.CLAUDE_BIN = oldClaudeBin;
+    if (oldCounter === undefined) delete process.env.CLAUDE_STALE_EXIT_COUNTER;
+    else process.env.CLAUDE_STALE_EXIT_COUNTER = oldCounter;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Claude compact boundary detection covers native auto-compaction signals', () => {
+  assert.equal(isClaudeCompactBoundary(CLAUDE_STREAM_JSON_V1_COMPACTION.boundary), true);
+  assert.equal(
+    isClaudeCompactBoundary(CLAUDE_STREAM_JSON_V1_COMPACTION.futureBoundary),
+    false,
+    'an unknown discriminator must not invalidate the current context',
+  );
+});
+
+test('Claude auto-compaction clears the pre-boundary context before result parsing', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-proxy-compact-boundary-'));
+  const fakeClaude = join(dir, 'claude');
+  const frames = [
+    CLAUDE_STREAM_JSON_V1_COMPACTION.preBoundary,
+    CLAUDE_STREAM_JSON_V1_COMPACTION.boundary,
+    CLAUDE_STREAM_JSON_V1_COMPACTION.postBoundary,
+  ];
+  writeFileSync(fakeClaude, [
+    '#!/usr/bin/env node',
+    ...frames.map(frame => `console.log(${JSON.stringify(JSON.stringify(frame))});`),
+  ].join('\n'));
+  chmodSync(fakeClaude, 0o755);
+
+  const oldClaudeBin = process.env.CLAUDE_BIN;
+  process.env.CLAUDE_BIN = fakeClaude;
+  const runtime = new ClaudeMcpRuntime();
+  const usageEvents: Array<Record<string, unknown>> = [];
+  runtime.on('tokenUsage', (_sessionId, usage) => {
+    usageEvents.push(usage as unknown as Record<string, unknown>);
+  });
+  const exited = new Promise<void>((resolve) => {
+    runtime.once('processExited', () => resolve());
+  });
+
+  try {
+    await runtime.spawnSession({
+      sessionId: 'session-auto-compact',
+      claudeSessionId: '00000000-0000-4000-8000-000000000001',
+      cwd: dir,
+      model: null,
+      isResume: false,
+    });
+    await runtime.sendMessage('session-auto-compact', 'continue', {
+      permissionMode: 'bypassPermissions',
+    });
+    await exited;
+
+    assert.deepEqual(usageEvents[0], {
+      context: { used: 180_000 },
+    });
+    assert.deepEqual(usageEvents[1], {
+      context: null,
+      reason: 'compact_started',
+    });
+    assert.deepEqual(usageEvents[2], {
+      conversation: {
+        mode: 'delta',
+        inputTokens: 1_100,
+        outputTokens: 25,
+        cachedInputTokens: 1_000,
+        totalTokens: 1_125,
+      },
+    });
+  } finally {
+    await runtime.stop();
+    if (oldClaudeBin === undefined) delete process.env.CLAUDE_BIN;
+    else process.env.CLAUDE_BIN = oldClaudeBin;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Claude -p native task lifecycle keeps Agent tool id and terminal summary', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-proxy-agent-task-'));
+  const fakeClaude = join(dir, 'claude');
+  writeFileSync(fakeClaude, [
+    '#!/usr/bin/env node',
+    "console.log(JSON.stringify({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'tool_use', id: 'tool-agent-1', name: 'Agent', input: { description: 'Inspect tests', prompt: 'Read tests' } }] } }));",
+    "console.log(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'task-1', tool_use_id: 'tool-agent-1', description: 'Inspect tests', subagent_type: 'general-purpose' }));",
+    "console.log(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'task-1', tool_use_id: 'tool-agent-1', status: 'completed', summary: 'Tests are clean.', output_file: '/tmp/task-1.output' }));",
+    "console.log(JSON.stringify({ type: 'result', subtype: 'success', result: '' }));",
+  ].join('\n'));
+  chmodSync(fakeClaude, 0o755);
+
+  const oldClaudeBin = process.env.CLAUDE_BIN;
+  process.env.CLAUDE_BIN = fakeClaude;
+  const runtime = new ClaudeMcpRuntime();
+  const toolUses: Array<{ name: string; callId: string }> = [];
+  const agentUpdates: Array<Record<string, unknown>> = [];
+  runtime.on('toolUse', (_sessionId, name, _input, callId) => {
+    toolUses.push({ name, callId });
+  });
+  runtime.on('agentTask', (_sessionId, update) => {
+    agentUpdates.push(update as unknown as Record<string, unknown>);
+  });
+  const exited = new Promise<void>(resolve => runtime.once('processExited', () => resolve()));
+
+  try {
+    await runtime.spawnSession({
+      sessionId: 'session-agent',
+      claudeSessionId: '00000000-0000-4000-8000-000000000002',
+      cwd: dir,
+      model: null,
+      isResume: false,
+    });
+    await runtime.sendMessage('session-agent', 'delegate', {
+      permissionMode: 'bypassPermissions',
+    });
+    await exited;
+
+    assert.deepEqual(toolUses, [{ name: 'Agent', callId: 'tool-agent-1' }]);
+    assert.equal(agentUpdates.length, 2);
+    assert.deepEqual(agentUpdates[0], {
+      taskId: 'task-1',
+      toolUseId: 'tool-agent-1',
+      status: 'running',
+      description: 'Inspect tests',
+      agentType: 'general-purpose',
+      startedAt: agentUpdates[0]!.startedAt,
+    });
+    assert.deepEqual(agentUpdates[1], {
+      taskId: 'task-1',
+      toolUseId: 'tool-agent-1',
+      status: 'done',
+      description: 'Inspect tests',
+      agentType: 'general-purpose',
+      summary: 'Tests are clean.',
+      outputFile: '/tmp/task-1.output',
+      completedAt: agentUpdates[1]!.completedAt,
+    });
+  } finally {
+    await runtime.stop();
+    if (oldClaudeBin === undefined) delete process.env.CLAUDE_BIN;
+    else process.env.CLAUDE_BIN = oldClaudeBin;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Claude 2.1.237 thinking_tokens and progress pulses are ignored, not unknown', () => {
+  assert.equal(classifyClaudeStreamEvent({
+    type: 'system',
+    subtype: 'thinking_tokens',
+    estimated_tokens: 5670,
+    estimated_tokens_delta: 1,
+  }), 'ignored');
+  assert.equal(classifyClaudeStreamEvent({ type: 'system', subtype: 'task_progress' }), 'ignored');
+  assert.equal(classifyClaudeStreamEvent({ type: 'system', subtype: 'task_updated' }), 'ignored');
+  assert.equal(classifyClaudeStreamEvent({ type: 'system', subtype: 'background_tasks_changed' }), 'ignored');
+  assert.equal(classifyClaudeStreamEvent({ type: 'system', subtype: 'vcs_state_changed' }), 'ignored');
+  assert.equal(classifyClaudeStreamEvent({ type: 'tool_progress' }), 'ignored');
+  assert.equal(classifyClaudeStreamEvent({ type: 'system', subtype: 'init' }), 'handled');
+  assert.equal(classifyClaudeStreamEvent({ type: 'system', subtype: 'task_started' }), 'handled');
+  assert.equal(classifyClaudeStreamEvent({ type: 'assistant' }), 'handled');
+  assert.equal(classifyClaudeStreamEvent({ type: 'system', subtype: 'notification' }), 'unknown');
+  assert.equal(classifyClaudeStreamEvent({ type: 'web_search' }), 'unknown');
+  assert.equal(unknownClaudeEventKey({ type: 'system', subtype: 'notification' }), 'system:notification');
+  assert.equal(unknownClaudeEventKey({ type: 'web_search' }), 'web_search');
+});
+
+test('Claude thinking_tokens flood does not emit unknown activities; unknown types cap at one per turn', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-proxy-thinking-tokens-'));
+  const fakeClaude = join(dir, 'claude');
+  const frames = [
+    ...Array.from({ length: 40 }, (_, i) => ({
+      type: 'system',
+      subtype: 'thinking_tokens',
+      estimated_tokens: 100 + i,
+      estimated_tokens_delta: 1,
+    })),
+    ...Array.from({ length: 8 }, () => ({ type: 'tool_progress', tool_use_id: 'tool-1' })),
+    ...Array.from({ length: 5 }, (_, i) => ({
+      type: 'system',
+      subtype: 'notification',
+      message: `notice-${i}`,
+    })),
+    { type: 'future_event', payload: { ok: true } },
+    { type: 'future_event', payload: { ok: false } },
+    { type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'done' }] } },
+    { type: 'result', subtype: 'success', result: 'done' },
+  ];
+  writeFileSync(fakeClaude, [
+    '#!/usr/bin/env node',
+    ...frames.map(frame => `console.log(${JSON.stringify(JSON.stringify(frame))});`),
+  ].join('\n'));
+  chmodSync(fakeClaude, 0o755);
+
+  const oldClaudeBin = process.env.CLAUDE_BIN;
+  process.env.CLAUDE_BIN = fakeClaude;
+  const runtime = new ClaudeMcpRuntime();
+  const unknown: Array<Record<string, unknown>> = [];
+  runtime.on('unknownClaudeEvent', (_sessionId, event) => {
+    unknown.push(event);
+  });
+  const exited = new Promise<void>(resolve => runtime.once('processExited', () => resolve()));
+
+  try {
+    await runtime.spawnSession({
+      sessionId: 'session-thinking-tokens',
+      claudeSessionId: '00000000-0000-4000-8000-000000000003',
+      cwd: dir,
+      model: null,
+      isResume: false,
+    });
+    await runtime.sendMessage('session-thinking-tokens', 'think', {
+      permissionMode: 'bypassPermissions',
+    });
+    await exited;
+
+    assert.equal(
+      unknown.filter(event => event.subtype === 'thinking_tokens').length,
+      0,
+    );
+    assert.equal(unknown.filter(event => event.type === 'tool_progress').length, 0);
+    assert.deepEqual(unknown.map(event => (
+      typeof event.subtype === 'string' ? `${String(event.type)}:${event.subtype}` : String(event.type)
+    )), [
+      'system:notification',
+      'future_event',
+    ]);
+  } finally {
+    await runtime.stop();
+    if (oldClaudeBin === undefined) delete process.env.CLAUDE_BIN;
+    else process.env.CLAUDE_BIN = oldClaudeBin;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Claude stream usage keeps current context separate from result aggregates', () => {
+  const assistant = parseClaudeAssistantUsage(CLAUDE_STREAM_JSON_V1.assistant);
+  assert.deepEqual(assistant, {
+    context: { used: 63_000 },
+    model: 'claude-opus-4-8[1m]',
+  });
+
+  const result = parseClaudeResultUsage(
+    CLAUDE_STREAM_JSON_V1.result,
+    assistant!.context,
+    assistant!.model,
+  );
+  assert.deepEqual(result, {
+    context: { used: 63_000, window: 1_000_000 },
+    conversation: {
+      mode: 'delta',
+      inputTokens: 91_200,
+      outputTokens: 2_000,
+      cachedInputTokens: 91_000,
+      totalTokens: 93_200,
+    },
+  });
+});
+
+test('unknown Claude usage fixtures stay unknown instead of emitting zero usage', () => {
+  assert.equal(parseClaudeAssistantUsage(CLAUDE_STREAM_JSON_UNKNOWN.assistant), null);
+  assert.equal(
+    parseClaudeResultUsage(CLAUDE_STREAM_JSON_UNKNOWN.result, null, null),
+    null,
+  );
+  assert.equal(parseClaudeAssistantUsage(CLAUDE_STREAM_JSON_MALFORMED_V1.assistant), null);
+  assert.equal(
+    parseClaudeResultUsage(CLAUDE_STREAM_JSON_MALFORMED_V1.result, null, null),
+    null,
+  );
+  assert.equal(parseClaudeAssistantUsage({
+    type: 'assistant',
+    message: { usage: { input_tokens: '120' } },
+  }), null, 'numeric strings are not a documented stream-json shape');
+  assert.equal(parseClaudeAssistantUsage({
+    type: 'assistant',
+    message: { usage: { input_tokens: 0.5 } },
+  }), null, 'fractional counters are not a documented stream-json shape');
+  assert.equal(parseClaudeResultUsage(
+    CLAUDE_STREAM_JSON_MALFORMED_MODEL_USAGE_V1.mixedCompleteAndPartial,
+    null,
+    null,
+  ), null, 'a partial model must invalidate the whole multi-model snapshot');
+  assert.equal(parseClaudeResultUsage(
+    CLAUDE_STREAM_JSON_MALFORMED_MODEL_USAGE_V1.partialWithValidTopLevelFallback,
+    null,
+    null,
+  ), null, 'present but malformed modelUsage must not fall back to top-level usage');
+});
+
+test('Claude result usage prefers whole-tree modelUsage over the top-level fallback', () => {
+  const result = parseClaudeResultUsage({
+    type: 'result',
+    usage: {
+      input_tokens: 5,
+      output_tokens: 6,
+      cache_read_input_tokens: 7,
+      cache_creation_input_tokens: 8,
+    },
+    modelUsage: {
+      'claude-opus-4-8': {
+        inputTokens: 100,
+        outputTokens: 20,
+        cacheReadInputTokens: 1_000,
+        cacheCreationInputTokens: 50,
+        contextWindow: 1_000_000,
+      },
+      'claude-haiku-4-5': {
+        inputTokens: 30,
+        outputTokens: 10,
+        cacheReadInputTokens: 200,
+        cacheCreationInputTokens: 5,
+        contextWindow: 200_000,
+      },
+    },
+  }, { used: 63_000 }, 'claude-opus-4-8');
+
+  assert.deepEqual(result, {
+    context: { used: 63_000, window: 1_000_000 },
+    conversation: {
+      mode: 'delta',
+      inputTokens: 1_385,
+      outputTokens: 30,
+      cachedInputTokens: 1_255,
+      totalTokens: 1_415,
+    },
+  });
+});
+
+test('capabilities discovery never submits a prompt or user frame without opting in', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-proxy-billing-safe-'));
+  const fakeClaude = join(dir, 'claude');
+  const marker = join(dir, 'paid-turn-requested');
+  writeFileSync(fakeClaude, [
+    `#!${process.execPath}`,
+    "const { writeFileSync } = require('node:fs');",
+    "const { createInterface } = require('node:readline');",
+    'if (process.argv.includes("--help")) {',
+    '  console.log("--effort <level> (low, medium, max)");',
+    '  process.exit(0);',
+    '}',
+    `const unsafe = () => { writeFileSync(${JSON.stringify(marker)}, 'hit'); process.exit(42); };`,
+    'if (process.argv.includes("-p")) unsafe();',
+    'const input = createInterface({ input: process.stdin });',
+    'input.on("line", (line) => {',
+    '  const request = JSON.parse(line);',
+    '  if (request.type !== "control_request" || request.request.subtype !== "initialize") unsafe();',
+    '  console.log(JSON.stringify({ type: "control_response", response: {',
+    '    subtype: "error", request_id: request.request_id, error: "initialize unsupported in this fixture"',
+    '  }}));',
+    '});',
+    'input.on("close", () => process.exit(0));',
+    '',
+  ].join('\n'));
+  chmodSync(fakeClaude, 0o755);
+
+  const oldClaudeBin = process.env.CLAUDE_BIN;
+  const oldAllowProbe = process.env.GIAN_ALLOW_CLAUDE_PRINT_PROBE;
+  const oldHome = process.env.HOME;
+  const oldConfigDir = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_BIN = fakeClaude;
+  delete process.env.GIAN_ALLOW_CLAUDE_PRINT_PROBE;
+  // Hermetic settings discovery: no CLAUDE_CONFIG_DIR and a tmp HOME with no
+  // ~/.claude/settings.json. The native fixture reports an unsupported
+  // metadata handshake, so discovery must land on the static alias menu.
+  delete process.env.CLAUDE_CONFIG_DIR;
+  process.env.HOME = dir;
+
+  const service = new CcProxyService({ runtime: new ClaudeMcpRuntime() });
+  try {
+    await service.initialize();
+    const caps = await service.listCapabilities();
+    assert.equal(existsSync(marker), false, 'capabilities.list must not submit an inference prompt or user frame');
+    // Static alias menu: Default (no --model) + opus/sonnet/haiku aliases.
+    assert.equal(caps.models.length, 4);
+    assert.equal(caps.models[0]!.id, 'claude-default');
+    assert.equal(caps.models[0]!.model, '');
+    assert.equal(caps.models[0]!.isDefault, true);
+    assert.deepEqual(caps.models.map(m => m.model), ['', 'opus', 'sonnet', 'haiku']);
+    assert.deepEqual(caps.modes.map(mode => mode.id), ['plan', 'ask', 'auto']);
+    // Every entry carries the same billing-safe effort list parsed from --help.
+    for (const m of caps.models) {
+      assert.deepEqual(m.supportedEfforts, ['low', 'medium', 'max']);
+    }
+  } finally {
+    await service.close();
+    if (oldClaudeBin === undefined) delete process.env.CLAUDE_BIN;
+    else process.env.CLAUDE_BIN = oldClaudeBin;
+    if (oldAllowProbe === undefined) delete process.env.GIAN_ALLOW_CLAUDE_PRINT_PROBE;
+    else process.env.GIAN_ALLOW_CLAUDE_PRINT_PROBE = oldAllowProbe;
+    if (oldHome === undefined) delete process.env.HOME;
+    else process.env.HOME = oldHome;
+    if (oldConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = oldConfigDir;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+async function withService(
+  run: (ctx: {
+    runtime: FakeRuntime;
+    service: CcProxyService;
+    events: Array<{ method: string; params: Record<string, unknown> }>;
+  }) => Promise<void>,
+) {
+  const runtime = new FakeRuntime();
+  const events: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const service = new CcProxyService({
+    runtime,
+    emitEvent(method, params) {
+      events.push({ method, params });
+    },
+  });
+
+  try {
+    await service.initialize();
+    await run({ runtime, service, events });
+  } finally {
+    await service.close();
+  }
+}
+
+test('service rejects unsupported input types', async () => {
+  await withService(async ({ service }) => {
+    const created = await service.createSession({
+      cwd: '/tmp',
+    });
+
+    await assert.rejects(
+      service.startTurn({
+        sessionId: created.session.id,
+        input: [{ type: 'unknown', data: 'invalid' } as unknown as import('../src/core/types.js').InputItem],
+      }),
+      (error: unknown) => error instanceof AppError
+        && error.code === 'INVALID_REQUEST'
+        && error.message.includes('Unsupported input item type'),
+    );
+  });
+});
+
+test('service starts turns with the requested model and emits completion events', async () => {
+  await withService(async ({ runtime, service, events }) => {
+    const created = await service.createSession({
+      cwd: '/tmp',
+    });
+
+    // Stateless proxy: session response carries id + claudeSessionId, no
+    // sessionKey field exists anywhere in the public surface.
+    assert.ok(typeof created.session.id === 'string');
+    assert.ok(typeof created.session.claudeSessionId === 'string');
+    assert.equal((created.session as Record<string, unknown>).sessionKey, undefined);
+
+    const started = await service.startTurn({
+      sessionId: created.session.id,
+      model: 'claude-sonnet-4',
+      input: [
+        { type: 'text', text: 'alpha' },
+        { type: 'text', text: 'beta' },
+      ],
+    }, 'req-1');
+
+    assert.equal(started.turn.status, 'running');
+    assert.equal(runtime.spawnCalls.length, 1);
+    assert.equal(runtime.spawnCalls[0]!.model, 'claude-sonnet-4');
+    // Host did not pass claudeSessionId at create — first spawn must be fresh
+    // (not --resume) so the JSONL is created from scratch.
+    assert.equal(runtime.spawnCalls[0]!.isResume, false);
+    assert.equal(runtime.messages.length, 1);
+    assert.equal(runtime.messages[0]!.content, 'alpha\n\nbeta');
+
+    runtime.emit('channelReply', created.session.id, 'done');
+
+    const snapshot = service.sessionSnapshot({ sessionId: created.session.id });
+    assert.equal(snapshot.session.status, 'idle');
+    assert.equal(snapshot.session.model, 'claude-sonnet-4');
+    assert.equal((snapshot.session as Record<string, unknown>).sessionKey, undefined);
+
+    assert.deepEqual(events.map((event) => event.method), [
+      'turn.started',
+      'output.text',
+      'turn.completed',
+    ]);
+    // No event payload should carry a sessionKey field anymore.
+    for (const ev of events) {
+      assert.equal((ev.params as Record<string, unknown>).sessionKey, undefined);
+    }
+    assert.equal((events[1]!.params.data as { text: string }).text, 'done');
+    assert.equal((events[2]!.params.data as { status: string }).status, 'completed');
+  });
+});
+
+test('service grants Claude read access to session attachment directories', async () => {
+  await withService(async ({ runtime, service }) => {
+    const created = await service.createSession({ cwd: '/workdir' });
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [
+        { type: 'text', text: 'read these' },
+        { type: 'localFile', path: '/tmp/gian/attachments/a/notes.txt' },
+        { type: 'localImage', path: '/tmp/gian/attachments/images/shot.png' },
+      ],
+    });
+
+    assert.deepEqual(
+      runtime.messages[0]!.options?.additionalDirectories,
+      ['/tmp/gian/attachments/a'],
+    );
+  });
+});
+
+test('service forwards native Agent lifecycle without changing provider metadata', async () => {
+  await withService(async ({ runtime, service, events }) => {
+    const created = await service.createSession({ cwd: '/tmp' });
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'delegate' }],
+    }, 'req-agent');
+
+    runtime.emit('toolUse', created.session.id, 'Agent', {
+      description: 'Inspect tests',
+    }, 'tool-agent-1');
+    runtime.emit('agentTask', created.session.id, {
+      taskId: 'task-1',
+      toolUseId: 'tool-agent-1',
+      description: 'Inspect tests',
+      agentType: 'general-purpose',
+      status: 'running',
+      startedAt: 100,
+    });
+    runtime.emit('agentTask', created.session.id, {
+      taskId: 'task-1',
+      toolUseId: 'tool-agent-1',
+      status: 'done',
+      summary: 'Tests are clean.',
+      completedAt: 200,
+    });
+
+    const tool = events.find(event => event.method === 'tool.use');
+    assert.deepEqual(tool?.params.data, {
+      callId: 'tool-agent-1',
+      toolName: 'Agent',
+      input: { description: 'Inspect tests' },
+    });
+    const updates = events.filter(event => event.method === 'claude.task');
+    assert.equal(updates.length, 2);
+    assert.equal((updates[0]!.params.data as { agentType?: unknown }).agentType, 'general-purpose');
+    assert.equal((updates[1]!.params.data as { summary?: unknown }).summary, 'Tests are clean.');
+  });
+});
+
+test('service does not guess a Claude context window without an explicit capacity', async () => {
+  await withService(async ({ runtime, service, events }) => {
+    const ordinary = await service.createSession({
+      cwd: '/tmp',
+      model: 'claude-opus-4-8',
+    });
+    runtime.emit('tokenUsage', ordinary.session.id, {
+      context: { used: 63_000 },
+    });
+    assert.deepEqual(events.at(-1)?.params.data, {
+      context: { used: 63_000 },
+    });
+
+    const extended = await service.createSession({
+      cwd: '/tmp',
+      model: 'claude-opus-4-8[1m]',
+    });
+    runtime.emit('tokenUsage', extended.session.id, {
+      context: { used: 63_000 },
+    });
+    assert.deepEqual(events.at(-1)?.params.data, {
+      context: { used: 63_000, window: 1_000_000 },
+    });
+  });
+});
+
+test('Claude /compact invalidates context and rejects compact-turn context samples', async () => {
+  await withService(async ({ runtime, service, events }) => {
+    const created = await service.createSession({ cwd: '/tmp' });
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: '/compact' }],
+    }, 'req-compact');
+
+    assert.deepEqual(events.map(event => event.method), [
+      'token_usage.updated',
+      'turn.started',
+    ]);
+    assert.deepEqual(events[0]!.params.data, {
+      context: null,
+      reason: 'compact_started',
+    });
+    assert.equal(events[0]!.params.turnId, events[1]!.params.turnId);
+
+    runtime.emit('tokenUsage', created.session.id, {
+      context: { used: 190_000, window: 200_000 },
+    });
+    assert.equal(
+      events.filter(event => event.method === 'token_usage.updated').length,
+      1,
+      'the compaction request must not refill context with its own input size',
+    );
+
+    runtime.emit('tokenUsage', created.session.id, {
+      context: { used: 190_000, window: 200_000 },
+      conversation: { mode: 'delta', totalTokens: 1_200 },
+    });
+    assert.deepEqual(events.at(-1)?.params.data, {
+      conversation: { mode: 'delta', totalTokens: 1_200 },
+    });
+
+    runtime.emit('channelReply', created.session.id, '');
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'next turn' }],
+    });
+    runtime.emit('tokenUsage', created.session.id, {
+      context: { used: 32_000, window: 200_000 },
+    });
+    assert.deepEqual(events.at(-1)?.params.data, {
+      context: { used: 32_000, window: 200_000 },
+    });
+  });
+});
+
+test('service forwards only effort levels discovered from Claude capabilities', async () => {
+  await withService(async ({ runtime, service }) => {
+    runtime.models = [{
+      id: 'claude-current',
+      model: 'claude-current',
+      displayName: 'claude-current',
+      description: '',
+      hidden: false,
+      isDefault: true,
+      defaultEffort: null,
+      supportedEfforts: ['low', 'dynamic'],
+    }];
+    const created = await service.createSession({
+      cwd: '/tmp',
+      model: 'claude-current',
+    });
+
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'supported effort' }],
+      thinking: 'dynamic',
+    });
+    assert.equal(runtime.messages[0]!.options?.effort, 'dynamic');
+
+    runtime.emit('channelReply', created.session.id, 'done');
+
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'unsupported effort' }],
+      thinking: 'off',
+    });
+    assert.equal(runtime.messages[1]!.options?.effort, null);
+  });
+});
+
+test('Default effort follows the detected model, otherwise any discovered level', async () => {
+  await withService(async ({ runtime, service }) => {
+    const model = (
+      id: string,
+      runtimeModel: string,
+      efforts: string[],
+      isDefault = false,
+    ): ModelCapabilities => ({
+      id,
+      model: runtimeModel,
+      displayName: id,
+      description: '',
+      hidden: false,
+      isDefault,
+      defaultEffort: null,
+      supportedEfforts: efforts,
+    });
+    runtime.models = [
+      model('claude-default', '', ['low', 'high'], true),
+      model('claude-alias-haiku', 'haiku', ['low', 'high']),
+      model('claude-alias-opus', 'opus', ['low', 'high', 'max']),
+    ];
+    const created = await service.createSession({ cwd: '/tmp' });
+
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'default high' }],
+      thinking: 'high',
+    });
+    assert.equal(runtime.messages[0]!.options?.effort, 'high');
+    runtime.emit('channelReply', created.session.id, 'done');
+
+    runtime.detectedModelId = 'haiku';
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'detected haiku drops max' }],
+      thinking: 'max',
+    });
+    assert.equal(runtime.messages[1]!.options?.effort, null);
+    runtime.emit('channelReply', created.session.id, 'done');
+
+    runtime.detectedModelId = 'opus';
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'detected opus keeps max' }],
+      thinking: 'max',
+    });
+    assert.equal(runtime.messages[2]!.options?.effort, 'max');
+  });
+});
+
+test('service uses --resume when host supplies a claudeSessionId at create time', async () => {
+  await withService(async ({ runtime, service }) => {
+    const adoptedNativeId = '11111111-2222-3333-4444-555555555555';
+    const created = await service.createSession({
+      cwd: '/tmp',
+      claudeSessionId: adoptedNativeId,
+    });
+    assert.equal(created.session.claudeSessionId, adoptedNativeId);
+
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'continue from disk' }],
+    }, 'req-resume');
+
+    assert.equal(runtime.spawnCalls.length, 1);
+    assert.equal(runtime.spawnCalls[0]!.isResume, true);
+    assert.equal(runtime.spawnCalls[0]!.claudeSessionId, adoptedNativeId);
+  });
+});
+
+test('service relays approval requests and process failures', async () => {
+  await withService(async ({ runtime, service, events }) => {
+    const created = await service.createSession({
+      cwd: '/tmp',
+    });
+
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'needs approval' }],
+    }, 'req-2');
+
+    runtime.emit('permissionRequest', created.session.id, 'perm-1', 'exec', 'run command', 'ls -la');
+
+    const approvalEvent = events.find((event) => event.method === 'approval.requested');
+    assert.ok(approvalEvent);
+    const approvalId = (approvalEvent!.params.data as { approvalId: string }).approvalId;
+    // approval payload itself no longer carries sessionKey
+    assert.equal((approvalEvent!.params.data as Record<string, unknown>).sessionKey, undefined);
+
+    const pendingSnapshot = service.sessionSnapshot({ sessionId: created.session.id });
+    assert.equal(pendingSnapshot.session.status, 'needs-approval');
+
+    const approved = await service.respondApproval({
+      sessionId: created.session.id,
+      approvalId,
+      behavior: 'allow',
+    });
+    assert.equal(approved.session.status, 'running');
+    assert.deepEqual(runtime.permissionResponses, [
+      {
+        sessionId: created.session.id,
+        requestId: 'perm-1',
+        behavior: 'allow',
+      },
+    ]);
+
+    runtime.emit('processExited', created.session.id, 9, null, 'Claude authentication expired');
+
+    const failedSnapshot = service.sessionSnapshot({ sessionId: created.session.id });
+    assert.equal(failedSnapshot.session.status, 'error');
+    assert.equal(failedSnapshot.session.lastError, 'Claude authentication expired');
+    assert.ok(events.some((event) => event.method === 'approval.resolved'));
+    const failed = events.find((event) => event.method === 'turn.failed');
+    const failure = (failed?.params.data as {
+      error?: { message?: string; retryable?: boolean; details?: { exitCode?: number; streamedLength?: number } };
+    } | undefined)?.error;
+    assert.equal(failure?.message, 'Claude authentication expired');
+    assert.equal(failure?.retryable, false);
+    assert.equal(failure?.details?.exitCode, 9);
+    assert.equal(failure?.details?.streamedLength, 0);
+  });
+});
+
+test('ExitPlanMode permission request is tagged category=exit_plan_mode and resolves through MCP', async () => {
+  await withService(async ({ runtime, service, events }) => {
+    const created = await service.createSession({ cwd: '/tmp' });
+
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'plan something' }],
+    }, 'req-plan');
+
+    // Claude's SDK fires canUseTool for ExitPlanMode → cc-proxy's permission
+    // MCP bridge emits permissionRequest. The approval must carry the
+    // category tag so the host renders the plan card.
+    const planJson = JSON.stringify({ plan: 'Step 1: do X\nStep 2: do Y' });
+    runtime.emit(
+      'permissionRequest',
+      created.session.id,
+      'callid-exit-plan',
+      'ExitPlanMode',
+      'Tool ExitPlanMode requires permission.',
+      planJson,
+    );
+
+    const approvalEvent = events.find((event) => event.method === 'approval.requested');
+    assert.ok(approvalEvent, 'approval.requested should have been emitted');
+    const data = approvalEvent!.params.data as Record<string, unknown>;
+    assert.equal(data.category, 'exit_plan_mode');
+    assert.equal(data.toolName, 'ExitPlanMode');
+    assert.equal(data.inputPreview, planJson);
+    const approvalId = data.approvalId as string;
+
+    // Accept the plan — must forward to runtime so Claude's blocked MCP
+    // CallTool gets a response (the bug we just fixed: skipping this hung
+    // the agent until SESSION_BUSY surfaced on the next message).
+    const approved = await service.respondApproval({
+      sessionId: created.session.id,
+      approvalId,
+      behavior: 'allow',
+    });
+    assert.equal(approved.ok, true);
+
+    assert.deepEqual(runtime.permissionResponses, [
+      { sessionId: created.session.id, requestId: 'callid-exit-plan', behavior: 'allow' },
+    ]);
+
+    assert.ok(events.some((event) => event.method === 'approval.resolved'));
+  });
+});
+
+test('ExitPlanMode approval is cleared when the planning process exits', async () => {
+  await withService(async ({ runtime, service, events }) => {
+    const created = await service.createSession({ cwd: '/tmp' });
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'plan something' }],
+    }, 'req-plan');
+
+    runtime.emit(
+      'permissionRequest',
+      created.session.id,
+      'callid-exit-plan',
+      'ExitPlanMode',
+      'Tool ExitPlanMode requires permission.',
+      JSON.stringify({ plan: 'do thing' }),
+    );
+
+    const approvalEvent = events.find((event) => event.method === 'approval.requested');
+    const approvalId = (approvalEvent!.params.data as Record<string, unknown>).approvalId as string;
+
+    runtime.emit('processExited', created.session.id, 1, null);
+
+    // The MCP CallTool died with the process; responding now should 404.
+    await assert.rejects(
+      service.respondApproval({
+        sessionId: created.session.id,
+        approvalId,
+        behavior: 'allow',
+      }),
+      (error: unknown) => error instanceof AppError && error.code === 'APPROVAL_NOT_FOUND',
+    );
+  });
+});
+
+test('regular runtime approvals are cleared when the process exits', async () => {
+  await withService(async ({ runtime, service }) => {
+    const created = await service.createSession({ cwd: '/tmp' });
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'do thing' }],
+    }, 'req-perm');
+
+    runtime.emit('permissionRequest', created.session.id, 'perm-x', 'Bash', 'run cmd', 'ls');
+    runtime.emit('processExited', created.session.id, 1, null);
+
+    // The MCP CallTool tied to perm-x is gone — answering should now 404.
+    await assert.rejects(
+      service.respondApproval({
+        sessionId: created.session.id,
+        approvalId: 'this-id-doesnt-matter',
+        behavior: 'allow',
+      }),
+      (error: unknown) => error instanceof AppError && error.code === 'APPROVAL_NOT_FOUND',
+    );
+  });
+});
+
+test('/clear intercept rotates claudeSessionId and emits session.rotated notification', async () => {
+  await withService(async ({ runtime, service, events }) => {
+    const created = await service.createSession({
+      cwd: '/tmp',
+    });
+    const stableId = created.session.id;
+    const oldNativeId = created.session.claudeSessionId;
+
+    const result = await service.startTurn({
+      sessionId: stableId,
+      input: [{ type: 'text', text: '/clear' }],
+    }, 'req-clear');
+
+    // /clear is intercepted: no spawn, no sendMessage to runtime.
+    assert.equal(runtime.spawnCalls.length, 0);
+    assert.equal(runtime.messages.length, 0);
+    // runtime was told to reset its native session id.
+    assert.equal(runtime.resetCalls.length, 1);
+    assert.equal(runtime.resetCalls[0]!.sessionId, stableId);
+
+    const newNativeId = runtime.resetCalls[0]!.newClaudeSessionId;
+    assert.notEqual(newNativeId, oldNativeId);
+
+    // Session id must NOT change across rotation — only the native one does.
+    assert.equal(result.session.id, stableId);
+    assert.equal(result.session.claudeSessionId, newNativeId);
+
+    // Verify the rotated notification fires with both old and new ids.
+    const rotated = events.find((ev) => ev.method === 'session.rotated');
+    assert.ok(rotated, 'expected session.rotated notification');
+    assert.equal(rotated!.params.sessionId, stableId);
+    const data = rotated!.params.data as { oldNativeSessionId: string; newNativeSessionId: string };
+    assert.equal(data.oldNativeSessionId, oldNativeId);
+    assert.equal(data.newNativeSessionId, newNativeId);
+
+    // Synthetic turn trio still fires for transcript rendering.
+    const methods = events.map((e) => e.method);
+    assert.ok(methods.includes('turn.started'));
+    assert.ok(methods.includes('output.text'));
+    assert.ok(methods.includes('turn.completed'));
+  });
+});
+
+test('respondApproval with `answers` routes to deny+message (AskUserQuestion bridge)', async () => {
+  await withService(async ({ runtime, service, events }) => {
+    const created = await service.createSession({ cwd: '/tmp' });
+
+    await service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'pls ask me' }],
+    }, 'req-q');
+
+    runtime.emit(
+      'permissionRequest',
+      created.session.id,
+      'perm-q',
+      'AskUserQuestion',
+      'Question from agent',
+      JSON.stringify({ questions: [{ question: 'Which color?', options: [{ label: 'red' }] }] }),
+    );
+
+    const reqEvent = events.find((e) => e.method === 'approval.requested');
+    assert.ok(reqEvent);
+    const approvalId = (reqEvent!.params.data as { approvalId: string }).approvalId;
+
+    // Web sends `allow_once` (host translates to behavior='allow') plus the
+    // structured answers. Bridge must rewrite the SDK call to deny+message.
+    await service.respondApproval({
+      sessionId: created.session.id,
+      approvalId,
+      behavior: 'allow',
+      answers: { 'Which color?': 'red' },
+    });
+
+    assert.equal(runtime.permissionResponses.length, 1);
+    const recorded = runtime.permissionResponses[0]!;
+    assert.equal(recorded.behavior, 'deny', 'SDK call must be deny when answers present');
+    assert.equal(recorded.extra?.updatedInput, undefined, 'no updatedInput on the deny path');
+    const msg = recorded.extra?.message ?? '';
+    assert.match(msg, /Which color\?/, 'message contains the question');
+    assert.match(msg, /A: red/, 'message contains the user answer');
+    assert.match(msg, /AskUserQuestion/, 'message explains the bridge to the model');
+
+    // The emitted `approval.resolved` still reflects the user's original
+    // intent (allow), not the SDK-level deny — UI rendering depends on this.
+    const resolved = events.find((e) => e.method === 'approval.resolved');
+    assert.ok(resolved);
+    assert.equal((resolved!.params.data as { behavior: string }).behavior, 'allow');
+  });
+});
+
+async function waitFor(predicate: () => boolean, label: string): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(label);
+}
+
+function flagValue(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  return index >= 0 ? args[index + 1] : undefined;
+}
+
+async function withHermeticClaude(run: (dir: string) => Promise<void>): Promise<void> {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-proxy-lifecycle-'));
+  const saved: Record<string, string | undefined> = {
+    CLAUDE_BIN: process.env.CLAUDE_BIN,
+    CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
+    HOME: process.env.HOME,
+    GIAN_ALLOW_CLAUDE_PRINT_PROBE: process.env.GIAN_ALLOW_CLAUDE_PRINT_PROBE,
+    CLAUDE_ARGV_LOG: process.env.CLAUDE_ARGV_LOG,
+    CLAUDE_SESSION_MARKER: process.env.CLAUDE_SESSION_MARKER,
+    CLAUDE_PID_FILE: process.env.CLAUDE_PID_FILE,
+  };
+  delete process.env.CLAUDE_CONFIG_DIR;
+  delete process.env.GIAN_ALLOW_CLAUDE_PRINT_PROBE;
+  process.env.HOME = dir;
+  try {
+    await run(dir);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('interrupt resumes the same Claude session instead of exiting 0', async () => {
+  await withHermeticClaude(async (dir) => {
+    const argvLog = join(dir, 'argv.log');
+    const marker = join(dir, 'session-created');
+    process.env.CLAUDE_ARGV_LOG = argvLog;
+    process.env.CLAUDE_SESSION_MARKER = marker;
+    const fake = join(dir, 'claude');
+    writeFileSync(fake, [
+      '#!/usr/bin/env node',
+      "const fs = require('node:fs');",
+      'const args = process.argv.slice(2);',
+      "if (args.includes('--help')) {",
+      "  console.log('Options:');",
+      "  console.log('  --effort <level>                      Effort level for the current session');",
+      "  console.log('                                        (low, high)');",
+      '  process.exit(0);',
+      '}',
+      // The native model-catalog discovery probe (--input-format stream-json +
+      // an initialize control frame) is metadata-only: answer it without
+      // touching the argv log or the session marker, so only real turn spawns
+      // count there.
+      "if (args.includes('--input-format')) {",
+      "  const rl = require(\"node:readline\").createInterface({ input: process.stdin });",
+      "  rl.on(\"line\", (line) => {",
+      '    try {',
+      '      const request = JSON.parse(line);',
+      "      if (request.type === \"control_request\" && request.request?.subtype === \"initialize\") {",
+      "        process.stdout.write(JSON.stringify({ type: \"control_response\", response: { subtype: \"success\", request_id: request.request_id, response: { models: [",
+      "          { value: \"opus\", displayName: \"Opus\", description: \"Opus model\", supportsEffort: true, supportedEffortLevels: [\"low\", \"high\"] },",
+      "        ] } } }) + \"\\n\");",
+      '      }',
+      '    } catch { /* ignore malformed probe input */ }',
+      '  });',
+      "  rl.on(\"close\", () => process.exit(0));",
+      '} else {',
+      'const log = process.env.CLAUDE_ARGV_LOG;',
+      "if (log) fs.appendFileSync(log, args.join('\\0') + '\\n');",
+      "fs.writeSync(1, JSON.stringify({ type: 'system', subtype: 'init', model: 'opus' }) + '\\n');",
+      "process.on('SIGTERM', () => { setTimeout(() => process.exit(0), 50); });",
+      'const marker = process.env.CLAUDE_SESSION_MARKER;',
+      'const seen = marker ? fs.existsSync(marker) : false;',
+      "if (marker) fs.writeFileSync(marker, '1');",
+      "if (args.includes('--session-id') && seen) process.exit(0);",
+      "if (args.includes('--resume')) {",
+      "  const text = 'resumed';",
+      '  console.log(JSON.stringify({ type: \'assistant\', message: { id: \'m1\', content: [{ type: \'text\', text }] } }));',
+      '  console.log(JSON.stringify({ type: \'result\', subtype: \'success\', result: text }));',
+      '  process.exit(0);',
+      '}',
+      'setInterval(() => undefined, 1000);',
+      '}',
+      '',
+    ].join('\n'));
+    chmodSync(fake, 0o755);
+    process.env.CLAUDE_BIN = fake;
+
+    const events: Array<{ method: string; params: Record<string, unknown> }> = [];
+    const runtime = new ClaudeMcpRuntime();
+    const service = new CcProxyService({
+      runtime,
+      emitEvent(method, params) {
+        events.push({ method, params });
+      },
+    });
+    try {
+      await service.initialize();
+      const created = await service.createSession({ cwd: dir });
+      await service.startTurn({
+        sessionId: created.session.id,
+        model: 'opus',
+        thinking: 'high',
+        permissionMode: 'bypassPermissions',
+        input: [{ type: 'text', text: 'first' }],
+      });
+      await waitFor(
+        () => existsSync(marker) && runtime.getDetectedModelId(created.session.id) !== null,
+        'claude did not acknowledge the session before interrupt',
+      );
+      await service.interruptTurn({ sessionId: created.session.id });
+      await service.startTurn({
+        sessionId: created.session.id,
+        model: 'opus',
+        thinking: 'high',
+        permissionMode: 'bypassPermissions',
+        input: [{ type: 'text', text: 'second' }],
+      });
+      await waitFor(
+        () => events.some((event) => event.method === 'turn.completed'),
+        'resumed turn did not complete',
+      );
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      assert.equal(
+        events.some((event) => event.method === 'turn.failed'),
+        false,
+        'a resumed turn must not fail with Claude Code process exited (code=0)',
+      );
+      const lines = readFileSync(argvLog, 'utf8')
+        .split('\n')
+        .filter((line) => line.length > 0)
+        .map((line) => line.split('\0'));
+      assert.equal(lines.length, 2);
+      const nativeId = created.session.claudeSessionId;
+      assert.equal(flagValue(lines[0]!, '--session-id'), nativeId);
+      assert.equal(flagValue(lines[0]!, '--model'), 'opus');
+      assert.equal(flagValue(lines[0]!, '--effort'), 'high');
+      assert.equal(lines[0]!.includes('--resume'), false);
+      assert.equal(flagValue(lines[1]!, '--resume'), nativeId);
+      assert.equal(flagValue(lines[1]!, '--model'), 'opus');
+      assert.equal(flagValue(lines[1]!, '--effort'), 'high');
+      assert.equal(lines[1]!.includes('--session-id'), false);
+    } finally {
+      await service.close();
+    }
+  });
+});
+
+test('interrupt before Claude init keeps --session-id for the next turn', async () => {
+  await withHermeticClaude(async (dir) => {
+    const argvLog = join(dir, 'argv.log');
+    const marker = join(dir, 'booted');
+    process.env.CLAUDE_ARGV_LOG = argvLog;
+    process.env.CLAUDE_SESSION_MARKER = marker;
+    const fake = join(dir, 'claude');
+    writeFileSync(fake, [
+      '#!/usr/bin/env node',
+      "const fs = require('node:fs');",
+      'const args = process.argv.slice(2);',
+      "if (args.includes('--help')) {",
+      "  console.log('Options:');",
+      "  console.log('  --effort <level>                      Effort level for the current session');",
+      "  console.log('                                        (low, high)');",
+      '  process.exit(0);',
+      '}',
+      // Same metadata-only discovery-probe branch as the companion test: the
+      // native catalog handshake must not create the boot marker or an argv
+      // record; only real turn spawns may.
+      "if (args.includes('--input-format')) {",
+      "  const rl = require(\"node:readline\").createInterface({ input: process.stdin });",
+      "  rl.on(\"line\", (line) => {",
+      '    try {',
+      '      const request = JSON.parse(line);',
+      "      if (request.type === \"control_request\" && request.request?.subtype === \"initialize\") {",
+      "        process.stdout.write(JSON.stringify({ type: \"control_response\", response: { subtype: \"success\", request_id: request.request_id, response: { models: [",
+      "          { value: \"opus\", displayName: \"Opus\", description: \"Opus model\", supportsEffort: true, supportedEffortLevels: [\"low\", \"high\"] },",
+      "        ] } } }) + \"\\n\");",
+      '      }',
+      '    } catch { /* ignore malformed probe input */ }',
+      '  });',
+      "  rl.on(\"close\", () => process.exit(0));",
+      '} else {',
+      'const log = process.env.CLAUDE_ARGV_LOG;',
+      "if (log) fs.appendFileSync(log, args.join('\\0') + '\\n');",
+      "process.on('SIGTERM', () => { setTimeout(() => process.exit(0), 50); });",
+      'const marker = process.env.CLAUDE_SESSION_MARKER;',
+      "if (marker) fs.writeFileSync(marker, '1');",
+      'setInterval(() => undefined, 1000);',
+      '}',
+      '',
+    ].join('\n'));
+    chmodSync(fake, 0o755);
+    process.env.CLAUDE_BIN = fake;
+
+    const runtime = new ClaudeMcpRuntime();
+    const service = new CcProxyService({ runtime });
+    try {
+      await service.initialize();
+      const created = await service.createSession({ cwd: dir });
+      await service.startTurn({
+        sessionId: created.session.id,
+        model: 'opus',
+        thinking: 'high',
+        permissionMode: 'bypassPermissions',
+        input: [{ type: 'text', text: 'first' }],
+      });
+      await waitFor(
+        () => existsSync(marker),
+        'claude did not boot before the early interrupt',
+      );
+      assert.equal(runtime.getDetectedModelId(created.session.id), null);
+      await service.interruptTurn({ sessionId: created.session.id });
+      await service.startTurn({
+        sessionId: created.session.id,
+        model: 'opus',
+        thinking: 'high',
+        permissionMode: 'bypassPermissions',
+        input: [{ type: 'text', text: 'second' }],
+      });
+      await waitFor(
+        () => {
+          if (!existsSync(argvLog)) return false;
+          return readFileSync(argvLog, 'utf8').split('\n').filter((line) => line.length > 0).length >= 2;
+        },
+        'the second turn did not record its argv',
+      );
+      const lines = readFileSync(argvLog, 'utf8')
+        .split('\n')
+        .filter((line) => line.length > 0)
+        .map((line) => line.split('\0'));
+      const nativeId = created.session.claudeSessionId;
+      assert.equal(flagValue(lines[0]!, '--session-id'), nativeId);
+      assert.equal(lines[0]!.includes('--resume'), false);
+      assert.equal(flagValue(lines[1]!, '--session-id'), nativeId);
+      assert.equal(lines[1]!.includes('--resume'), false);
+    } finally {
+      await service.close();
+    }
+  });
+});
+
+test('an in-progress CLI exit emits structured turn.failed with the streamed length', async () => {
+  await withHermeticClaude(async (dir) => {
+    const pidFile = join(dir, 'claude.pid');
+    process.env.CLAUDE_PID_FILE = pidFile;
+    const streamed = 'partial answer';
+    const fake = join(dir, 'claude');
+    writeFileSync(fake, [
+      '#!/usr/bin/env node',
+      "const fs = require('node:fs');",
+      'const args = process.argv.slice(2);',
+      "if (args.includes('--help')) {",
+      "  console.log('Options:');",
+      "  console.log('  --effort <level>                      Effort level for the current session');",
+      "  console.log('                                        (low, high)');",
+      '  process.exit(0);',
+      '}',
+      `const text = ${JSON.stringify(streamed)};`,
+      'console.log(JSON.stringify({ type: \'assistant\', message: { id: \'m1\', content: [{ type: \'text\', text }] } }));',
+      'const pidFile = process.env.CLAUDE_PID_FILE;',
+      "if (pidFile) fs.writeFileSync(pidFile, String(process.pid));",
+      'setInterval(() => undefined, 1000);',
+      '',
+    ].join('\n'));
+    chmodSync(fake, 0o755);
+    process.env.CLAUDE_BIN = fake;
+
+    const notifications: Array<{ method: string; params: Record<string, unknown> }> = [];
+    const service = new CcProxyService({ runtime: new ClaudeMcpRuntime() });
+    const adapter = new ClaudeProtocolV2Adapter(service, '0.3.3-Dev', (method, params) => {
+      notifications.push({ method, params });
+    });
+    const request = (id: string, method: string, params: Record<string, unknown> = {}): WireRequest => (
+      { id, method, params }
+    );
+    try {
+      await service.initialize();
+      await adapter.handle(request('1', 'initialize', {
+        protocol: { name: 'gian.proxy', versions: ['2.1'] },
+        host: { name: 'test', version: '9.9.9' },
+      }));
+      const created = await adapter.handle(request('2', 'session.create', {
+        sessionId: 'host-session',
+        workspace: { cwd: dir, roots: [dir] },
+        config: {},
+      })) as { session: { streamId: string } };
+      await adapter.handle(request('3', 'turn.start', {
+        sessionId: 'host-session',
+        streamId: created.session.streamId,
+        turnId: 'host-turn',
+        input: [{ type: 'text', text: 'keep going' }],
+        config: {},
+      }));
+      adapter.flushDeferredNotifications();
+      await waitFor(
+        () => existsSync(pidFile) && notifications.some((item) => item.method === 'content.delta'),
+        'in-progress Claude turn did not stream text',
+      );
+      process.kill(Number(readFileSync(pidFile, 'utf8')), 'SIGKILL');
+      await waitFor(
+        () => notifications.some((item) => item.method === 'turn.failed'),
+        'CLI exit did not emit turn.failed',
+      );
+
+      const failed = notifications.find((item) => item.method === 'turn.failed');
+      assert.ok(failed);
+      assert.equal(failed.params.turnId, 'host-turn');
+      const error = (failed.params.data as {
+        error: {
+          domainCode: string;
+          message: string;
+          retryable: boolean;
+          details: { exitCode: number | null; signal: string | null; streamedLength: number };
+        };
+      }).error;
+      assert.equal(error.domainCode, 'RUNTIME_ERROR');
+      assert.equal(error.retryable, true);
+      assert.equal(error.details.exitCode, null);
+      assert.equal(error.details.signal, 'SIGKILL');
+      assert.equal(error.details.streamedLength, streamed.length);
+      assert.match(error.message, /code=null/);
+      assert.match(error.message, /signal=SIGKILL/);
+      assert.match(error.message, new RegExp(`streamed=${streamed.length}`));
+      assert.equal(notifications.some((item) => item.method === 'turn.completed'), false);
+      assert.doesNotThrow(() => proxyNotificationSchema.parse({
+        jsonrpc: '2.0',
+        method: failed.method,
+        params: failed.params,
+      }));
+    } finally {
+      await service.close();
+    }
+  });
+});
+
+test('formatQuestionAnswers serializes single, multi, and multi-question payloads', () => {
+  // Single-select answer.
+  const single = formatQuestionAnswers({ 'Pick one?': 'A' });
+  assert.match(single, /^The user answered your AskUserQuestion/);
+  assert.match(single, /Q: Pick one\?\nA: A$/);
+
+  // Multi-select serializes with `; ` separator so the model sees one line.
+  const multi = formatQuestionAnswers({ 'Pick many?': ['X', 'Y', 'Z'] });
+  assert.match(multi, /A: X; Y; Z/);
+
+  // Two questions in one payload — blank line between, no trailing whitespace.
+  const both = formatQuestionAnswers({ 'Q1?': 'a1', 'Q2?': ['b1', 'b2'] });
+  const lines = both.split('\n');
+  assert.equal(lines[lines.length - 1], 'A: b1; b2', 'no trailing blank line');
+  assert.ok(lines.includes('Q: Q1?'));
+  assert.ok(lines.includes('A: a1'));
+  assert.ok(lines.includes('Q: Q2?'));
+});

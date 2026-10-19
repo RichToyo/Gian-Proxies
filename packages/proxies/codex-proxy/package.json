@@ -1,0 +1,32 @@
+{
+  "name": "@gian/codex-proxy",
+  "version": "0.3.6",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/cli/spawn.js",
+  "gianProxy": {
+    "releaseId": "codex",
+    "shipping": true,
+    "realAcceptance": {
+      "binaryEnv": "CODEX_BIN",
+      "proxyBinaryArg": "--codex-bin",
+      "setup": "default"
+    }
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start": "node dist/src/cli/spawn.js",
+    "test": "pnpm run build && node --test dist/test/**/*.test.js",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@gian/proxy-protocol": "https://github.com/RichLogic/Gian/releases/download/proxy-protocol-v1.0.2/gian-proxy-protocol-1.0.2.tgz",
+    "@gian/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}

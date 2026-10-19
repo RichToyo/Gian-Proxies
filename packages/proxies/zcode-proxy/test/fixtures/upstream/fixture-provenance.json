@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "upstream": {
+    "repository": "https://github.com/zai-org/ZCode.git",
+    "commit": "aac4755666d09fdcd70272fcf063c077a639015f",
+    "entrypointPath": "apps/zcode-cli/packages/bootstrap/src/zcode-protocol-entrypoint.ts",
+    "entrypointSha256": "e45d5cdc4f9f90640ef93d89e4b87aa0e40c2a459946b954daa772b7d5594d9d",
+    "noticeSha256": "6bd5e85b48a192ce100a9e5e0636e3a90d3f6e1ac1c4fe74369e13bd79bb4c45",
+    "licenseSha256": "606c36baf38b973227273df12a74930e4b4137280eea835c5cd623aa4553c13b"
+  },
+  "englishFixture": {
+    "entrypointSha256": "692d699ac9f7e56c36fa7ba0b826731ecd35fd9decff94e07d5db9c1e5e8983a",
+    "noticeSha256": "ffa27289ff11afc6ea95cc1fccbbef49d491d79fdc68d88420149150d4e1c26f",
+    "licenseSha256": "606c36baf38b973227273df12a74930e4b4137280eea835c5cd623aa4553c13b",
+    "changes": [
+      "English comments",
+      "English Registry-ready diagnostic message",
+      "English translation of upstream NOTICE"
+    ]
+  },
+  "review": {
+    "codeTokenCount": 2148,
+    "changedCodeTokens": 1,
+    "diagnosticTokenBeforeSha256": "db7929f4c051b40573efbe7ebb8c84a9c16272f15b1cacc2a118c00e6e12b848",
+    "diagnosticTokenAfterSha256": "d4809f9ff0e38338a63bb5c1ec3c2c567fdfc90c0ca755714d6af01e4af9c8c5"
+  }
+}
