@@ -6,8 +6,8 @@ source export, not a copy of private Git history.
 
 ## Contents
 
-- Claude, Codex, Kimi, Grok, DSH and ZCode shipping Proxies, plus the
-  Antigravity 0.0.1 candidate, each independently versioned.
+- Seven independently versioned shipping Proxies: Claude, Codex, Kimi,
+  Grok, DSH, ZCode and Antigravity.
 - Release versions come from each Proxy package on GianDev main. Export does
   not assign a repository-wide version or automatically bump Proxy versions.
 - DSH Proxy includes its exact Bridge rather than relying on an App-bundled copy.
@@ -23,8 +23,7 @@ by `pnpm build` builds the standalone product. No Provider credentials are neede
 
 `release-selection.json` explicitly selects the Proxies to build, qualify and
 publish, plus the signed base Catalog repository and tag. The current pin is
-`RichLogic/Gian-Proxies` at `catalog-v1.23.0`. A later base may be
-`RichToyo/Gian-Proxies` only after that repository has published that tag.
+`RichToyo/Gian-Proxies` at the already published `catalog-v1.34.0`.
 Publication stays on `RichToyo/Gian-Proxies`. The base is verified against the
 existing pinned key; its artifact URLs, digests and certificate stay as signed.
 Unselected Proxies retain their complete immutable executable and certificate
@@ -35,14 +34,13 @@ has complete Catalog source, and matches actual PASS-qualified artifacts and
 shipping metadata. A failed or NOT_RUN qualification cannot admit an addition.
 Update the selection in GianDev before exporting source.
 
-This batch selects only Antigravity 0.0.1 against signed `catalog-v1.28.0`.
-All base28 plugins, excluded executable URLs, documentation and localizations
-are retained from the verified signed bundle. Later standalone releases of
-other Proxies are not implicitly selected. Antigravity's official ACP Runtime
-remains 1.3.0; the Proxy version is not its upstream version.
+This batch selects all seven new patches: Claude 0.3.11, Codex 0.3.7,
+Kimi 0.4.8, Grok 0.3.12, DSH 0.3.7, ZCode 0.4.7 and Antigravity 0.0.3.
+Their declared Runtime versions are unchanged. Each new archive must qualify
+before the next signed Catalog can replace its base tuple.
 
 1. Dispatch **Qualify Proxy Artifacts** on main. The hosted macOS ARM64 workflow
-   verifies source provenance, compiles, exercises Proxy contracts with fake
+   audits production dependencies, verifies source provenance, compiles, exercises Proxy contracts with fake
    Runtimes, verifies exact managed Runtime candidates with the production
    extractor, builds archives once and self-tests their extracted entry points.
 2. Create each immutable `proxy-<releaseId>-v<version>` tag at that qualified
@@ -75,7 +73,7 @@ an upstream protocol mismatch blocks publication even when `--version` works.
 Published Runtime archives are copied from qualification, never rebuilt by
 the publisher. Updating the source pin requires a new Proxy release.
 
-ZCode Proxy 0.4.6 pins reviewed App-source 3.16.2 at 3c5b227, with CLI
+ZCode Proxy 0.4.7 pins reviewed App-source 3.16.2 at 3c5b227, with CLI
 0.17.0. Its versioned integration provides model metadata and standalone
 authentication, and native MCP form answers retain free text, optional fields
 and indexed identity. Proxy requests use complete model/reasoning selections.

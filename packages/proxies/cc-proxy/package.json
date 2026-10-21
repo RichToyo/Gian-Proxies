@@ -1,6 +1,6 @@
 {
   "name": "@gian/cc-proxy",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "private": true,
   "type": "module",
   "main": "./dist/src/cli/spawn.js",
@@ -28,7 +28,7 @@
   "dependencies": {
     "@gian/proxy-protocol": "https://github.com/RichLogic/Gian/releases/download/proxy-protocol-v1.0.2/gian-proxy-protocol-1.0.2.tgz",
     "@gian/shared": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "zod": "^4.3.6"
   }
 }

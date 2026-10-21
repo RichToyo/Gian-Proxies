@@ -20,14 +20,19 @@ test('the real standalone verifier imports without Host and retains the package-
   assert.ok(existsSync(new URL('./build-antigravity-runtime.mjs', builderUrl)));
 });
 
-test('this batch selects only ZCode on signed base Catalog 32 and preserves the other released tuples', () => {
+test('this batch selects seven new English Proxy patches on signed RichToyo Catalog 34', () => {
   const selection = JSON.parse(readFileSync(new URL('../release-selection.json', import.meta.url), 'utf8'));
-  assert.deepEqual(selection, { schema: 1, providers: ['zcode'], baseCatalogRepository: 'RichLogic/Gian-Proxies', baseCatalogTag: 'catalog-v1.32.0' });
+  const providers = ['claude', 'codex', 'kimi', 'grok', 'dsh', 'zcode', 'antigravity'];
+  assert.deepEqual(selection, { schema: 1, providers, baseCatalogRepository: 'RichToyo/Gian-Proxies', baseCatalogTag: 'catalog-v1.34.0' });
   const selected = selectReleaseDefinitions(proxyDefinitions, selection);
-  assert.deepEqual(selected.map(item => item.id), ['zcode']);
-  assert.deepEqual(selectRuntimeProviders(selected.map(item => item.id)), ['zcode']);
-  assert.equal(selected[0].pluginVersion, '0.4.6');
-  assert.deepEqual(selected[0].runtime.verifiedCliVersions, ['0.17.0']);
+  assert.deepEqual(selected.map(item => item.id), providers);
+  assert.deepEqual(selectRuntimeProviders(providers), providers);
+  assert.deepEqual(selected.map(item => item.pluginVersion), [
+    '0.3.11', '0.3.7', '0.4.8', '0.3.12', '0.3.7', '0.4.7', '0.0.3',
+  ]);
+  assert.deepEqual(selected.map(item => item.runtime.verifiedCliVersions), [
+    ['2.1.304'], ['0.163.0'], ['2.2.0'], ['1.0.62'], ['0.2.1-rc.2'], ['0.17.0'], ['1.4.1'],
+  ]);
   for (const id of ['claude', 'codex', 'kimi', 'grok', 'dsh', 'zcode', 'antigravity']) assert.ok(proxyDefinitions.some(item => item.id === id));
 });
 
@@ -38,7 +43,7 @@ test('Runtime publication derives its URL and preserves actual candidate digest/
   } };
   const result = withPublishedRuntimeAsset(candidate);
   const repository = standalone ? 'RichToyo/Gian-Proxies' : 'RichToyo/Gian';
-  assert.equal(result.asset.url, `https://github.com/${repository}/releases/download/proxy-antigravity-v0.0.2/runtime-fixture.tar.gz`);
+  assert.equal(result.asset.url, `https://github.com/${repository}/releases/download/proxy-antigravity-v0.0.3/runtime-fixture.tar.gz`);
   assert.equal(result.asset.publish, true);
   assert.equal(result.asset.sha256, candidate.asset.sha256);
   assert.equal(result.asset.size, candidate.asset.size);
@@ -49,6 +54,8 @@ test('Runtime publication derives its URL and preserves actual candidate digest/
 test('hosted qualification and Catalog workflows execute the new regression surfaces without removing existing ones', () => {
   const product = readFileSync(new URL('./release-product.mjs', import.meta.url), 'utf8');
   const workflow = readFileSync(new URL('../.github/workflows/catalog.yml', import.meta.url), 'utf8');
+  const qualifyWorkflow = readFileSync(new URL('../.github/workflows/qualify.yml', import.meta.url), 'utf8');
+  assert.match(qualifyWorkflow, /pnpm audit --prod --audit-level=high/);
   for (const name of ['scripts/build-managed-runtime-candidates.test.mjs', 'scripts/proxy-release-metadata.test.mjs',
     'scripts/catalog-docs-policy.test.mjs', 'scripts/runtime-qualification.test.mjs']) assert.ok(product.includes(name));
   for (const name of ['catalog/proxy-information/project.test.mjs', 'scripts/catalog-docs-policy.test.mjs', 'scripts/runtime-qualification.test.mjs']) {

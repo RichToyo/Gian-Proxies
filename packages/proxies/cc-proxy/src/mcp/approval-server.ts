@@ -13,6 +13,7 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from 'node:http';
+import { McpInputLimitError, readBoundedMcpJson } from '@gian/shared';
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
@@ -281,7 +282,19 @@ export class ApprovalServer {
       res.writeHead(404).end('No active SSE connection for this session');
       return;
     }
-    await conn.transport.handlePostMessage(req, res);
+    let body: unknown;
+    try {
+      // Bound legacy SSE input before the SDK validates its JSON shape.
+      body = await readBoundedMcpJson(req.iterator({ destroyOnReturn: false }));
+    } catch (error) {
+      req.resume();
+      res.writeHead(error instanceof McpInputLimitError ? 413 : 400, {
+        'Content-Type': 'text/plain',
+        Connection: 'close',
+      }).end(error instanceof McpInputLimitError ? error.message : 'Invalid MCP JSON request');
+      return;
+    }
+    await conn.transport.handlePostMessage(req, res, body);
   }
 
   private createMcpServer(sessionId: string): Server {

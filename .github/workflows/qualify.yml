@@ -30,6 +30,8 @@ jobs:
       - name: Scan publication source for public English
         run: node scripts/check-public-english.mjs --ref "${{ github.sha }}"
       - run: pnpm install --frozen-lockfile
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=high
       - name: Qualify the independently buildable product
         env:
           GH_TOKEN: ${{ github.token }}

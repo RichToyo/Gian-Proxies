@@ -1,5 +1,17 @@
 # Gian Proxies Changelog
 
+## RichToyo Proxy generation - 2026-10-21
+
+- Publish new English-only patches: Claude 0.3.11, Codex 0.3.7, Kimi 0.4.8,
+  Grok 0.3.12, DeepSeek Harness 0.3.7, ZCode 0.4.7 and Antigravity 0.0.3.
+  Existing releases remain immutable.
+- Update Claude's MCP SDK to 1.32.0 and bound approval HTTP request bytes,
+  JSON element counts and nesting before SDK validation.
+- Remove the remaining first-party localized ZCode fork comment. Original
+  upstream Runtime source and notices remain unchanged.
+- Retain the declared Runtime versions and the gian.proxy wire contract.
+  New signed Catalog generations use the existing signing identity.
+
 ## ZCode Proxy 0.4.6 - 2026-10-21
 
 - Update the managed Runtime source to reviewed App-source 3.16.2 at

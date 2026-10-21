@@ -19,7 +19,7 @@
     "lodash-es": "4.18.1",
     "dompurify": "3.4.16",
     "katex": "0.18.7",
-    "@modelcontextprotocol/sdk": "1.31.0"
+    "@modelcontextprotocol/sdk": "1.32.0"
   },
   "patchedDependencies": {
     "@agentclientprotocol/sdk@0.23.0": {
@@ -81,8 +81,8 @@
           "version": "link:../../shared"
         },
         "@modelcontextprotocol/sdk": {
-          "specifier": "1.31.0",
-          "version": "1.31.0(zod@4.4.3)"
+          "specifier": "1.32.0",
+          "version": "1.32.0(zod@4.4.3)"
         },
         "zod": {
           "specifier": "^4.3.6",
@@ -126,7 +126,7 @@
       "dependencies": {
         "@deepseek-ai/dsh": {
           "specifier": "^0.2.0-rc.2 || 0.2.1-rc.2",
-          "version": "0.2.0-rc.2(0dbb985ca280dbf5c3ed93f9bbbd7854)"
+          "version": "0.2.0-rc.2(2091914c7fa5109c73bc5f766ed79f87)"
         }
       },
       "devDependencies": {
@@ -5349,7 +5349,7 @@
         "node": ">=20.0.0"
       },
       "peerDependencies": {
-        "@modelcontextprotocol/sdk": "1.31.0"
+        "@modelcontextprotocol/sdk": "1.32.0"
       },
       "peerDependenciesMeta": {
         "@modelcontextprotocol/sdk": {
@@ -6340,9 +6340,9 @@
         "node": ">=20"
       }
     },
-    "@modelcontextprotocol/sdk@1.31.0": {
+    "@modelcontextprotocol/sdk@1.32.0": {
       "resolution": {
-        "integrity": "sha512-UvTMgnNlnIBO/22ob2RcVGDlcvOslQs8T59+FTGdA0L27a39fdGF/EDETNtDVK4DZGpwomlsYpRdA8UXcVL/pw=="
+        "integrity": "sha512-8BviX/hK4Gd2eL1KdTwm0gfl4d3wdoErW0Jd00h6nomUAtk6IJk5vwQJc6kfWtJTzN5OEV/lgIiJKI8fiDGAlA=="
       },
       "engines": {
         "node": ">=18"
@@ -9140,14 +9140,6 @@
       },
       "engines": {
         "node": ">= 0.6"
-      }
-    },
-    "eventsource-parser@3.0.8": {
-      "resolution": {
-        "integrity": "sha512-70QWGkr4snxr0OXLRWsFLeRBIRPuQOvt4s8QYjmUlmlkyTZkRqS7EDVRZtzU3TiyDbXSzaOeF0XUKy8PchzukQ=="
-      },
-      "engines": {
-        "node": ">=18.0.0"
       }
     },
     "eventsource-parser@3.1.1": {
@@ -13835,7 +13827,7 @@
         "@deepseek-ai/dsh-llm": "0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)"
       }
     },
-    "@deepseek-ai/dsh-base@0.2.0-rc.2(a4da136156c8d5961034908c53bef05e)": {
+    "@deepseek-ai/dsh-base@0.2.0-rc.2(cf0902d56ada4e2f9b78d54dd6f4bbd8)": {
       "dependencies": {
         "@deepseek-ai/cordis": "4.0.4(@deepseek-ai/cordis-plugin-include@1.0.9)(@deepseek-ai/cordis-plugin-loader@1.0.5)",
         "@deepseek-ai/cordis-plugin-timer": "1.1.6(@deepseek-ai/cordis@4.0.4)",
@@ -13868,7 +13860,7 @@
         "@deepseek-ai/dsh-llm": "0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)",
         "@deepseek-ai/dsh-llm-deepseek-account": "0.2.0-rc.2(@deepseek-ai/cordis-plugin-loader@1.0.5)(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-deepseek-account@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-agent@0.2.0-rc.2(fee0e653b72a3883e0f0da2d9a46bb50))(@deepseek-ai/dsh-brand@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-llm@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)))(@deepseek-ai/dsh-launch-environment@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-llm-deepseek@0.2.0-rc.2(92203fffa8eb22d3bf471936e9f2add5))(@deepseek-ai/dsh-llm@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))",
         "@deepseek-ai/dsh-llm-deepseek-api-key": "0.2.0-rc.2(@deepseek-ai/cordis-plugin-loader@1.0.5)(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-credentials@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)))(@deepseek-ai/dsh-launch-environment@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-llm-deepseek@0.2.0-rc.2(92203fffa8eb22d3bf471936e9f2add5))(@deepseek-ai/dsh-llm@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))",
-        "@deepseek-ai/dsh-llm-pi-ai": "0.2.0-rc.2(89ac52162851c2a0f3a742b7d0390932)",
+        "@deepseek-ai/dsh-llm-pi-ai": "0.2.0-rc.2(70cbe9755aa83ccc3d7eace5778b6642)",
         "@deepseek-ai/dsh-llm-retry": "0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-agent@0.2.0-rc.2(fee0e653b72a3883e0f0da2d9a46bb50))(@deepseek-ai/dsh-brand@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-llm@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-session-projection@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-session@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-scope@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)))))(@deepseek-ai/dsh-session@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-scope@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))))(@deepseek-ai/dsh-timeout@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))",
         "@deepseek-ai/dsh-mcp-resources": "0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-llm@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-scope@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)))(@deepseek-ai/dsh-system-prompt@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-llm@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-scope@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))))(@deepseek-ai/dsh-tools@0.2.0-rc.2(52b5a8ab481be2b3d891c22a71641755))",
         "@deepseek-ai/dsh-otel": "0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-session@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-scope@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))))",
@@ -15040,7 +15032,7 @@
         "@deepseek-ai/cordis-plugin-loader": "1.0.5(@deepseek-ai/cordis@4.0.4)(node-addon-require-builtin@0.1.9)"
       }
     },
-    "@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2(89ac52162851c2a0f3a742b7d0390932)": {
+    "@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2(70cbe9755aa83ccc3d7eace5778b6642)": {
       "dependencies": {
         "@deepseek-ai/cordis": "4.0.4(@deepseek-ai/cordis-plugin-include@1.0.9)(@deepseek-ai/cordis-plugin-loader@1.0.5)",
         "@deepseek-ai/dsh-attachment": "0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-brand@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))",
@@ -15053,7 +15045,7 @@
         "@deepseek-ai/dsh-timeout": "0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)",
         "@deepseek-ai/dsh-util-values": "0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)",
         "@deepseek-ai/schemastery": "3.18.4",
-        "@earendil-works/pi-ai": "0.87.1(@modelcontextprotocol/sdk@1.31.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)"
+        "@earendil-works/pi-ai": "0.87.1(@modelcontextprotocol/sdk@1.32.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)"
       },
       "optionalDependencies": {
         "@deepseek-ai/cordis-plugin-loader": "1.0.5(@deepseek-ai/cordis@4.0.4)(node-addon-require-builtin@0.1.9)"
@@ -16699,7 +16691,7 @@
         "zod": "4.4.3"
       }
     },
-    "@deepseek-ai/dsh@0.2.0-rc.2(0dbb985ca280dbf5c3ed93f9bbbd7854)": {
+    "@deepseek-ai/dsh@0.2.0-rc.2(2091914c7fa5109c73bc5f766ed79f87)": {
       "dependencies": {
         "@deepseek-ai/cordis": "4.0.4(@deepseek-ai/cordis-plugin-include@1.0.9)(@deepseek-ai/cordis-plugin-loader@1.0.5)",
         "@deepseek-ai/cordis-plugin-include": "1.0.9(@deepseek-ai/cordis-plugin-loader@1.0.5)(@deepseek-ai/cordis@4.0.4)",
@@ -16711,7 +16703,7 @@
         "@deepseek-ai/dsh-agent-tool-presentation": "0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-tools@0.2.0-rc.2(52b5a8ab481be2b3d891c22a71641755))",
         "@deepseek-ai/dsh-app-boot": "0.2.0-rc.2(@deepseek-ai/cordis-plugin-group@1.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/cordis-plugin-include@1.0.9)(@deepseek-ai/cordis-plugin-loader@1.0.5)(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-home-paths@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-launch-environment@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-system-prompt@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-llm@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-scope@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))))",
         "@deepseek-ai/dsh-atomic-write": "0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)",
-        "@deepseek-ai/dsh-base": "0.2.0-rc.2(a4da136156c8d5961034908c53bef05e)",
+        "@deepseek-ai/dsh-base": "0.2.0-rc.2(cf0902d56ada4e2f9b78d54dd6f4bbd8)",
         "@deepseek-ai/dsh-client-ui-agent-preset": "0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)",
         "@deepseek-ai/dsh-client-ui-cordis": "0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)",
         "@deepseek-ai/dsh-cmdline": "0.2.0-rc.2(@deepseek-ai/cordis-plugin-loader@1.0.5)(@deepseek-ai/cordis@4.0.4)",
@@ -16930,12 +16922,12 @@
         "@standard-schema/spec": "1.1.0"
       }
     },
-    "@earendil-works/pi-ai@0.87.1(@modelcontextprotocol/sdk@1.31.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)": {
+    "@earendil-works/pi-ai@0.87.1(@modelcontextprotocol/sdk@1.32.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)": {
       "dependencies": {
         "@anthropic-ai/sdk": "0.124.0(zod@4.4.3)",
         "@aws-sdk/client-bedrock-runtime": "3.1127.0",
         "@earendil-works/pi-telemetry": "0.87.1",
-        "@google/genai": "2.21.0(@modelcontextprotocol/sdk@1.31.0(zod@4.4.3))",
+        "@google/genai": "2.21.0(@modelcontextprotocol/sdk@1.32.0(zod@4.4.3))",
         "@smithy/node-http-handler": "4.12.1",
         "http-proxy-agent": "9.1.0",
         "https-proxy-agent": "9.1.0",
@@ -17325,7 +17317,7 @@
       }
     },
     "@floating-ui/utils@0.2.12": {},
-    "@google/genai@2.21.0(@modelcontextprotocol/sdk@1.31.0(zod@4.4.3))": {
+    "@google/genai@2.21.0(@modelcontextprotocol/sdk@1.32.0(zod@4.4.3))": {
       "dependencies": {
         "google-auth-library": "10.9.1",
         "p-retry": "4.6.2",
@@ -17333,7 +17325,7 @@
         "ws": "8.21.0"
       },
       "optionalDependencies": {
-        "@modelcontextprotocol/sdk": "1.31.0(zod@4.4.3)"
+        "@modelcontextprotocol/sdk": "1.32.0(zod@4.4.3)"
       },
       "transitivePeerDependencies": [
         "bufferutil",
@@ -17873,7 +17865,7 @@
         "zod": "4.4.3"
       }
     },
-    "@modelcontextprotocol/sdk@1.31.0(zod@4.4.3)": {
+    "@modelcontextprotocol/sdk@1.32.0(zod@4.4.3)": {
       "dependencies": {
         "@hono/node-server": "1.19.15(hono@4.13.7)",
         "ajv": "8.20.0",
@@ -17882,7 +17874,7 @@
         "cors": "2.8.6",
         "cross-spawn": "7.0.6",
         "eventsource": "3.0.7",
-        "eventsource-parser": "3.0.8",
+        "eventsource-parser": "3.1.1",
         "express": "5.2.1",
         "express-rate-limit": "8.5.1(express@5.2.1)",
         "hono": "4.13.7",
@@ -19493,11 +19485,10 @@
       }
     },
     "etag@1.8.1": {},
-    "eventsource-parser@3.0.8": {},
     "eventsource-parser@3.1.1": {},
     "eventsource@3.0.7": {
       "dependencies": {
-        "eventsource-parser": "3.0.8"
+        "eventsource-parser": "3.1.1"
       }
     },
     "execa@10.1.0": {

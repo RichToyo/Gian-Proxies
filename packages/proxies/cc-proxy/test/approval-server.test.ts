@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { MCP_MAX_INPUT_ELEMENTS, MCP_MAX_REQUEST_BYTES } from '@gian/shared';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
@@ -38,6 +39,36 @@ async function connectClient(port: number, sessionId: string) {
   await client.connect(transport);
   return client;
 }
+
+test('ApprovalServer bounds HTTP bytes and JSON shape before SDK validation', async () => {
+  const { server, port, captured } = await startServer();
+  const client = await connectClient(port, 'input-limits');
+  try {
+    for (const body of [
+      JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: {
+        name: APPROVAL_TOOL_NAME,
+        arguments: { tool_name: 'Bash', input: { values: Array(MCP_MAX_INPUT_ELEMENTS).fill(0) } },
+      } }),
+      JSON.stringify({ text: 'x'.repeat(MCP_MAX_REQUEST_BYTES) }),
+    ]) {
+      const response = await fetch(`http://127.0.0.1:${port}/session/input-limits/message`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+      });
+      assert.equal(response.status, 413);
+      assert.match(await response.text(), /MCP request .* limit exceeded/);
+      assert.equal(captured.length, 0, 'rejected input never reaches approval callbacks');
+    }
+    const invalid = await fetch(`http://127.0.0.1:${port}/session/input-limits/message`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"private-input":',
+    });
+    assert.equal(invalid.status, 400);
+    assert.doesNotMatch(await invalid.text(), /private-input/);
+    assert.equal((await client.listTools()).tools[0]!.name, APPROVAL_TOOL_NAME);
+  } finally {
+    await client.close();
+    await server.stop();
+  }
+});
 
 test('ApprovalServer — exposes approval_prompt via ListTools', async () => {
   const { server, port } = await startServer();
