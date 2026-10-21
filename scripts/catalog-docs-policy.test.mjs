@@ -106,8 +106,8 @@ test('bootstrap base repository is an approved pair and the next sequence clears
   ]) assert.throws(() => assertNextCatalogSequence(input));
   const selection = JSON.parse(readFileSync(new URL('../release-selection.json', import.meta.url), 'utf8'));
   assert.equal(selection.baseCatalogRepository, 'RichLogic/Gian-Proxies');
-  assert.equal(selection.baseCatalogTag, 'catalog-v1.28.0');
-  assert.doesNotThrow(() => selectReleaseDefinitions([{ id: 'antigravity', shipping: true }], selection));
+  assert.equal(selection.baseCatalogTag, 'catalog-v1.32.0');
+  assert.doesNotThrow(() => selectReleaseDefinitions([{ id: 'zcode', shipping: true }], selection));
   const workflow = readFileSync(new URL('../.github/workflows/catalog-docs.yml', import.meta.url), 'utf8');
   assert.match(workflow, /base_catalog_repository/);
   assert.match(workflow, /assertApprovedBaseCatalog/);
