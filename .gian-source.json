@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "272cdb88254af886e67c6557b4a96fdf0ce0ab03",
+  "sourceCommit": "e999cad9234c9d0cd5e3c54af0e42ca294bde3f9",
   "workingTree": false,
   "externalPackages": [
     {
@@ -2561,7 +2561,7 @@
     {
       "source": "packages/proxy-catalog-contract/test/official-source.test.ts",
       "path": "packages/proxy-catalog-contract/test/official-source.test.ts",
-      "sha256": "328b567b5f5ed188accfc5ff0d55d3b88ba919d3283f71c44a9a7c56bff58d60"
+      "sha256": "16a240b26fadd99e804e4711edd733c63ec1b8cf169fb7b6c80be479ca4d2b5f"
     },
     {
       "source": "packages/proxy-catalog-contract/tsconfig.json",
@@ -5368,7 +5368,7 @@
     {
       "path": "packages/proxy-catalog-contract/test/official-source.test.ts",
       "mode": 420,
-      "sha256": "328b567b5f5ed188accfc5ff0d55d3b88ba919d3283f71c44a9a7c56bff58d60"
+      "sha256": "16a240b26fadd99e804e4711edd733c63ec1b8cf169fb7b6c80be479ca4d2b5f"
     },
     {
       "path": "packages/proxy-catalog-contract/tsconfig.json",

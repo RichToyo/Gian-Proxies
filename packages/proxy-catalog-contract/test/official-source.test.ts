@@ -286,12 +286,14 @@ test('production official source stays documentation-only', async () => {
   }
 });
 
-test('Antigravity first source has complete docs and distinct logo paths without invented release coordinates', async () => {
+test('Antigravity source follows its Manifest and has complete docs without invented release coordinates', async () => {
   const plugins = await loadOfficialCatalogSource(officialSourceRoot());
   verifyOfficialCatalogSource(plugins);
   const plugin = plugins.find(item => item.entry.pluginId === 'io.gian.antigravity');
   assert.ok(plugin);
-  assert.equal(plugin.entry.channels.stable.pluginVersion, '0.0.2');
+  const manifest = JSON.parse(await readFile(join(officialSourceRoot(), 'plugins', 'io.gian.antigravity', 'sidecar.json'), 'utf8'));
+  assert.equal(manifest.id, 'io.gian.antigravity');
+  assert.equal(plugin.entry.channels.stable.pluginVersion, manifest.pluginVersion);
   assert.notEqual(plugin.entry.branding.logoLight.path, plugin.entry.branding.logoDark.path);
   assert.equal(plugin.entry.channels.stable.manifest, undefined);
   assert.equal(plugin.entry.channels.stable.combination, undefined);
