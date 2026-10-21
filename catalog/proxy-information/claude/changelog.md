@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.10**, Runtime **2.1.304**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.11**, Runtime **2.1.304**. These are distribution targets, not this machine's installed state.
+
+## 0.3.11
+
+First published: 2026-10-21T12:23:15Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.11): 2026-10-21T12:23:15Z.
+- CLI: 2.1.304 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Publish an English-only Claude Proxy from RichToyo with MCP SDK 1.32.0 and bounded HTTP input before SDK validation. Retain Claude Code Runtime 2.1.304 and the existing wire protocol. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.11) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-claude-v0.3.11/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts)
 
 ## 0.3.10
 

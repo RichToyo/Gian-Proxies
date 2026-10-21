@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "io.gian.antigravity",
-  "currentVersion": "0.0.2",
+  "currentVersion": "0.0.3",
   "entries": [
+    {
+      "version": "0.0.3",
+      "firstPublishedAt": "2026-10-21T12:23:59Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-antigravity-v0.0.3",
+          "publishedAt": "2026-10-21T12:23:59Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.3",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.3/gian-proxy-antigravity-0.0.3-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "c3946f85e92236d917ce3f85037293139b5a54498684e825315947317b0cac3c",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.3/gian-proxy-antigravity-0.0.3-darwin-arm64.tar.gz",
+            "sha256": "7e9850b9b520f80552b4bf10eefd7dd762eba0d627a06a052197d67616cc3409",
+            "size": 152525
+          },
+          "runtimeDeclaration": {
+            "id": "antigravity-acp",
+            "versions": [
+              "1.4.1"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Publish an English-only Antigravity Proxy from RichToyo. Retain the official ACP Runtime 1.4.1 and the existing wire protocol. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.3",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-antigravity-v0.0.3/packages/proxies/antigravity-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.0.2",
       "firstPublishedAt": "2026-10-20T01:01:11Z",

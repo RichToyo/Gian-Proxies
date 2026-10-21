@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.11**, Runtime **1.0.62**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.12**, Runtime **1.0.62**. These are distribution targets, not this machine's installed state.
+
+## 0.3.12
+
+First published: 2026-10-21T12:23:33Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.12): 2026-10-21T12:23:33Z.
+- CLI: 1.0.62 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Publish an English-only Grok Proxy from RichToyo. Retain Grok CLI 1.0.62 and the existing wire protocol. Native approval behavior under auto/always_approve remains unverified without an authenticated session. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.12) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-grok-v0.3.12/packages/proxies/grok-proxy/README.md)
 
 ## 0.3.11
 

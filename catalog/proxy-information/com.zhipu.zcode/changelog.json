@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "com.zhipu.zcode",
-  "currentVersion": "0.4.6",
+  "currentVersion": "0.4.7",
   "entries": [
+    {
+      "version": "0.4.7",
+      "firstPublishedAt": "2026-10-21T12:23:51Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-zcode-v0.4.7",
+          "publishedAt": "2026-10-21T12:23:51Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-zcode-v0.4.7",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-zcode-v0.4.7/gian-proxy-zcode-0.4.7-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "a8f62c138e997d4c1ce61b9dcd3f8b0e53240664328d7e0ad38164c8540f7e50",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-zcode-v0.4.7/gian-proxy-zcode-0.4.7-darwin-arm64.tar.gz",
+            "sha256": "2506fb16c39ca27b30c482cd5393884a93df0894fcd840cd777d869450816e70",
+            "size": 143237
+          },
+          "runtimeDeclaration": {
+            "id": "zcode",
+            "versions": [
+              "0.17.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Publish an English-only ZCode Proxy from RichToyo, removing the remaining first-party localized fork comment. Retain reviewed App-source 3.16.2 at commit 3c5b227 and CLI 0.17.0 without altering original upstream source or notices. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-zcode-v0.4.7",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-zcode-v0.4.7/packages/proxies/zcode-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.4.6",
       "firstPublishedAt": "2026-10-21T05:17:04Z",

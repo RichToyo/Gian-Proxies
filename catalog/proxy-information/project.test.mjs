@@ -5,14 +5,32 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { projectInformation, projectTutorial } from './project.mjs';
-import { validateReview } from './validate.mjs';
+import { assertHistoryEvidenceUrl, validateReview } from './validate.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const current = JSON.parse(readFileSync(join(root, 'evidence/current-combinations.json'), 'utf8'));
 const certified = current.plugins.map(p => ({ pluginId: p.id, version: p.version, runtime: p.combination.runtime }));
 
+test('history evidence accepts only the exact new and retained public repositories', () => {
+  for (const owner of ['RichLogic', 'RichToyo']) {
+    for (const repository of ['Gian', 'Gian-Proxies']) {
+      assert.doesNotThrow(() => assertHistoryEvidenceUrl(`https://github.com/${owner}/${repository}/releases/tag/fixture`));
+    }
+  }
+  for (const url of [
+    'https://github.com/untrusted/Gian-Proxies/releases/tag/fixture',
+    'https://github.com/RichToyo/Gian-Dev/blob/main/fixture',
+    'https://github.com/RichLogic/Gian-Proxy-Catalog/releases/tag/fixture',
+    'https://github.com.evil.invalid/RichToyo/Gian-Proxies/fixture',
+    'http://github.com/RichToyo/Gian-Proxies/fixture',
+    'https://github.com/RichToyo/Gian/../../untrusted/Gian-Proxies/fixture',
+    'https://user@github.com/RichToyo/Gian-Proxies/fixture',
+    'https://github.com:8443/RichToyo/Gian-Proxies/fixture',
+  ]) assert.throws(() => assertHistoryEvidenceUrl(url));
+});
+
 test('authored histories remain complete and their Markdown projection matches', () => {
-  assert.deepEqual(validateReview(), { proxies: 7, versions: 86, distributions: 89, metadataOnly: 28 });
+  assert.deepEqual(validateReview(), { proxies: 7, versions: 93, distributions: 96, metadataOnly: 28 });
 });
 
 test('v1 tutorial concatenation preserves all nine chapters byte for byte', () => {

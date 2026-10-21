@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.7**, Runtime **2.2.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.8**, Runtime **2.2.0**. These are distribution targets, not this machine's installed state.
+
+## 0.4.8
+
+First published: 2026-10-21T12:23:22Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.8): 2026-10-21T12:23:22Z.
+- CLI: 2.2.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Publish an English-only Kimi Proxy from RichToyo. Retain Kimi Code Runtime 2.2.0 and the existing wire protocol. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.8) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.4.8/packages/proxies/kimi-proxy/README.md)
 
 ## 0.4.7
 

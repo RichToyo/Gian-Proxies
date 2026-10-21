@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.6**, Runtime **0.163.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.7**, Runtime **0.163.0**. These are distribution targets, not this machine's installed state.
+
+## 0.3.7
+
+First published: 2026-10-21T12:23:19Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.7): 2026-10-21T12:23:19Z.
+- CLI: 0.163.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Publish an English-only Codex Proxy from RichToyo, including the managed gian-session Skill. Retain Codex CLI 0.163.0 and the existing wire protocol. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.7) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.7/packages/proxies/codex-proxy/README.md)
 
 ## 0.3.6
 

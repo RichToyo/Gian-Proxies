@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.6**, Runtime **0.2.1-rc.2**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.7**, Runtime **0.2.1-rc.2**. These are distribution targets, not this machine's installed state.
+
+## 0.3.7
+
+First published: 2026-10-21T12:23:44Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.7): 2026-10-21T12:23:44Z.
+- CLI: 0.2.1-rc.2 (Manifest compatibility declaration, not local installation state). Bridge: 0.1.7 (source package corresponding to this archive).
+
+### Changed
+
+- Publish an English-only DeepSeek Harness Proxy from RichToyo with the existing Bridge 0.1.7. Retain Runtime 0.2.1-rc.2 and the existing wire protocol. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.7) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-dsh-v0.3.7/packages/proxies/dsh-proxy/README.md)
 
 ## 0.3.6
 

@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "kimi",
-  "currentVersion": "0.4.7",
+  "currentVersion": "0.4.8",
   "entries": [
+    {
+      "version": "0.4.8",
+      "firstPublishedAt": "2026-10-21T12:23:22Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-kimi-v0.4.8",
+          "publishedAt": "2026-10-21T12:23:22Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.8",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.8/gian-proxy-kimi-0.4.8-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "12f8b644e5a11c716c2930ea89a55867f2759d7589dc05435e0dcb44c247b4d2",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.8/gian-proxy-kimi-0.4.8-darwin-arm64.tar.gz",
+            "sha256": "92c193d79c827283195dbdd0b47aefe6ea2d7d1ee3677a5782654a276335d626",
+            "size": 161171
+          },
+          "runtimeDeclaration": {
+            "id": "kimi",
+            "versions": [
+              "2.2.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Publish an English-only Kimi Proxy from RichToyo. Retain Kimi Code Runtime 2.2.0 and the existing wire protocol. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.8",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.4.8/packages/proxies/kimi-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.4.7",
       "firstPublishedAt": "2026-10-15T10:55:26Z",

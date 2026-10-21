@@ -2168,5 +2168,180 @@
     "process": {
       "scope": "shared"
     }
+  },
+  {
+    "tag": "proxy-claude-v0.3.11",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.11",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.11/gian-proxy-claude-0.3.11-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:2534b2643fc759a0bf0e1c8fecb0b4f6c9b4b6e05983760def3f317ce98b4dc3",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "claude",
+    "pluginVersion": "0.3.11",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "claude",
+      "displayName": "Claude Code",
+      "verifiedVersions": [
+        "2.1.304"
+      ]
+    },
+    "process": {
+      "scope": "session"
+    }
+  },
+  {
+    "tag": "proxy-codex-v0.3.7",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.7",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.7/gian-proxy-codex-0.3.7-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:783de48d2bac024fea1e900f7788a5cfdca99331de0556711cd6c4427b3a8224",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "codex",
+    "pluginVersion": "0.3.7",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "codex",
+      "displayName": "Codex CLI",
+      "verifiedVersions": [
+        "0.163.0"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
+  },
+  {
+    "tag": "proxy-kimi-v0.4.8",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.8",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.8/gian-proxy-kimi-0.4.8-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:12f8b644e5a11c716c2930ea89a55867f2759d7589dc05435e0dcb44c247b4d2",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "kimi",
+    "pluginVersion": "0.4.8",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "kimi",
+      "displayName": "Kimi Code",
+      "verifiedVersions": [
+        "2.2.0"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
+  },
+  {
+    "tag": "proxy-grok-v0.3.12",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.12",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.12/gian-proxy-grok-0.3.12-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:fc96864712b8ac66994db334b2a5546a2ba3dc622f83bf0e0136bb5f64e88782",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "grok",
+    "pluginVersion": "0.3.12",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "grok",
+      "displayName": "Grok CLI",
+      "verifiedVersions": [
+        "1.0.62"
+      ]
+    },
+    "process": {
+      "scope": "session"
+    }
+  },
+  {
+    "tag": "proxy-dsh-v0.3.7",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.7",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.7/gian-proxy-dsh-0.3.7-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:8b3a661aaa320c9d12ccf656e4b537c521fef541052e62636099db232b859850",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "ai.deepseek.harness",
+    "pluginVersion": "0.3.7",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "deepseek-harness",
+      "displayName": "DeepSeek Harness",
+      "verifiedVersions": [
+        "0.2.1-rc.2"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
+  },
+  {
+    "tag": "proxy-zcode-v0.4.7",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-zcode-v0.4.7",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-zcode-v0.4.7/gian-proxy-zcode-0.4.7-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:a8f62c138e997d4c1ce61b9dcd3f8b0e53240664328d7e0ad38164c8540f7e50",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "com.zhipu.zcode",
+    "pluginVersion": "0.4.7",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "zcode",
+      "displayName": "ZCode Runtime",
+      "verifiedVersions": [
+        "0.17.0"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
+  },
+  {
+    "tag": "proxy-antigravity-v0.0.3",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.3",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.3/gian-proxy-antigravity-0.0.3-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:c3946f85e92236d917ce3f85037293139b5a54498684e825315947317b0cac3c",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "io.gian.antigravity",
+    "pluginVersion": "0.0.3",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "antigravity-acp",
+      "displayName": "Antigravity ACP Server",
+      "verifiedVersions": [
+        "1.4.1"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
   }
 ]

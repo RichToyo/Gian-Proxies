@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "grok",
-  "currentVersion": "0.3.11",
+  "currentVersion": "0.3.12",
   "entries": [
+    {
+      "version": "0.3.12",
+      "firstPublishedAt": "2026-10-21T12:23:33Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-grok-v0.3.12",
+          "publishedAt": "2026-10-21T12:23:33Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.12",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.12/gian-proxy-grok-0.3.12-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "fc96864712b8ac66994db334b2a5546a2ba3dc622f83bf0e0136bb5f64e88782",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.12/gian-proxy-grok-0.3.12-darwin-arm64.tar.gz",
+            "sha256": "198c9554884764c3c235f3dd3c1493aa467cf90c62c3d006d44d588c562b0d75",
+            "size": 179418
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.62"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Publish an English-only Grok Proxy from RichToyo. Retain Grok CLI 1.0.62 and the existing wire protocol. Native approval behavior under auto/always_approve remains unverified without an authenticated session. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.12",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-grok-v0.3.12/packages/proxies/grok-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.11",
       "firstPublishedAt": "2026-10-17T18:11:27Z",

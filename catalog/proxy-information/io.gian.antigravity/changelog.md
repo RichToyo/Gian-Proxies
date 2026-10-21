@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.0.2**, Runtime **1.4.1**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.0.3**, Runtime **1.4.1**. These are distribution targets, not this machine's installed state.
+
+## 0.0.3
+
+First published: 2026-10-21T12:23:59Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.3): 2026-10-21T12:23:59Z.
+- CLI: 1.4.1 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Publish an English-only Antigravity Proxy from RichToyo. Retain the official ACP Runtime 1.4.1 and the existing wire protocol. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.3) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-antigravity-v0.0.3/packages/proxies/antigravity-proxy/README.md)
 
 ## 0.0.2
 

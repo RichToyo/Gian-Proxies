@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "codex",
-  "currentVersion": "0.3.6",
+  "currentVersion": "0.3.7",
   "entries": [
+    {
+      "version": "0.3.7",
+      "firstPublishedAt": "2026-10-21T12:23:19Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-codex-v0.3.7",
+          "publishedAt": "2026-10-21T12:23:19Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.7",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.7/gian-proxy-codex-0.3.7-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "783de48d2bac024fea1e900f7788a5cfdca99331de0556711cd6c4427b3a8224",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.7/gian-proxy-codex-0.3.7-darwin-arm64.tar.gz",
+            "sha256": "ff712285ce63385b35436dbacebe645242cf3ae2fe6efa0ad18345790240cc84",
+            "size": 197830
+          },
+          "runtimeDeclaration": {
+            "id": "codex",
+            "versions": [
+              "0.163.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Publish an English-only Codex Proxy from RichToyo, including the managed gian-session Skill. Retain Codex CLI 0.163.0 and the existing wire protocol. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.7",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.7/packages/proxies/codex-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.6",
       "firstPublishedAt": "2026-10-16T18:19:57Z",

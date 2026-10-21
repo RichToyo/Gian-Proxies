@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.6**, Runtime **0.17.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.7**, Runtime **0.17.0**. These are distribution targets, not this machine's installed state.
+
+## 0.4.7
+
+First published: 2026-10-21T12:23:51Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-zcode-v0.4.7): 2026-10-21T12:23:51Z.
+- CLI: 0.17.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Publish an English-only ZCode Proxy from RichToyo, removing the remaining first-party localized fork comment. Retain reviewed App-source 3.16.2 at commit 3c5b227 and CLI 0.17.0 without altering original upstream source or notices. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-zcode-v0.4.7) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-zcode-v0.4.7/packages/proxies/zcode-proxy/README.md)
 
 ## 0.4.6
 

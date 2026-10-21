@@ -18,6 +18,19 @@ const folders = { claude: 'cc-proxy', codex: 'codex-proxy', kimi: 'kimi-proxy',
   'ai.deepseek.harness': 'dsh-proxy', 'com.zhipu.zcode': 'zcode-proxy', grok: 'grok-proxy',
   'io.gian.antigravity': 'antigravity-proxy' };
 
+export function assertHistoryEvidenceUrl(url) {
+  const parsed = new URL(url);
+  assert.equal(parsed.protocol, 'https:');
+  assert.equal(parsed.hostname, 'github.com');
+  assert.equal(parsed.port, '');
+  assert.equal(parsed.username, '');
+  assert.equal(parsed.password, '');
+  const [, owner, repository, ...path] = parsed.pathname.split('/');
+  assert.ok(['RichLogic', 'RichToyo'].includes(owner));
+  assert.ok(['Gian', 'Gian-Proxies'].includes(repository));
+  assert.ok(path.length > 0);
+}
+
 function containedFile(path, max = 256 * 1024) {
   const resolved = realpathSync(path);
   const rel = relative(realpathSync(root), resolved);
@@ -159,7 +172,7 @@ export function validateReview({ render = false } = {}) {
         assert.ok(categories.includes(note.category));
         assert.ok(typeof note.text === 'string' && note.text.length > 0 && note.text.length < 2048);
         assert.ok(Array.isArray(note.evidence) && note.evidence.length > 0);
-        for (const url of note.evidence) assert.match(url, /^https:\/\/github\.com\/RichLogic\/(Gian|Gian-Proxies)\//);
+        for (const url of note.evidence) assertHistoryEvidenceUrl(url);
       }
       versions++;
     }

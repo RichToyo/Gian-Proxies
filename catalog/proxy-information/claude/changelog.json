@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "claude",
-  "currentVersion": "0.3.10",
+  "currentVersion": "0.3.11",
   "entries": [
+    {
+      "version": "0.3.11",
+      "firstPublishedAt": "2026-10-21T12:23:15Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-claude-v0.3.11",
+          "publishedAt": "2026-10-21T12:23:15Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.11",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.11/gian-proxy-claude-0.3.11-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "2534b2643fc759a0bf0e1c8fecb0b4f6c9b4b6e05983760def3f317ce98b4dc3",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.11/gian-proxy-claude-0.3.11-darwin-arm64.tar.gz",
+            "sha256": "0b64e930e6fa0ebc60680c49dd4d5df033ff464733d6f21aa612aa7f940c2e8c",
+            "size": 588223
+          },
+          "runtimeDeclaration": {
+            "id": "claude",
+            "versions": [
+              "2.1.304"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Publish an English-only Claude Proxy from RichToyo with MCP SDK 1.32.0 and bounded HTTP input before SDK validation. Retain Claude Code Runtime 2.1.304 and the existing wire protocol. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.11",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-claude-v0.3.11/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.10",
       "firstPublishedAt": "2026-10-21T04:53:36Z",
