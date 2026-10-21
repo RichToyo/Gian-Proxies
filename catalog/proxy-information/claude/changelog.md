@@ -2,7 +2,29 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.8**, Runtime **2.1.302**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.10**, Runtime **2.1.304**. These are distribution targets, not this machine's installed state.
+
+## 0.3.10
+
+First published: 2026-10-21T04:53:36Z (UTC).
+
+- [RichLogic/Gian-Proxies distribution](https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-claude-v0.3.10): 2026-10-21T04:53:36Z.
+- CLI: 2.1.304 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Update the managed Claude Code Runtime to 2.1.304 (promoted to /latest and /stable, npm latest and GitHub latest; SHA-256 and size verified against the official manifest). No documented headless spawn/wire compatibility changes were found in the official 2.1.304 changelog; the nine selected startup flags the adapter spawns or parses were verified on the new binary. Authenticated wire/Provider turns are NOT_RUN. The wire protocol range is unchanged. Artifacts pass hosted qualification. [Source 1](https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-claude-v0.3.10) [Source 2](https://github.com/RichLogic/Gian-Proxies/blob/proxy-claude-v0.3.10/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts)
+
+## 0.3.9
+
+First published: 2026-10-20T01:01:03Z (UTC).
+
+- [RichLogic/Gian-Proxies distribution](https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-claude-v0.3.9): 2026-10-20T01:01:03Z.
+- CLI: 2.1.303 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Update the managed Claude Code Runtime to 2.1.303 (promoted to /latest, npm latest and GitHub latest; SHA-256 and size verified against the official manifest). Upstream 2.1.303 is a bug-fix/reliability entry with no wire-protocol or spawn-surface changes; the nine selected startup flags the adapter spawns or parses were re-verified on the new binary. The wire protocol range is unchanged. Artifacts pass hosted qualification; real model turns were not run for this release. [Source 1](https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-claude-v0.3.9) [Source 2](https://github.com/RichLogic/Gian-Proxies/blob/proxy-claude-v0.3.9/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts)
 
 ## 0.3.8
 

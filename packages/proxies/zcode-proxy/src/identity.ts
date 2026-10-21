@@ -6,11 +6,11 @@ export const PLUGIN_ID = 'com.zhipu.zcode';
 export const PLUGIN_NAME = 'ZCode';
 export const PLUGIN_VERSION = packageInfo.version;
 
-/** Inner wire facts for the open-source ZCode CLI 0.16.9
- *  (github.com/zai-org/ZCode @ aac4755666d09fdcd70272fcf063c077a639015f). */
+/** Inner wire facts for the open-source ZCode CLI 0.17.0
+ *  (github.com/zai-org/ZCode @ 3c5b227649371507ddc4eb46ac5133afe6db1cab). */
 export const INNER_PROTOCOL_NAME = 'ZCode Protocol';
 export const INNER_PROTOCOL_VERSION = 1;
-export const VERIFIED_CLI_VERSIONS = ['0.16.9'] as const;
+export const VERIFIED_CLI_VERSIONS = ['0.17.0'] as const;
 
 /** Outer capability set, rebased onto the 0.16.9 runtime surface:
  *  - `input.localImage` / `input.localFile`: v4 sendText attachments accept
@@ -27,7 +27,7 @@ export const VERIFIED_CLI_VERSIONS = ['0.16.9'] as const;
  *    structuredPatch results projected from the session/event stream.
  *  NOT declared: `sidechat` (upstream selection side chats inherit hidden
  *  parent context and restrict commands), `session.native.delete`
- *  (deleteSession is a close; history is never purged),
+ *  (upstream soft deletion is not exposed by this Proxy),
  *  `session.create.forkBoundaries` (boundaries come from the live
  *  projection at fork time), `integration.mcp.streamableHttp` as a capability
  *  name (Host MCP is injected per-session via session/create mcpServers). */

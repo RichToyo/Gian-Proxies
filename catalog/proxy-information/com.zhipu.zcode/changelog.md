@@ -2,7 +2,29 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.4**, Runtime **0.16.9**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.6**, Runtime **0.17.0**. These are distribution targets, not this machine's installed state.
+
+## 0.4.6
+
+First published: 2026-10-21T05:17:04Z (UTC).
+
+- [RichLogic/Gian-Proxies distribution](https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-zcode-v0.4.6): 2026-10-21T05:17:04Z.
+- CLI: 0.17.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Update the managed Runtime to reviewed App-source 3.16.2 at immutable commit 3c5b227; CLI remains 0.17.0. The dependency lock, protocol entrypoint and database migration source are unchanged. Incorporate upstream temporary Bash-output preparation, fallback, cancellation and retention fixes, plugin-read concurrency improvements and read-only workflow children; retain the existing history-list fix and Gian capability boundaries. Selected source regressions pass and artifacts are hosted-qualified; real model turns were not run for this release. [Source 1](https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-zcode-v0.4.6) [Source 2](https://github.com/RichLogic/Gian-Proxies/blob/proxy-zcode-v0.4.6/packages/proxies/zcode-proxy/README.md)
+
+## 0.4.5
+
+First published: 2026-10-20T01:35:37Z (UTC).
+
+- [RichLogic/Gian-Proxies distribution](https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-zcode-v0.4.5): 2026-10-20T01:35:37Z.
+- CLI: 0.17.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Update the managed Runtime to reviewed App-source 3.16.1 / CLI 0.17.0 at immutable commit 0a1fc56, retaining hash-bound standalone authentication and model catalog integration. Isolated database checks cover historical checksums, synthetic history preservation, table backup restore and re-upgrade; upstream restore retains additive schema, and unavailable backups produce a notice while migration continues. Fix native history listing by omitting includeArchived, removed from the strict 0.17.0 session/list schema. Correct native soft-delete capability explanations; Gian session close only detaches and never invokes native deletion. Artifacts pass hosted qualification; real model turns were not run for this release. [Source 1](https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-zcode-v0.4.5) [Source 2](https://github.com/RichLogic/Gian-Proxies/blob/proxy-zcode-v0.4.5/packages/proxies/zcode-proxy/README.md)
 
 ## 0.4.4
 

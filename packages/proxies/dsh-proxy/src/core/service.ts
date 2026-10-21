@@ -393,7 +393,7 @@ export class DshProxyService {
     const nativeSeq = typeof notification.params.nativeSeq === 'number'
       ? notification.params.nativeSeq
       : session.sequence;
-    // Re-checked against @deepseek-ai/dsh@0.2.0-rc.2 KNOWN_SESSION_EVENT_TYPES.
+    // Re-checked against @deepseek-ai/dsh@0.2.1-rc.2 KNOWN_SESSION_EVENT_TYPES.
     // tool/result.meta stays opaque JSON; FsDiffMeta is still { diffs, operation? }.
     // session/title and team/* stay on the generic path. This migration does
     // not adopt Team mode or SessionTitleService.rename.

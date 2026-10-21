@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "io.gian.antigravity",
+  "currentVersion": "0.0.2",
+  "entries": [
+    {
+      "version": "0.0.2",
+      "firstPublishedAt": "2026-10-20T01:01:11Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-antigravity-v0.0.2",
+          "publishedAt": "2026-10-20T01:01:11Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.2",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-antigravity-v0.0.2/gian-proxy-antigravity-0.0.2-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "7d1b28addb4a976c760ecabfb500a4d76048b2de0f07ca56cdcfa43addcd7423",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-antigravity-v0.0.2/gian-proxy-antigravity-0.0.2-darwin-arm64.tar.gz",
+            "sha256": "0fa3ed12e077c36af7984c5bdefddd29465847960fdf91117e3ad5bc435784f0",
+            "size": 152529
+          },
+          "runtimeDeclaration": {
+            "id": "antigravity-acp",
+            "versions": [
+              "1.4.1"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the upstream Antigravity ACP Runtime to 1.4.1 (the current ACP registry version; the official dl.google.com ZIP passes strict pair validation with pinned bytes). The ACP initialize contract is re-verified: core session/prompt/MCP/auth capabilities are unchanged; 1.4.1 newly advertises optional _meta.antigravity metadata (tier, systemPrompt.append) that is not adopted as a Gian capability. The wire protocol range is unchanged. Artifacts pass hosted qualification; real model turns were not run for this release.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.2",
+            "https://github.com/RichLogic/Gian-Proxies/blob/proxy-antigravity-v0.0.2/packages/proxies/antigravity-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "version": "0.0.1",
+      "firstPublishedAt": "2026-10-18T11:46:36Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-antigravity-v0.0.1",
+          "publishedAt": "2026-10-18T11:46:36Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.1",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-antigravity-v0.0.1/gian-proxy-antigravity-0.0.1-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "1a9cd780d24c14e1c9250c4e97ebae6d61bf25463e4c9c293604bdbf05a9ab4a",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-antigravity-v0.0.1/gian-proxy-antigravity-0.0.1-darwin-arm64.tar.gz",
+            "sha256": "55900ae96cf3eec8ff901d5d65ea4c9971d08a31ab149368622da255fb0497cf",
+            "size": 152529
+          },
+          "runtimeDeclaration": {
+            "id": "antigravity-acp",
+            "versions": [
+              "1.3.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "added",
+          "text": "Initial admission: connect Gian to Google's official Antigravity ACP Server 1.3.0 with text turns, native tool approvals, cancellation, context occupancy and detach/resume; Fork, Side Chat, native history replay, multimedia input and billing-token totals are out of scope. Artifacts pass hosted qualification; artifact qualification explicitly excludes real Provider-turn acceptance.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.1",
+            "https://github.com/RichLogic/Gian-Proxies/blob/proxy-antigravity-v0.0.1/packages/proxies/antigravity-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    }
+  ],
+  "withdrawnVersions": []
+}

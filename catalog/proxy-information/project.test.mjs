@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +12,7 @@ const current = JSON.parse(readFileSync(join(root, 'evidence/current-combination
 const certified = current.plugins.map(p => ({ pluginId: p.id, version: p.version, runtime: p.combination.runtime }));
 
 test('authored histories remain complete and their Markdown projection matches', () => {
-  assert.deepEqual(validateReview(), { proxies: 6, versions: 79, distributions: 82, metadataOnly: 28 });
+  assert.deepEqual(validateReview(), { proxies: 7, versions: 86, distributions: 89, metadataOnly: 28 });
 });
 
 test('v1 tutorial concatenation preserves all nine chapters byte for byte', () => {
@@ -91,10 +91,20 @@ test('new selected qualified metadata leaves excluded signed content and localiz
   const target = mkdtempSync(join(tmpdir(), 'gian-information-addition-'));
   try {
     cpSync(join(root, '../official-source'), target, { recursive: true });
-    const pluginId = 'io.gian.antigravity';
+    // Antigravity is history-backed since Catalog 29; simulate the next
+    // history-less provider with a synthetic fixture instead.
+    const pluginId = 'io.fixture.newproxy';
     const directory = join(target, 'plugins', pluginId);
-    const manifest = JSON.parse(readFileSync(join(directory, 'sidecar.json'), 'utf8'));
-    const addition = { pluginId, version: '0.0.1', manifest, runtime: { runtimeId: 'antigravity-acp', version: '1.3.0' } };
+    const manifest = { schemaVersion: 4, id: pluginId, pluginVersion: '0.1.0',
+      protocol: { name: 'gian.proxy', range: '>=2.2 <3.0' }, process: { scope: 'shared' },
+      runtime: { kind: 'external', id: 'fixture-acp', verifiedVersions: ['1.0.0'] } };
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, 'entry.json'), JSON.stringify({ pluginId,
+      channels: { stable: { pluginVersion: '0.1.0' } },
+      documentation: { overview: 'overview.md', setup: 'setup.md', usage: 'usage.md', troubleshooting: 'troubleshooting.md' } }));
+    writeFileSync(join(directory, 'sidecar.json'), JSON.stringify(manifest));
+    for (const doc of ['overview.md', 'setup.md', 'usage.md', 'troubleshooting.md']) writeFileSync(join(directory, doc), `# ${doc}\n`);
+    const addition = { pluginId, version: '0.1.0', manifest, runtime: { runtimeId: 'fixture-acp', version: '1.0.0' } };
     const oldPath = join(target, 'plugins', current.plugins[0].id, 'overview.md');
     writeFileSync(oldPath, '# Exact signed base28 content\n');
     const inheritedLocalizations = { [current.plugins[0].id]: {
@@ -107,9 +117,9 @@ test('new selected qualified metadata leaves excluded signed content and localiz
     assert.deepEqual(Buffer.from(result.localizations[current.plugins[0].id].en.documents.overview),
       inheritedLocalizations[current.plugins[0].id].en.documents.overview);
     assert.deepEqual(readFileSync(join(directory, 'overview.md')), before);
-    assert.throws(() => projectInformation(target, [...certified, { ...addition, version: '0.0.2' }], options), /version differs/);
+    assert.throws(() => projectInformation(target, [...certified, { ...addition, version: '0.2.0' }], options), /version differs/);
     assert.throws(() => projectInformation(target, [...certified, { ...addition, manifest: { ...manifest, id: 'other' } }], options), /Manifest differs/);
-    assert.throws(() => projectInformation(target, [...certified, { ...addition, runtime: { runtimeId: 'antigravity-acp', version: '0.0.1' } }], options), /Runtime version differs/);
+    assert.throws(() => projectInformation(target, [...certified, { ...addition, runtime: { runtimeId: 'fixture-acp', version: '2.0.0' } }], options), /Runtime version differs/);
     writeFileSync(join(directory, 'usage.md'), '');
     assert.throws(() => projectInformation(target, [...certified, addition], options), /documentation is incomplete/);
   } finally { rmSync(target, { recursive: true, force: true }); }

@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "compatibleRuntimeCommits": ["3c5b227649371507ddc4eb46ac5133afe6db1cab"],
   "upstream": {
     "repository": "https://github.com/zai-org/ZCode.git",
     "commit": "aac4755666d09fdcd70272fcf063c077a639015f",

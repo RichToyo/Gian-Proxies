@@ -58,5 +58,15 @@
       "displayName": "Grok Build",
       "tagline": "xAI Grok Build sessions in Gian."
     }
+  },
+  "io.gian.antigravity": {
+    "en": {
+      "displayName": "Antigravity",
+      "tagline": "Google Antigravity ACP sessions in Gian."
+    },
+    "zh-CN": {
+      "displayName": "Antigravity",
+      "tagline": "Google Antigravity ACP sessions in Gian."
+    }
   }
 }

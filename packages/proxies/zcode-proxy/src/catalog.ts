@@ -99,8 +99,8 @@ const SIDECHAT_UNAVAILABLE_REASON = 'ZCode selection side chats inherit hidden p
  *    committed context with hidden-transcript rewriting (session-fork.ts:677-693)
  *    and restricts fork/edit/retry inside the child — not semantically equal to
  *    a Gian Side Chat, so it stays unsupported;
- *  - v4 `deleteSession` is documented as closeSession (it does not truly delete the record,
- *    session-mgmt.ts:154-158), so native delete is never declared. */
+ *  - CLI 0.17.0 adds persistent soft deletion; this Proxy does not expose it.
+ *    session.close remains detach-only and preserves native history. */
 export function catalogActions(): CatalogActions {
   return {
     fork: { supported: true },
@@ -118,7 +118,7 @@ function actionsList(): ProjectedCatalog['actions'] {
     { id: 'session.fork', supported: actions.fork.supported },
     { id: 'session.fork.atTurn', supported: actions.forkAtTurn.supported },
     { id: 'sidechat.create', supported: actions.sidechat.supported },
-    { id: 'session.native.delete', supported: false, reason: 'ZCode deleteSession is a close: history is never purged (session-mgmt.ts:154-158).' },
+    { id: 'session.native.delete', supported: false, reason: 'This Proxy does not expose ZCode soft deletion; session.close only detaches.' },
   ];
   if (actions.fork.reason !== undefined) list[0]!.reason = actions.fork.reason;
   if (actions.forkAtTurn.reason !== undefined) list[1]!.reason = actions.forkAtTurn.reason;
@@ -144,7 +144,7 @@ export function bootstrapCatalog(runtimeFingerprint: string): ProjectedCatalog {
       { id: 'session.fork', supported: false, reason: 'catalog.list has not run yet.' },
       { id: 'session.fork.atTurn', supported: false, reason: 'catalog.list has not run yet.' },
       { id: 'sidechat.create', supported: false, reason: SIDECHAT_UNAVAILABLE_REASON },
-      { id: 'session.native.delete', supported: false, reason: 'ZCode deleteSession is a close: history is never purged (session-mgmt.ts:154-158).' },
+      { id: 'session.native.delete', supported: false, reason: 'This Proxy does not expose ZCode soft deletion; session.close only detaches.' },
     ],
     slashCommands: [],
   };

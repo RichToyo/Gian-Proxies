@@ -2,7 +2,7 @@
   "schemaVersion": 4,
   "id": "com.zhipu.zcode",
   "displayName": "ZCode",
-  "pluginVersion": "0.4.4",
+  "pluginVersion": "0.4.6",
   "entry": "proxy.mjs",
   "protocol": {
     "name": "gian.proxy",
@@ -16,7 +16,7 @@
     "id": "zcode",
     "displayName": "ZCode Runtime",
     "verifiedVersions": [
-      "0.16.9"
+      "0.17.0"
     ]
   },
   "branding": {

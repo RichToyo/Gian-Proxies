@@ -15,7 +15,8 @@ const labels = { added: 'Added', changed: 'Changed', fixed: 'Fixed', attention: 
 const tutorialHeadings = ['What it does in Gian', 'Capabilities and limitations', 'Runtime architecture', 'Installation and dependencies',
   'First use', 'HOME and isolation', 'Reverse proxies and custom endpoints', 'Operational notes', 'Troubleshooting'];
 const folders = { claude: 'cc-proxy', codex: 'codex-proxy', kimi: 'kimi-proxy',
-  'ai.deepseek.harness': 'dsh-proxy', 'com.zhipu.zcode': 'zcode-proxy', grok: 'grok-proxy' };
+  'ai.deepseek.harness': 'dsh-proxy', 'com.zhipu.zcode': 'zcode-proxy', grok: 'grok-proxy',
+  'io.gian.antigravity': 'antigravity-proxy' };
 
 function containedFile(path, max = 256 * 1024) {
   const resolved = realpathSync(path);

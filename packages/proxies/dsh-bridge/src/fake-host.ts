@@ -95,7 +95,7 @@ export class FakeDshRuntime implements BridgeHost {
 
   constructor(private readonly options: FakeHostOptions = {}) {
     this.bridgeVersion = options.bridgeVersion ?? BRIDGE_PACKAGE_VERSION;
-    this.dshVersion = options.dshVersion ?? '0.2.0-rc.2';
+    this.dshVersion = options.dshVersion ?? '0.2.1-rc.2';
   }
 
   attachSink(sink: (event: BridgeHostEvent) => void): void {
@@ -365,7 +365,7 @@ export class FakeDshRuntime implements BridgeHost {
   }
 
   async sessionRename(): Promise<Record<string, unknown>> {
-    // SessionTitleService.rename exists in 0.2.0-rc.2 and is not wired.
+    // SessionTitleService.rename exists in 0.2.1-rc.2 and is not wired.
     throw new Error('CAPABILITY_NOT_SUPPORTED: DSH session rename is not connected in this bridge');
   }
 

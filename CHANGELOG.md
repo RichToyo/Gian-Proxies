@@ -1,5 +1,77 @@
 # Gian Proxies Changelog
 
+## ZCode Proxy 0.4.6 - 2026-10-21
+
+- Update the managed Runtime source to reviewed App-source 3.16.2 at
+  `3c5b227`; its CLI version remains 0.17.0. Keep the immutable dependency
+  lock and hash-bound standalone integration.
+- Review temporary Bash output lifecycle/fallback, plugin-read concurrency,
+  workflow quota handling and read-only workflow child sessions. No new
+  Gian capabilities are advertised; the existing strict history-list fix stays.
+
+## Claude Proxy 0.3.10 - 2026-10-21
+
+- Target the current official Claude Code 2.1.304 Runtime, promoted to the
+  /latest and /stable channels, npm latest and GitHub latest on
+  2026-10-19; the darwin-arm64 checksum and size match the official 2.1.304
+  manifest. No documented headless spawn/wire compatibility changes were
+  found in the official 2.1.304 changelog; the nine selected startup flags
+  the adapter spawns or parses were verified on the new binary.
+  Authenticated wire/Provider turns are NOT_RUN.
+- The gian.proxy wire contract is unchanged.
+
+## ZCode Proxy 0.4.5 - 2026-10-20
+
+- Pin reviewed App-source 3.16.1 / CLI 0.17.0 at immutable source `0a1fc56`.
+- Preserve hash-bound standalone authentication and model-catalog integration.
+- Review additive protocol fields and new SQLite migrations; isolated native
+  migration contracts and synthetic old/new history/restore checks pass.
+- Fix native history listing by omitting `includeArchived`, removed from the
+  strict 0.17.0 schema; preserve a native source fixture and regression.
+- Correct unsupported native-delete explanations for upstream soft deletion;
+  Gian session.close continues to detach without deleting native history.
+- No new optional capabilities or real Provider-turn claims.
+
+## Claude Proxy 0.3.9 - 2026-10-20
+
+- Target the current official Claude Code 2.1.303 Runtime, promoted to the
+  /latest channel, npm latest and GitHub latest; the darwin-arm64 checksum
+  and size match the official 2.1.303 manifest. Upstream 2.1.303 is a
+  bug-fix/reliability entry with no wire-protocol or spawn-surface changes;
+  the nine selected startup flags the adapter spawns or parses were
+  re-verified on the new binary.
+- The gian.proxy wire contract is unchanged.
+
+## Antigravity Proxy 0.0.2 - 2026-10-20
+
+- Target the upstream Antigravity ACP Runtime 1.4.1, the current version in
+  the official ACP registry; the darwin-arm64 ZIP from dl.google.com passes
+  the strict production pair validation (exact server+harness members,
+  pinned SHA-256/size).
+- A bounded no-credential ACP initialize on the new pair reports
+  `agentInfo.name` antigravity-acp and version 1.4.1; the core
+  session/prompt/MCP/auth capabilities are unchanged, while 1.4.1 newly
+  advertises optional `_meta.antigravity` metadata (`tier`,
+  `systemPrompt.append`) that is not adopted or verified as a Gian
+  capability. Deeper surface facts remain 1.3.0-researched and are labeled
+  as such. The gian.proxy wire contract is unchanged.
+
+## DeepSeek Harness Proxy 0.3.6 - 2026-10-20
+
+- Target `@deepseek-ai/dsh` 0.2.1-rc.2, now the npm `latest` dist-tag
+  (published 2026-10-17); the `next` channel coincides and `alpha` stays
+  separate. The bundled Bridge moves to 0.1.7: npm semver treats prerelease
+  tuples strictly (`^0.2.0-rc.2` does NOT satisfy 0.2.1-rc.2), so the Bridge
+  peer range now explicitly admits both RC lines (`^0.2.0-rc.2 ||
+  0.2.1-rc.2`), covered by a real-semver regression test.
+- Exact npm package-payload comparison of the bridge-used surfaces:
+  `SESSION_FORMAT_VERSION` stays 4 (no data migration),
+  KNOWN_SESSION_EVENT_TYPES only gains `job/registered`, `job/settled` and
+  `working-directory/change` (unknown durable events already project through
+  the generic activity path), and cordis moves patch-only. Un-reverified
+  behavior comments keep their historical 0.2.0-rc.2 citations.
+- The gian.proxy wire contract is unchanged.
+
 ## Claude Proxy 0.3.8 - 2026-10-18
 
 - Target the current official Claude Code 2.1.302 Runtime, promoted to the

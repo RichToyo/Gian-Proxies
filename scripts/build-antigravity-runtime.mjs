@@ -40,7 +40,7 @@ export const antigravityRuntimeSource = Object.freeze({
   provider: 'antigravity',
   pluginId: 'io.gian.antigravity',
   runtimeId: 'antigravity-acp',
-  version: '1.3.0',
+  version: '1.4.1',
   platform: 'darwin-arm64',
   registryPlatform: 'darwin-aarch64',
   format: 'tar.gz',
@@ -50,9 +50,9 @@ export const antigravityRuntimeSource = Object.freeze({
     Object.freeze({ name: 'agy_acp_server.par', mode: 0o755 }),
     Object.freeze({ name: 'localharness_external', mode: 0o555 }),
   ]),
-  sourceUrl: 'https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.3.0-darwin-arm64.zip',
-  sourceSha256: '7cd97045f7b4fe81175a107cdf16f9c51484e3c78a5162cae415338bb6aa5b88',
-  sourceSize: 111456962,
+  sourceUrl: 'https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.1-darwin-arm64.zip',
+  sourceSha256: 'f9bdd68291ae78c38d2141e63bc86b84e6cc7b9f60f71652c68435a7943deb17',
+  sourceSize: 112737434,
 });
 
 const MEMBER_NAMES = new Set(antigravityRuntimeSource.members.map(member => member.name));

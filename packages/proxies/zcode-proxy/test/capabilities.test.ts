@@ -709,7 +709,7 @@ test('plan.updated, diff.updated and subagent activity project from native facts
 
 // ---- close / delete boundary ----
 
-test('native delete stays unsupported with the close-semantics evidence; history stays visible', async () => {
+test('native soft deletion stays unsupported; detach preserves history', async () => {
   const harness = startHarness({
     scenario: {
       list: [
@@ -727,8 +727,8 @@ test('native delete stays unsupported with the close-semantics evidence; history
     assert.equal(domain, 'CAPABILITY_NOT_SUPPORTED');
     assert.match(
       ((deleted.payload as { error: { message: string } }).error.message),
-      /closeSession.*never purge/i,
-      'the delete boundary names the upstream closeSession semantics',
+      /persistent soft deletion.*does not expose/i,
+      'the delete boundary distinguishes upstream soft deletion from Proxy detach',
     );
 
     const sidechat = await harness.request('sidechat.create', {
@@ -738,6 +738,10 @@ test('native delete stays unsupported with the close-semantics evidence; history
       ((sidechat.payload as { error: { data: { domainCode: string } } }).error.data?.domainCode),
       'SIDECHAT_UNAVAILABLE',
     );
+
+    const nativeDeletes = harness.fakeLog().filter((entry) => entry.method === 'session/close'
+      || (entry.method === 'v4/command' && JSON.stringify(entry).includes('deleteSession')));
+    assert.equal(nativeDeletes.length, 0, 'unsupported deletion must not reach the Runtime');
 
     // Close detaches; the native session remains visible and adoptable.
     await harness.request('session.close', { sessionId: 's_1', streamId });

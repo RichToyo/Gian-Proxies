@@ -216,7 +216,7 @@ export interface BridgeInitializeResult {
 }
 
 /**
- * DSH session format version verified against `@deepseek-ai/dsh@0.2.0-rc.2`
+ * DSH session format version verified against `@deepseek-ai/dsh@0.2.1-rc.2`
  * (`SESSION_FORMAT_VERSION` in `@deepseek-ai/dsh-session`). Format 4 is the
  * current log. V3 files are migrated by persistence `open`: a read open does
  * not publish a successor, and a write open publishes one after a source-file

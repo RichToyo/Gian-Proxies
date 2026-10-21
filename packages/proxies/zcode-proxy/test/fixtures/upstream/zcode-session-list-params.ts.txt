@@ -1,0 +1,7 @@
+export const zcodeSessionListParamsSchema = z
+  .object({
+    workspace: zcodeWorkspaceRefSchema.optional(),
+    sessionIds: z.array(nonEmptyString).min(1).max(64).optional(),
+    limit: z.number().int().positive().optional(),
+  })
+  .strict();

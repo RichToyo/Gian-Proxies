@@ -52,7 +52,7 @@ test('session events read returns format version for the eventId source key', as
   });
   const page = await call(server, 'session.events.read', { sessionId: 's1', cursor: null, limit: 500 });
   const typed = page as { formatVersion: number; events: Array<{ seq: number }> };
-  // @deepseek-ai/dsh@0.2.0-rc.2 writes SESSION_FORMAT_VERSION 4.
+  // @deepseek-ai/dsh@0.2.1-rc.2 writes SESSION_FORMAT_VERSION 4.
   assert.equal(typed.formatVersion, 4);
   assert.equal(typed.events[0]?.seq, 0);
 });

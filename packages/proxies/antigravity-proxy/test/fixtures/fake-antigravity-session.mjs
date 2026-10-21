@@ -209,7 +209,7 @@ function handleRequest(message) {
         authMethods: [
           { id: 'oauth-personal', name: 'Log in with Google', description: 'Log in with your Google account' },
         ],
-        agentInfo: { name: 'antigravity-acp', title: 'Google Antigravity', version: '1.3.0' },
+        agentInfo: { name: 'antigravity-acp', title: 'Google Antigravity', version: '1.4.1' },
       },
     });
     return;

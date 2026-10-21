@@ -76,7 +76,7 @@ test('the Antigravity source recipe pins the published darwin-arm64 ZIP', () => 
   assert.equal(antigravityRuntimeSource.provider, 'antigravity');
   assert.equal(antigravityRuntimeSource.pluginId, 'io.gian.antigravity');
   assert.equal(antigravityRuntimeSource.runtimeId, 'antigravity-acp');
-  assert.equal(antigravityRuntimeSource.version, '1.3.0');
+  assert.equal(antigravityRuntimeSource.version, '1.4.1');
   assert.equal(antigravityRuntimeSource.platform, 'darwin-arm64');
   assert.equal(antigravityRuntimeSource.registryPlatform, 'darwin-aarch64');
   assert.equal(antigravityRuntimeSource.format, 'tar.gz');
@@ -87,10 +87,10 @@ test('the Antigravity source recipe pins the published darwin-arm64 ZIP', () => 
     { name: 'localharness_external', mode: 0o555 },
   ]);
   assert.equal(antigravityRuntimeSource.sourceUrl,
-    'https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.3.0-darwin-arm64.zip');
+    'https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.1-darwin-arm64.zip');
   assert.equal(antigravityRuntimeSource.sourceSha256,
-    '7cd97045f7b4fe81175a107cdf16f9c51484e3c78a5162cae415338bb6aa5b88');
-  assert.equal(antigravityRuntimeSource.sourceSize, 111456962);
+    'f9bdd68291ae78c38d2141e63bc86b84e6cc7b9f60f71652c68435a7943deb17');
+  assert.equal(antigravityRuntimeSource.sourceSize, 112737434);
   assert.equal(Object.hasOwn(antigravityRuntimeSource, 'publish'), false);
 });
 
@@ -178,9 +178,9 @@ test('an archive other than the pinned official ZIP is rejected before packing',
     archivePath: sameSize,
   }), error => {
     assert.match(error.message, /"stage":"file-integrity"/);
-    assert.match(error.message, /"actualSize":111456962/);
+    assert.match(error.message, /"actualSize":112737434/);
     assert.match(error.message, /"actualSha256":"[a-f0-9]{64}"/);
-    assert.match(error.message, /"expectedSha256":"7cd97045/);
+    assert.match(error.message, /"expectedSha256":"f9bdd682/);
     return true;
   });
 });
@@ -193,7 +193,7 @@ test('download requests identity bytes and distinguishes HTTP, encoding, declare
     { name: 'no-body', response: () => new Response(null), error: /download failed \(200\)/ },
     { name: 'encoded', response: () => new Response('private response body', { headers: { 'content-encoding': 'gzip', 'content-length': '111404059' } }), error: /"stage":"content-encoding".*"declaredSize":111404059/ },
     { name: 'declared', response: () => new Response('private response body', { headers: { 'content-length': '111404059' } }), error: /"stage":"content-length".*"declaredSize":111404059/ },
-    { name: 'short', response: () => new Response('zip', { headers: { 'content-length': String(antigravityRuntimeSource.sourceSize) } }), error: /"stage":"download-size".*"declaredSize":111456962,"actualSize":3/ },
+    { name: 'short', response: () => new Response('zip', { headers: { 'content-length': String(antigravityRuntimeSource.sourceSize) } }), error: /"stage":"download-size".*"declaredSize":112737434,"actualSize":3/ },
     { name: 'unknown-length', response: () => new Response('zip'), error: /"stage":"download-size".*"declaredSize":null,"actualSize":3/ },
   ];
   for (const fixture of cases) {

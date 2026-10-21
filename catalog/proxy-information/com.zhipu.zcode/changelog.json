@@ -1,8 +1,92 @@
 {
   "schemaVersion": 1,
   "pluginId": "com.zhipu.zcode",
-  "currentVersion": "0.4.4",
+  "currentVersion": "0.4.6",
   "entries": [
+    {
+      "version": "0.4.6",
+      "firstPublishedAt": "2026-10-21T05:17:04Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-zcode-v0.4.6",
+          "publishedAt": "2026-10-21T05:17:04Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-zcode-v0.4.6",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-zcode-v0.4.6/gian-proxy-zcode-0.4.6-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "3e836d6c07a528277f2f394bc60a91f96d74c3336639047b85600ccaa429137d",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-zcode-v0.4.6/gian-proxy-zcode-0.4.6-darwin-arm64.tar.gz",
+            "sha256": "9f0e08feb638fd4989f520b2a1bc74dce5b033f32fb1b936b8bb79b9bd9daae1",
+            "size": 143241
+          },
+          "runtimeDeclaration": {
+            "id": "zcode",
+            "versions": [
+              "0.17.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Runtime to reviewed App-source 3.16.2 at immutable commit 3c5b227; CLI remains 0.17.0. The dependency lock, protocol entrypoint and database migration source are unchanged. Incorporate upstream temporary Bash-output preparation, fallback, cancellation and retention fixes, plugin-read concurrency improvements and read-only workflow children; retain the existing history-list fix and Gian capability boundaries. Selected source regressions pass and artifacts are hosted-qualified; real model turns were not run for this release.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-zcode-v0.4.6",
+            "https://github.com/RichLogic/Gian-Proxies/blob/proxy-zcode-v0.4.6/packages/proxies/zcode-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "version": "0.4.5",
+      "firstPublishedAt": "2026-10-20T01:35:37Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-zcode-v0.4.5",
+          "publishedAt": "2026-10-20T01:35:37Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-zcode-v0.4.5",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-zcode-v0.4.5/gian-proxy-zcode-0.4.5-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "37c30ee591c08a92cbbcea3e32fabd024a69d2eca7e03cdbfe6ec21b5d0e3a3d",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-zcode-v0.4.5/gian-proxy-zcode-0.4.5-darwin-arm64.tar.gz",
+            "sha256": "4c2304205387431ed975bb251f42b55aba90d7e48855c41e3806b21b646d83cc",
+            "size": 143238
+          },
+          "runtimeDeclaration": {
+            "id": "zcode",
+            "versions": [
+              "0.17.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Runtime to reviewed App-source 3.16.1 / CLI 0.17.0 at immutable commit 0a1fc56, retaining hash-bound standalone authentication and model catalog integration. Isolated database checks cover historical checksums, synthetic history preservation, table backup restore and re-upgrade; upstream restore retains additive schema, and unavailable backups produce a notice while migration continues. Fix native history listing by omitting includeArchived, removed from the strict 0.17.0 session/list schema. Correct native soft-delete capability explanations; Gian session close only detaches and never invokes native deletion. Artifacts pass hosted qualification; real model turns were not run for this release.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-zcode-v0.4.5",
+            "https://github.com/RichLogic/Gian-Proxies/blob/proxy-zcode-v0.4.5/packages/proxies/zcode-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.4.4",
       "firstPublishedAt": "2026-10-15T02:24:58Z",

@@ -1,8 +1,56 @@
 {
   "schemaVersion": 1,
   "pluginId": "ai.deepseek.harness",
-  "currentVersion": "0.3.5",
+  "currentVersion": "0.3.6",
   "entries": [
+    {
+      "version": "0.3.6",
+      "firstPublishedAt": "2026-10-20T01:01:21Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-dsh-v0.3.6",
+          "publishedAt": "2026-10-20T01:01:21Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-dsh-v0.3.6",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-dsh-v0.3.6/gian-proxy-dsh-0.3.6-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "3c4ab8bca45476a2c78e6ca1a65d9c845b9238c8ea8e91c6a4dce2fb93afb0be",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-dsh-v0.3.6/gian-proxy-dsh-0.3.6-darwin-arm64.tar.gz",
+            "sha256": "306170d646ab6f0c2c26a93f0c8b2174f01aa8fb067b6de357de160941a5482d",
+            "size": 171080
+          },
+          "runtimeDeclaration": {
+            "id": "deepseek-harness",
+            "versions": [
+              "0.2.1-rc.2"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [
+            {
+              "id": "@gian/dsh-bridge",
+              "version": "0.1.7",
+              "basis": "bundled-package-source"
+            }
+          ],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed DeepSeek Harness to 0.2.1-rc.2 (now the npm latest dist-tag; upstream tag dsh-v0.2.1-rc.2). Exact npm package-payload comparison of the bridge-used surfaces: SESSION_FORMAT_VERSION stays 4 (no data migration), KNOWN_SESSION_EVENT_TYPES only gains job/registered, job/settled and working-directory/change (unknown durable events already project through the generic activity path), and cordis moves patch-only. The bundled Bridge moves to 0.1.7 (its peer range now explicitly admits both the 0.2.0 and 0.2.1 RC lines). Artifacts pass hosted qualification; real model turns were not run for this release.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-dsh-v0.3.6",
+            "https://github.com/RichLogic/Gian-Proxies/blob/proxy-dsh-v0.3.6/packages/proxies/dsh-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.5",
       "firstPublishedAt": "2026-10-11T05:51:54Z",

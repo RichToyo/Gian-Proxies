@@ -72,11 +72,11 @@ function fakeBridge(options: {
         case 'initialize':
           return {
             protocol: { name: 'gian.dsh.bridge', version: '1.0' },
-            plugin: { id: 'ai.deepseek.harness', bundle: '@gian/dsh-bridge', version: '0.1.6' },
+            plugin: { id: 'ai.deepseek.harness', bundle: '@gian/dsh-bridge', version: '0.1.7' },
             runtime: {
               id: 'deepseek-harness',
               package: '@deepseek-ai/dsh',
-              version: '0.2.0-rc.2',
+              version: '0.2.1-rc.2',
               sessionFormatVersion: 4,
             },
             capabilities: options.capabilities ?? FORK_CAPS,

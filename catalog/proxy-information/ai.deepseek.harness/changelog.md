@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.5**, Runtime **0.2.0-rc.2**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.6**, Runtime **0.2.1-rc.2**. These are distribution targets, not this machine's installed state.
+
+## 0.3.6
+
+First published: 2026-10-20T01:01:21Z (UTC).
+
+- [RichLogic/Gian-Proxies distribution](https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-dsh-v0.3.6): 2026-10-20T01:01:21Z.
+- CLI: 0.2.1-rc.2 (Manifest compatibility declaration, not local installation state). Bridge: 0.1.7 (source package corresponding to this archive).
+
+### Changed
+
+- Update the managed DeepSeek Harness to 0.2.1-rc.2 (now the npm latest dist-tag; upstream tag dsh-v0.2.1-rc.2). Exact npm package-payload comparison of the bridge-used surfaces: SESSION_FORMAT_VERSION stays 4 (no data migration), KNOWN_SESSION_EVENT_TYPES only gains job/registered, job/settled and working-directory/change (unknown durable events already project through the generic activity path), and cordis moves patch-only. The bundled Bridge moves to 0.1.7 (its peer range now explicitly admits both the 0.2.0 and 0.2.1 RC lines). Artifacts pass hosted qualification; real model turns were not run for this release. [Source 1](https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-dsh-v0.3.6) [Source 2](https://github.com/RichLogic/Gian-Proxies/blob/proxy-dsh-v0.3.6/packages/proxies/dsh-proxy/README.md)
 
 ## 0.3.5
 

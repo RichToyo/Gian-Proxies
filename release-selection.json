@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "providers": [
-    "antigravity"
+    "zcode"
   ],
-  "baseCatalogRepository": "RichLogic/Gian-Proxies",
-  "baseCatalogTag": "catalog-v1.28.0"
+  "baseCatalogTag": "catalog-v1.32.0",
+  "baseCatalogRepository": "RichLogic/Gian-Proxies"
 }

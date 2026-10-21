@@ -323,6 +323,11 @@ async function handle(request) {
       return;
     }
     case 'session/list': {
+      // Native CLI 0.17.0 uses a strict schema; includeArchived was removed.
+      if (Object.keys(params).some((key) => !['workspace', 'sessionIds', 'limit'].includes(key))) {
+        replyError(id, { code: -32602, message: 'Unrecognized session/list parameter' });
+        return;
+      }
       const sessions = (scenario.list ?? []).filter((entry) => !state.sessions.includes(entry.sessionId));
       reply(id, { sessions });
       return;

@@ -17,6 +17,7 @@ export function verifyZcodeRuntimeProtocol(entryPath, home, workspace) {
     const pending = new Map([
       ['gian-runtime-model-probe', 'gian/modelCatalog'],
       ['gian-runtime-presentation-probe', 'workspace/readPresentation'],
+      ['gian-runtime-history-probe', 'session/list'],
     ]);
     const stop = error => {
       if (outcome) return;
@@ -60,6 +61,9 @@ export function verifyZcodeRuntimeProtocol(entryPath, home, workspace) {
         if (method === 'workspace/readPresentation' && !Array.isArray(message.result.slashCommands)) {
           return stop(new Error('ZCode workspace presentation has an incompatible schema.'));
         }
+        if (method === 'session/list' && !Array.isArray(message.result.sessions)) {
+          return stop(new Error('ZCode native history list has an incompatible schema.'));
+        }
         pending.delete(message.id);
         if (pending.size === 0) return stop(null);
       }
@@ -79,6 +83,7 @@ export function verifyZcodeRuntimeProtocol(entryPath, home, workspace) {
     });
     for (const [id, method] of pending) {
       child.stdin.write(`${JSON.stringify({ id, method, params: method === 'gian/modelCatalog' ? {}
+        : method === 'session/list' ? { limit: 1 }
         : { workspace: { workspacePath: workspace, workspaceKey: workspace } } })}\n`);
     }
   });

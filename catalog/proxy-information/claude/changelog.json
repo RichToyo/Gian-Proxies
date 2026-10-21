@@ -1,8 +1,92 @@
 {
   "schemaVersion": 1,
   "pluginId": "claude",
-  "currentVersion": "0.3.8",
+  "currentVersion": "0.3.10",
   "entries": [
+    {
+      "version": "0.3.10",
+      "firstPublishedAt": "2026-10-21T04:53:36Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-claude-v0.3.10",
+          "publishedAt": "2026-10-21T04:53:36Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-claude-v0.3.10",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-claude-v0.3.10/gian-proxy-claude-0.3.10-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "bf82e3631a776def4dc9e08aa908d5459dbfe2989ab69294e74dc35d6998cd08",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-claude-v0.3.10/gian-proxy-claude-0.3.10-darwin-arm64.tar.gz",
+            "sha256": "301977ec9ec4747a699fb3a1a4a94b324e1817ce6bb49ea84278ab47b0debad5",
+            "size": 517719
+          },
+          "runtimeDeclaration": {
+            "id": "claude",
+            "versions": [
+              "2.1.304"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Claude Code Runtime to 2.1.304 (promoted to /latest and /stable, npm latest and GitHub latest; SHA-256 and size verified against the official manifest). No documented headless spawn/wire compatibility changes were found in the official 2.1.304 changelog; the nine selected startup flags the adapter spawns or parses were verified on the new binary. Authenticated wire/Provider turns are NOT_RUN. The wire protocol range is unchanged. Artifacts pass hosted qualification.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-claude-v0.3.10",
+            "https://github.com/RichLogic/Gian-Proxies/blob/proxy-claude-v0.3.10/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "version": "0.3.9",
+      "firstPublishedAt": "2026-10-20T01:01:03Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichLogic/Gian-Proxies",
+          "tag": "proxy-claude-v0.3.9",
+          "publishedAt": "2026-10-20T01:01:03Z",
+          "releaseUrl": "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-claude-v0.3.9",
+          "manifestUrl": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-claude-v0.3.9/gian-proxy-claude-0.3.9-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "721f6129f6b43e6400b9103037d71edccb206369f2951c30c993954a127f79ab",
+          "archive": {
+            "url": "https://github.com/RichLogic/Gian-Proxies/releases/download/proxy-claude-v0.3.9/gian-proxy-claude-0.3.9-darwin-arm64.tar.gz",
+            "sha256": "eb3f703cf0b3430a1bdc4061a3b90d1341c6cc6f01f3c961bed4704bc905fb74",
+            "size": 517721
+          },
+          "runtimeDeclaration": {
+            "id": "claude",
+            "versions": [
+              "2.1.303"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Claude Code Runtime to 2.1.303 (promoted to /latest, npm latest and GitHub latest; SHA-256 and size verified against the official manifest). Upstream 2.1.303 is a bug-fix/reliability entry with no wire-protocol or spawn-surface changes; the nine selected startup flags the adapter spawns or parses were re-verified on the new binary. The wire protocol range is unchanged. Artifacts pass hosted qualification; real model turns were not run for this release.",
+          "evidence": [
+            "https://github.com/RichLogic/Gian-Proxies/releases/tag/proxy-claude-v0.3.9",
+            "https://github.com/RichLogic/Gian-Proxies/blob/proxy-claude-v0.3.9/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.8",
       "firstPublishedAt": "2026-10-17T18:11:15Z",

@@ -1,5 +1,5 @@
 /**
- * Capability completion suite for the 0.2.0-rc.2 bridge surface: structured
+ * Capability completion suite for the 0.2.1-rc.2 bridge surface: structured
  * attachments, skill activation, strict steering, native fork, native session
  * list, structured user questions, subagent lifecycle, and customization
  * inventory — all through the deterministic fake host.

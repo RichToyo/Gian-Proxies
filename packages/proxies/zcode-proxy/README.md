@@ -6,10 +6,10 @@ Protocol v1 / v4 commands** (the NDJSON protocol of the open-source ZCode CLI
 ZCode-specific vocabulary: no ZCode method names, permission words, or bundle
 types leak into Host/Web.
 
-## Runtime baseline: open-source ZCode CLI 0.16.9
+## Runtime baseline: open-source ZCode CLI 0.17.0
 
 - Upstream repository `https://github.com/zai-org/ZCode`, commit
-  `aac4755666d09fdcd70272fcf063c077a639015f`, CLI `0.16.9`
+  `3c5b227649371507ddc4eb46ac5133afe6db1cab`, CLI `0.17.0`
   (`runtime.verifiedVersions` / `src/identity.ts`). All capability claims
   below retain their original baseline references where noted; the current
   upgrade review covers the protocol, standalone authentication, model selection,
@@ -75,12 +75,40 @@ types leak into Host/Web.
 | Capability | Reason |
 |---|---|
 | `sidechat.create` / `sidechat.resume` / `sidechat.close` | Upstream has only "selection side chats" (`createSelectionSideSession`, `session-fork.ts:804-831`): the child always INHERITS the parent's committed context with the transcript rewritten to model-only/hidden (`session-fork.ts:677-693`) and restricts edit/retry/fork/goal commands inside (`commands/executor.ts:10-16`). There is no empty-context side chat and no anchor parameter. Not semantically equal to a Gian Side Chat, so it is refused with `SIDECHAT_UNAVAILABLE` instead of being faked on conversation forks. |
-| `session.native.delete` | v4 `deleteSession` is documented as closeSession: it does not truly delete the record, because the message store has no delete API. It unloads the runtime and never purges persisted history (`session-mgmt.ts:154-158`; the in-memory store drop is all `eventStore.deleteSession` does). The proxy therefore keeps `session.close` = detach, keeps history visible and adoptable, and answers `session.native.delete` with `CAPABILITY_NOT_SUPPORTED` naming that evidence. No database/file deletion is performed to fake a native delete. |
+| `session.native.delete` | CLI 0.17.0 persists soft deletion before closing the runtime. This Proxy does not expose native deletion; `session.close` remains detach-only and preserves history. |
 | MCP UI/resource/sampling surfaces | The pinned upstream adds MCP UI, resource and sampling methods. Gian does not advertise these new surfaces. Form elicitation is supported separately through the existing native user-input channel (see below). |
 | Hooks inventory | No hook enumeration method exists on the app-server (the only hook method is `workspace/hooks/trustGrant`, `shared/zp/index.ts:3601`; greps for `listHooks|hooks/list` return zero hits). `customization.list kind:"hook"` therefore reports `proxy_unsupported` with `SOURCE_NOT_ENUMERABLE`. Hook RUNS still surface as transcript activities. The proxy never executes a hook. |
 | MCP tool-level detail | `mcp/list` returns statuses + `toolCount` only; no protocol method returns a server's tool list (`McpPort.listTools` is in-process only, `mcp.port.ts:308`). |
 | `session.create.forkBoundaries` (capability) | Fork boundaries are resolved live from the conversation projection at fork time; the create-time boundary list has no upstream source. |
 | Model marketplace beyond observed snapshots | 0.16.9 deliberately keeps the provider registry out of read/setModel snapshots (`session-mapper.ts:215` comment); `catalog.list` before any session therefore shows only the presentation-backed approval mode, and model choices grow from real runtime snapshots. The proxy does not parse `~/.zcode/cli/config.json` to invent a marketplace. |
+
+## Changes in Proxy 0.4.6
+
+- Pin reviewed App-source 3.16.2 at `3c5b227`; upstream CLI remains 0.17.0.
+  The dependency lock, protocol entrypoint, and migration source are unchanged.
+- Review temporary Bash output preparation/fallback/cancellation, nonblocking
+  plugin metadata reads, workflow quota handling and read-only workflow children.
+  Gian continues to offer only interactive/fork history for adoption.
+- Keep the strict history-list request fix and all existing capability boundaries.
+  Selected native transport and Bash lifecycle source regressions pass; exact
+  hosted artifact qualification remains required before publication.
+
+## Changes in Proxy 0.4.5
+
+- Pin App-source 3.16.1 / CLI 0.17.0 at `0a1fc56`; retain the exact
+  protocol-entrypoint hash guard and standalone authentication/model integration.
+- Review additive history-first, initialization and reconciliation fields; this
+  Proxy retains its existing subscription mode and does not adopt new capabilities.
+- Remove the obsolete `includeArchived` request field from `session/list`;
+  CLI 0.17.0 rejects unknown fields. A strict native-schema fixture covers
+  history listing, and hosted qualification probes the actual list response.
+- Correct native-delete explanations for upstream soft deletion; detach never
+  calls the native close/delete methods.
+- Isolated source checks preserve historical migration checksums and synthetic
+  session/message/part rows through upgrade, table restore and re-upgrade.
+  Upstream restore retains additive schema; unavailable backups emit a notice
+  and do not prevent upstream migration. Real Provider turns were not run.
+- Exact Runtime publication still requires hosted artifact qualification.
 
 ## Changes in Proxy 0.4.4
 
@@ -95,11 +123,10 @@ types leak into Host/Web.
 - The native entrypoint fixture must pass the hash-bound production integration.
   Hosted qualification still checks the built, extracted Runtime before publication.
 
-## Session close semantics (0.16.9)
+## Session close semantics (0.17.0)
 
-Inner `session/close` tears the runtime down and drops in-memory event state;
-it does not delete history. v4 `deleteSession` is the same close under a
-different name. Gian `session.close` is detach only: unsubscribe, drop adapter
+Upstream v4 `deleteSession` now persists soft deletion and closes the runtime.
+Gian does not call that method. Gian `session.close` is detach only: unsubscribe, drop adapter
 state, release ownership — provider history stays visible via
 `session.native.list` + `session/resume` adoption.
 

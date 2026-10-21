@@ -51,6 +51,6 @@ test('the fake CLI reports the pinned DSH runtime with format 4', async () => {
     error?: { message?: string };
   };
   assert.equal(message.error, undefined, message.error?.message);
-  assert.equal(message.result?.runtime?.version, '0.2.0-rc.2');
+  assert.equal(message.result?.runtime?.version, '0.2.1-rc.2');
   assert.equal(message.result?.runtime?.sessionFormatVersion, 4);
 });

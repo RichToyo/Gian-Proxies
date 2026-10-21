@@ -39,8 +39,8 @@ test('DeepSeek Harness Runtime has a complete exact npm lock', async () => {
     'utf8',
   ));
   assert.equal(lock.lockfileVersion, 3);
-  assert.equal(lock.packages[''].dependencies['@deepseek-ai/dsh'], '0.2.0-rc.2');
-  assert.equal(lock.packages['node_modules/@deepseek-ai/dsh'].version, '0.2.0-rc.2');
+  assert.equal(lock.packages[''].dependencies['@deepseek-ai/dsh'], '0.2.1-rc.2');
+  assert.equal(lock.packages['node_modules/@deepseek-ai/dsh'].version, '0.2.1-rc.2');
   for (const [path, candidate] of Object.entries(lock.packages)) {
     if (!path || candidate.link) continue;
     assert.match(candidate.resolved, /^https:\/\/registry\.npmjs\.org\//, path);
@@ -90,7 +90,7 @@ test('ZCode qualification rejects an upstream catalog method removal despite a v
   const root = await mkdtemp(join(tmpdir(), 'zcode-protocol-check-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const entry = join(root, 'zcode.cjs');
-  const fixture = reply => `
+  const fixture = (reply, history = { result: { sessions: [] } }) => `
     const readline = require('node:readline');
     if (process.argv.includes('--version')) { console.log('0.16.9'); process.exit(0); }
     const input = readline.createInterface({ input: process.stdin });
@@ -98,7 +98,8 @@ test('ZCode qualification rejects an upstream catalog method removal despite a v
       const request = JSON.parse(line);
       if (request.method === 'workspace/readState') process.exit(2);
       const answer = request.method === 'workspace/readPresentation'
-        ? { result: { mode: 'build', slashCommands: [] } } : ${JSON.stringify(reply)};
+        ? { result: { mode: 'build', slashCommands: [] } }
+        : request.method === 'session/list' ? ${JSON.stringify(history)} : ${JSON.stringify(reply)};
       console.log(JSON.stringify({ id: request.id, ...answer }));
     });
   `;
@@ -108,6 +109,8 @@ test('ZCode qualification rejects an upstream catalog method removal despite a v
   await assert.rejects(verifyZcodeRuntimeProtocol(entry, root, root), /gian\/modelCatalog contract/);
   await writeFile(entry, fixture({ result: { schemaVersion: 99, models: [] } }));
   await assert.rejects(verifyZcodeRuntimeProtocol(entry, root, root), /incompatible schema/);
+  await writeFile(entry, fixture({ result: { schemaVersion: 1, models: [] } }, { result: {} }));
+  await assert.rejects(verifyZcodeRuntimeProtocol(entry, root, root), /native history list.*incompatible schema/);
 });
 
 test('the Runtime integration is anchored to reviewed source and owns standalone authentication', () => {
@@ -133,7 +136,7 @@ test('the English ZCode fixture preserves overlay routing without replacing the 
   const digest = bytes => createHash('sha256').update(bytes).digest('hex');
   assert.equal(provenance.schema, 1);
   assert.equal(provenance.upstream.repository, zcodeRuntimeSource.repository);
-  assert.equal(provenance.upstream.commit, zcodeRuntimeSource.commit);
+  assert.ok([provenance.upstream.commit, ...provenance.compatibleRuntimeCommits].includes(zcodeRuntimeSource.commit));
   assert.equal(provenance.upstream.entrypointSha256, zcodeRuntimeSource.protocolEntrypointSha256);
   assert.equal(digest(fixture), provenance.englishFixture.entrypointSha256);
   assert.notEqual(digest(fixture), provenance.upstream.entrypointSha256);

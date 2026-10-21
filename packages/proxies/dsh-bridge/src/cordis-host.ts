@@ -3,9 +3,15 @@
  *
  * Compiles without the DSH packages being declared as dependencies: the bridge
  * is mounted *inside* a composed DSH profile, where `ctx` already carries the
- * services below. Every DSH surface this file touches was verified against the
- * shipped type definitions of `@deepseek-ai/dsh@0.2.0-rc.2`
- * (upstream tag `dsh-v0.2.0-rc.2`, commit `639ed015397290b3745d163aafe02ffee4aa3f84`):
+ * services below. Every DSH surface this file touches was originally verified
+ * against the shipped type definitions of `@deepseek-ai/dsh@0.2.0-rc.2`
+ * (upstream tag `dsh-v0.2.0-rc.2`). For the 0.2.1-rc.2 pin (upstream tag
+ * `dsh-v0.2.1-rc.2`, commit `687f282e8625c6b8d11ff58211a90524be2e4317`) the
+ * exact npm package payloads of `@deepseek-ai/dsh`, `@deepseek-ai/dsh-agent`,
+ * `@deepseek-ai/dsh-session` and `@deepseek-ai/dsh-session-format` were
+ * diffed old-vs-new: the surfaces listed below are unchanged except
+ * KNOWN_SESSION_EVENT_TYPES gaining job/registered, job/settled and
+ * working-directory/change; SESSION_FORMAT_VERSION stays 4.
  *
  * - `ctx.agents` (AgentRegistry): `create/resume/get/list/roots/isOwnedBy`;
  *   `CreateAgentOptions.meta.parentSession/isSeeded` + `seed` +

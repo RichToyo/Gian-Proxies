@@ -7,17 +7,19 @@ one-shot runner, and it keeps stdout exclusively for bridge JSON-RPC.
 
 ## Runtime baseline
 
-The production baseline is `@deepseek-ai/dsh@0.2.0-rc.2` (npm dist-tag
+The production baseline is `@deepseek-ai/dsh@0.2.1-rc.2` (npm dist-tag
 `latest`, integrity
-`sha512-EAJ3gPNcVt/uv8X19PMm9NkVhWgT7xXNMk0UKCVm+IQ5rpSQOcsMUa0HWlnYYVybKMsccjcRB21vVVsaXQ6IdA==`,
-upstream tag `dsh-v0.2.0-rc.2`, commit
-`639ed015397290b3745d163aafe02ffee4aa3f84`). The session format version the
+`sha512-tvY+yhfKRifthbqPe/OK0AYxM5ZkvqfYq/jMYgJcEUxiRRL1Vwra3Ti5TB6AXgSWQdiPHYh/Vp6SJa9yHwMNuw==`,
+upstream tag `dsh-v0.2.1-rc.2`, commit
+`687f282e8625c6b8d11ff58211a90524be2e4317`). The session format version the
 bridge reports and keys its identity with is DSH `SESSION_FORMAT_VERSION = 4`.
-The bridge `peerDependencies` range is `^0.2.0-rc.2`. Handshake defaults read
-the bridge package version (`0.1.6`) instead of a second hardcoded value.
-Every native surface below was checked against the shipped `.d.ts` contracts
-of that build before the bridge advertises it; the real Cordis host probes the
-mounted services at `initialize` and reports only what is present.
+The bridge `peerDependencies` range is `^0.2.0-rc.2 || 0.2.1-rc.2` — the 0.2.0 RC line stays admitted, and 0.2.1-rc.2 is admitted explicitly because npm semver treats prerelease tuples strictly. Handshake defaults read
+the bridge package version (`0.1.7`) instead of a second hardcoded value.
+Every native surface below was originally checked against the shipped `.d.ts`
+contracts of 0.2.0-rc.2; the exact 0.2.1-rc.2 package diff leaves those
+surfaces unchanged (session format stays 4, event vocabulary additive-only).
+The real Cordis host probes the mounted services at `initialize` and reports
+only what is present.
 
 ## Contract
 

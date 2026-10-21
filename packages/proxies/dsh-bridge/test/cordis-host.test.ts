@@ -32,7 +32,7 @@ test('DSH runtime version follows the real CLI entry behind an npm launcher syml
   assert.equal(dshVersionFromEntrypoint(join(root, 'missing')), null);
 });
 
-test('DSH 0.2.0-rc.2 transient assistant streams preserve identity and reject duplicate or foreign frames', async () => {
+test('DSH 0.2.1-rc.2 transient assistant streams preserve identity and reject duplicate or foreign frames', async () => {
   const listeners = new Map<string, (...args: unknown[]) => unknown>();
   const emitted: Array<{ method: string; params: Record<string, unknown> }> = [];
   const agent = {
@@ -325,7 +325,7 @@ test('Side Chat bridge resume reattaches an existing native child without creati
       },
     },
     on: () => () => true,
-  } as never, '0.1.6');
+  } as never, '0.1.7');
   const result = await host.sessionResume({ sessionId: 'gian-sidechat', nativeSessionId }) as {
     session: { id: string; nativeId: string; createdAt: string };
   };

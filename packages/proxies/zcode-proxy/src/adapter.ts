@@ -409,9 +409,8 @@ export class ZcodeV2Adapter {
       case 'session.native.delete':
         throw new ServiceError(
           'CAPABILITY_NOT_SUPPORTED',
-          'ZCode v4 deleteSession is documented as closeSession: it unloads the runtime but never '
-          + 'purges persisted history (session-mgmt.ts:154-158). ZCode Proxy exposes session.close '
-          + '(detach) and keeps history visible.',
+          'ZCode CLI supports persistent soft deletion, which this Proxy does not expose. '
+          + 'ZCode Proxy session.close only detaches and keeps history visible.',
         );
       default:
         throw new ServiceError('METHOD_NOT_FOUND', `Unknown method ${method}.`);
@@ -1667,7 +1666,6 @@ export class ZcodeV2Adapter {
     const cwd = typeof params.cwd === 'string' && params.cwd !== '' ? params.cwd : null;
     const list = await this.transport.request('session/list', {
       limit: 500,
-      includeArchived: false,
       ...(cwd !== null ? { workspace: { workspacePath: cwd, workspaceKey: cwd } } : {}),
     }, 20_000) as { sessions?: InnerSessionSummary[] } | null;
     const summaries = (list?.sessions ?? []).filter((session) => {
