@@ -867,7 +867,9 @@ setInterval(() => {}, 1000);
 `);
     chmodSync(executable, 0o755);
     const started = Date.now();
-    assert.deepEqual(await probeClaudeNativeModels(executable, { timeoutMs: 500 }), []);
+    // Cold macOS script startup can exceed 500ms before this fixture installs
+    // its signal handler. Keep the total 4s bound and the dead-PID assertion.
+    assert.deepEqual(await probeClaudeNativeModels(executable, { timeoutMs: 1500 }), []);
     assert.ok(Date.now() - started < 4000, 'timeout and forced cleanup must be bounded');
     const pid = Number(readFileSync(capturePath, 'utf8'));
     assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });

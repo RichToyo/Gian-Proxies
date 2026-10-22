@@ -1910,3 +1910,15 @@ test('max-steps failures complete with limit_reached instead of turn.failed', as
     await harness.close();
   }
 });
+
+// The persisted native token is authoritative even when silent startup has no URL.
+test('native server.token starts authenticated requests without a token banner', async () => {
+  const harness = startHarness({ behavior: { hideTokenBanner: true } });
+  try {
+    await initialize(harness);
+    const response = await harness.request('catalog.list', {});
+    assert.equal(response.kind, 'result', JSON.stringify(response.payload));
+  } finally {
+    await harness.close();
+  }
+});

@@ -1,10 +1,10 @@
 /**
  * Supervisor for the Kimi local server (`kimi web`).
  *
- * Upstream facts (kimi-code 2.1.1):
+ * Upstream facts (kimi-code 2.2.0 and 2.3.0):
  * - `kimi web --no-open [--port N] [--host 127.0.0.1] [--log-level silent]`
  *   runs the HTTP+WS server in the foreground.
- * - The bearer token is persisted at `$KIMI_CODE_HOME/server/server.token`
+ * - The bearer token is persisted at `$KIMI_CODE_HOME/server.token`
  *   (rotate-token rewrites it) and printed in the startup URL fragment.
  * - `GET /api/v1/healthz` → {code:0, data:{ok:true}} once the server is up.
  * - `POST /api/v1/shutdown` stops a loopback server.
@@ -52,7 +52,7 @@ export interface KimiServerSupervisorResult {
   stop(): Promise<void>;
 }
 
-const TOKEN_FILE = join('server', 'server.token');
+const TOKEN_FILE = 'server.token';
 
 function homeDir(): string {
   return process.env.HOME && isAbsolute(process.env.HOME) ? process.env.HOME : homedir();

@@ -1,5 +1,10 @@
 # @gian/grok-proxy
 
+Runtime candidate 1.0.67 (Proxy 0.3.13) is pinned to exact official bytes.
+The npm platform archive passes its published SHA-512 integrity, and its Brotli-decoded binary matches x.ai byte for byte.
+Isolated ACP initialize comparison against 1.0.62 retains the existing capability shape and newly advertises image input.
+Real Provider/image turns and authenticated approval behavior remain separate acceptance checks.
+
 Shared structured-runtime adapter for Grok Build's ACP server.
 
 The process bridges two newline-delimited JSON protocols:

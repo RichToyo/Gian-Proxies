@@ -1218,6 +1218,7 @@ function mapApiError(code: number): { domain: import('../transport/protocol.js')
       return { domain: 'INVALID_PARAMS', retryable: false };
     case 40401:
       return { domain: 'SESSION_NOT_FOUND', retryable: false };
+    case 40931: // Another native client is writing this session (Kimi 2.3.0).
     case 40901:
       return { domain: 'SESSION_BUSY', retryable: false };
     case 40402:
@@ -1229,6 +1230,7 @@ function mapApiError(code: number): { domain: import('../transport/protocol.js')
     case 41001:
     case 41002:
       return { domain: 'INTERACTION_NOT_FOUND', retryable: false };
+    case 40932: // Native undo reloaded newer history; require a fresh user decision.
     case 40927:
       return { domain: 'CONFLICT', retryable: false };
     case 40110:

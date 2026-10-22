@@ -1,5 +1,12 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidates - 2026-10-22
+
+- Claude Proxy 0.3.12 pins official Claude Code 2.1.308.
+- Kimi Proxy 0.4.9 pins Kimi Code 2.3.0, preserves native session-conflict errors, and reads the observed native server.token location without relying on startup banners.
+- Grok Proxy 0.3.13 pins official Grok 1.0.67; npm platform bytes match the official standalone binary.
+- Only these three providers are selected against signed RichToyo Catalog 35. Real Provider turns and target installation are not claimed.
+
 ## RichToyo Proxy generation - 2026-10-21
 
 - Publish new English-only patches: Claude 0.3.11, Codex 0.3.7, Kimi 0.4.8,

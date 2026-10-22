@@ -16,7 +16,7 @@ The entry point requires an absolute managed binary path:
 node dist/src/cli/spawn.js --kimi-bin /absolute/path/to/kimi
 ```
 
-Current development candidate: **0.4.5**. Successful question dismissal
+Current development candidate: **0.4.9**. Successful question dismissal
 accepts the native 40909 response only for the dismiss endpoint with its
 verified success payload; REST and WebSocket resolution share one terminal
 fact, including when the native event arrives before the response.
@@ -37,18 +37,19 @@ stored transcripts are not rewritten.
 
 ## Runtime baseline
 
-- Kimi Code CLI `2.2.0` (the Manifest and certified Runtime candidate select
+- Kimi Code CLI `2.3.0` (the Manifest and pinned Runtime candidate select
   the same exact official archive). Evidence baseline: the
   server's own OpenAPI 3.0.3 (`/openapi.json`) and AsyncAPI 3.1.0
   (`/asyncapi.json`) documents, plus `packages/kap-server` sources embedded in
   the official binary (`protocol/error-codes.ts`, `transport/ws/*`,
-  `middleware/*`). Re-verified for 2.2.0: the published server-api reference
-  diff from 2.1.1 is purely additive (Remote Control endpoints, optional
-  fields) and a live 2.2.0 `/openapi.json` + `/asyncapi.json` probe confirms
+  `middleware/*`). Re-verified for 2.3.0: the published server-api reference
+  diff from 2.2.0 adds optional fields, endpoints and native concurrency
+  errors. Codes 40931/40932 map to SESSION_BUSY/CONFLICT without automatic retry.
+  A live 2.3.0 `/openapi.json` + `/asyncapi.json` probe confirms
   every REST route and WS message type this proxy uses.
 - The proxy spawns its own dedicated server instance on a proxy-chosen free
   port (loopback only, `--no-open --log-level silent`). The bearer token comes
-  from `$KIMI_CODE_HOME/server/server.token` (persisted by the CLI; rotated
+  from `$KIMI_CODE_HOME/server.token` (persisted by the CLI; rotated
   via `kimi web rotate-token`). A crashed server is detected via the child
   exit promise and surfaced as retryable `runtime.error`.
 - Sessions live in the shared Kimi store (`~/.kimi-code/sessions`); the proxy
