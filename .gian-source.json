@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "d4b4281f3a5a2a976cfb1c8389e1ec414e99bb7d",
+  "sourceCommit": "717631767d8852d6e6c3bb86be43f47ba1598f6c",
   "workingTree": false,
   "externalPackages": [
     {
@@ -2811,7 +2811,7 @@
     {
       "source": "scripts/build-managed-runtime-candidates.mjs",
       "path": "scripts/build-managed-runtime-candidates.mjs",
-      "sha256": "3a3d844846baaf342a98fa436a0afb28cef75708ed68c54b4fad88c5d4bdde6b"
+      "sha256": "22e421744708a2ac9371cef84a9342a94c54cf8325f03fcd8acca98fb39ebdee"
     },
     {
       "source": "scripts/build-managed-runtime-candidates.test.mjs",
@@ -5638,7 +5638,7 @@
     {
       "path": "scripts/build-managed-runtime-candidates.mjs",
       "mode": 420,
-      "sha256": "c6ae0080d8f1e3a04e4441cf56ca45cbfe03d722ecd7f936290378ed32ec7582"
+      "sha256": "b79ae38d541bec8d4f740be12f1739892c69f066e529da466ad84ef781fa1c85"
     },
     {
       "path": "scripts/build-managed-runtime-candidates.test.mjs",
