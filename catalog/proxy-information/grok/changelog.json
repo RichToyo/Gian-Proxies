@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "grok",
-  "currentVersion": "0.3.12",
+  "currentVersion": "0.3.13",
   "entries": [
+    {
+      "version": "0.3.13",
+      "firstPublishedAt": "2026-10-23T11:48:20Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-grok-v0.3.13",
+          "publishedAt": "2026-10-23T11:48:20Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.13",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.13/gian-proxy-grok-0.3.13-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "83361b9603427b871096fc357d1e6ef789cbacf206eff480a750d554befb5cf0",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.13/gian-proxy-grok-0.3.13-darwin-arm64.tar.gz",
+            "sha256": "c37673c7f4bd018441e0e80a61acc273e40d60fc4f6cc06df31e9306c6dbc1ce",
+            "size": 179420
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.67"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Grok CLI to official stable 1.0.67. Verify that the x.ai binary equals the Brotli-decoded npm platform package bytes after npm integrity verification, and compare native ACP initialize responses against 1.0.62. Native image input support is now advertised; real image/model turns are not claimed. Per-version 1.0.63-1.0.67 release notes remain NOT_OBSERVED in the accessible official changelog. Exact artifacts pass hosted qualification; native authenticated approval behavior remains unverified.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.13",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-grok-v0.3.13/packages/proxies/grok-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.12",
       "firstPublishedAt": "2026-10-21T12:23:33Z",

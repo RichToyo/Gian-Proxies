@@ -2,7 +2,7 @@
 
 ## 1. What it does in Gian
 
-Kimi Code Integration connects coding sessions through Kimi's ACP interface. Gian displays messages, plans, tools and interactions; the Kimi Runtime owns model work and native sessions. It does not control the Kimi website or parse terminal screens for responses.
+Kimi Code Integration connects coding sessions through Kimi Code's local server API. Gian displays messages, plans, tools and interactions; the Kimi Runtime owns model work and native sessions. It does not control the Kimi website or parse terminal screens for responses.
 
 The Runtime supplies model and thinking choices. Supporting multiple releases in one Proxy does not make every upstream release interchangeable in a managed installation.
 
@@ -10,9 +10,9 @@ The Runtime supplies model and thinking choices. Supporting multiple releases in
 
 - Supports text, local files, images, renaming, native-session discovery and history replay.
 - Supports questions, permissions, reasoning, plans and usage. Plans, tool activity and independent Diff events are different capabilities.
-- Sidechat and forks require actual ACP session/fork support. The UI must not infer availability from the Proxy name alone.
+- Supports Sidechat and head forks through native server session children. Available actions also depend on session state; turn-boundary forks are not declared.
 - Protocol 2.3 exposes read-only customization inventory. Partial visibility or upstream lack of support is not evidence of absent user configuration.
-- Does not declare turn.steer, Turn-boundary forks or native-history deletion. MCP support follows negotiated capabilities, not merely the presence of MCP in the CLI.
+- Supports turn.steer and guarded native-history deletion. Host MCP injection is not declared because the server session-create API does not accept inline MCP servers.
 
 Workspace and permission boundaries remain in effect. File input does not authorize arbitrary paths.
 
@@ -21,17 +21,17 @@ Workspace and permission boundaries remain in effect. File input does not author
 ```text
 Gian Host
   -> reusable Kimi Proxy
-      -> kimi acp child process
+      -> supervised kimi web --no-open process (loopback HTTP + WebSocket)
           -> native sessions and model service
 ```
 
-The shared-scope Proxy reuses ACP connections within the launch binding and maps native sessions through structured requests and notifications. Shared programs/connections do not authorize mixing Agent HOME directories.
+The shared-scope Proxy supervises its own loopback server, uses REST requests and a WebSocket event stream, and maps durable native session identities. Shared programs/connections do not authorize mixing Agent HOME directories.
 
-ACP terminal tools use a controlled terminal service. Cancellation, session closure and Runtime exit require process-group cleanup and a cleanup barrier. Unconfirmed cleanup is reported as a failure, not a successful terminal exit. The Agent's login terminal is for Workbench maintenance, distinct from ACP tool terminals and removed Session TTY modes.
+The Runtime owns tool execution. Gian maps interrupt requests to native prompt cancellation and keeps ordinary session closure separate from explicit native-history deletion. A Runtime failure is surfaced as an error. The Agent's login terminal is for Workbench maintenance.
 
 ## 4. Installation and dependencies
 
-Install Kimi Code from Agent Integrations. Gian verifies the signed Catalog's exact Runtime archive, Proxy, digests, installation plan, extraction result and actual version before activation.
+Install Kimi Code from Agent Integrations. The current target is Proxy 0.4.9 with Runtime 2.3.0. Gian verifies the signed Catalog's exact Runtime archive, Proxy, digests, installation plan, extraction result and actual version before activation.
 
 ```text
 <dataDir>/runtimes/kimi/<runtime-version>/<artifact-sha256>/kimi
@@ -67,7 +67,7 @@ HOME is neither the program directory nor a project sandbox. Do not unpack Runti
 
 Use the current Kimi Runtime's official Provider/model/endpoint configuration in the selected HOME. Do not copy Claude or Codex settings unchanged, or change the Gian Web/Host address to select a model service.
 
-Check the CLI in that Agent's maintenance terminal before investigating ACP mapping. A plain-text response does not prove compatible tools, images, reasoning or usage semantics.
+Check the CLI in that Agent's maintenance terminal before investigating server-API mapping. A plain-text response does not prove compatible tools, images, reasoning or usage semantics.
 
 Use separate Agent HOME directories for different endpoints/accounts. Avoid machine-wide environment changes and never upload authentication, native history or complete HOME configuration to an Issue.
 
@@ -75,7 +75,7 @@ Use separate Agent HOME directories for different endpoints/accounts. Avoid mach
 
 - Managed updates use the Catalog's complete combination, not an independent CLI auto-update channel.
 - A starting CLI does not prove older history is restorable. Report restoration errors and preserve data.
-- On terminal-cleanup failure, confirm the actual process has ended. Do not remove barriers or locks to continue.
+- If another native client occupies a session, wait until it is idle. A stale-history conflict requires reviewing refreshed history before retrying; the Proxy does not retry automatically.
 - Usage comes from structured Runtime events or supported queries, not invented values extracted from arbitrary terminal wording.
 - Finish this Proxy type's active Turns and maintenance terminals before updating. Hiding a terminal does not stop it.
 
@@ -85,8 +85,8 @@ Use separate Agent HOME directories for different endpoints/accounts. Avoid mach
 | --- | --- | --- |
 | Target differs from a remembered CLI version | Catalog artifact and Manifest compatibility list | Use the certified target, not an arbitrary old/new version |
 | No models or authentication failure | This Agent's KIMI_CODE_HOME | Configure it in its own maintenance terminal |
-| Fork/Sidechat unavailable | session/fork support and session state | Use available actions; do not fabricate a fork |
+| Fork/Sidechat unavailable | Native session-child support and session state | Use available actions; do not fabricate a fork |
 | Restoration times out or becomes invalid | Native session existence and retryability | Preserve history and follow recovery diagnostics |
-| Interrupt/close reports cleanup failure | Active tool processes and error code | End actual users and retry; do not treat failure as success |
+| Interrupt or Runtime shutdown fails | Native prompt state and process exit | Preserve history and inspect the reported failure |
 | File/image input rejected | Current capabilities and path authorization | Use supported, authorized inputs |
 | Usage remains unchanged | Runtime version, events and query results | Report redacted versions and stages, not just one terminal line |

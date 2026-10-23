@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-21T12:30:27.733Z",
+  "capturedAt": "2026-10-23T11:49:37.664Z",
   "repositories": [
     "RichLogic/Gian",
     "RichLogic/Gian-Proxies"
@@ -2967,6 +2967,108 @@
           "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.3/gian-runtime-antigravity-1.4.1-darwin-arm64.tar.gz",
           "size": 112595611,
           "digest": "sha256:e7903bf449dacf53553b7dfa132a66c3e529db1c171643ec467cd1bcede5de71"
+        }
+      ]
+    },
+    {
+      "tag": "proxy-claude-v0.3.12",
+      "date": "2026-10-23T11:48:05Z",
+      "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.12",
+      "body": "Independent Proxy 0.3.12. Exact hosted artifacts from proxies-20ad0f3f34fee8602759ddaaa5dba29bbcbdac45-39947050186-1. DSH includes its Bridge. ZCode includes a managed CLI Runtime built from its pinned upstream Git commit. No App or real-provider acceptance is claimed.",
+      "assets": [
+        {
+          "name": "certificate.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.12/certificate.json",
+          "size": 9034,
+          "digest": "sha256:b2b02432089a688ae12bd584d7d1b62d260669ca8373fb3c58eb3346a2bbb8f5"
+        },
+        {
+          "name": "gian-proxy-claude-0.3.12-darwin-arm64.tar.gz",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.12/gian-proxy-claude-0.3.12-darwin-arm64.tar.gz",
+          "size": 588219,
+          "digest": "sha256:729834086bdaa49a8533c90c055b055dfc7f52b0a95f5f92643be8e2a550f11c"
+        },
+        {
+          "name": "gian-proxy-claude-0.3.12-darwin-arm64.tar.gz.manifest.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.12/gian-proxy-claude-0.3.12-darwin-arm64.tar.gz.manifest.json",
+          "size": 800,
+          "digest": "sha256:22323ea4a3eacda651926a4400e881d92f190378625d297f3ff4c6b8ee574423"
+        },
+        {
+          "name": "gian-proxy-claude-0.3.12-darwin-arm64.tar.gz.sha256",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.12/gian-proxy-claude-0.3.12-darwin-arm64.tar.gz.sha256",
+          "size": 111,
+          "digest": "sha256:ce9ec7a6ac74d19cb4ef4e87e899235943609a5ac09c3f4f758f58516813f7d2"
+        }
+      ]
+    },
+    {
+      "tag": "proxy-kimi-v0.4.9",
+      "date": "2026-10-23T11:48:09Z",
+      "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.9",
+      "body": "Independent Proxy 0.4.9. Exact hosted artifacts from proxies-20ad0f3f34fee8602759ddaaa5dba29bbcbdac45-39947050186-1. DSH includes its Bridge. ZCode includes a managed CLI Runtime built from its pinned upstream Git commit. No App or real-provider acceptance is claimed.",
+      "assets": [
+        {
+          "name": "certificate.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.9/certificate.json",
+          "size": 9034,
+          "digest": "sha256:b2b02432089a688ae12bd584d7d1b62d260669ca8373fb3c58eb3346a2bbb8f5"
+        },
+        {
+          "name": "gian-proxy-kimi-0.4.9-darwin-arm64.tar.gz",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.9/gian-proxy-kimi-0.4.9-darwin-arm64.tar.gz",
+          "size": 161245,
+          "digest": "sha256:20c078c969c47dec3d7e8f8317c5500af88d52e05af859d0c85d6d0b87454b9a"
+        },
+        {
+          "name": "gian-proxy-kimi-0.4.9-darwin-arm64.tar.gz.manifest.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.9/gian-proxy-kimi-0.4.9-darwin-arm64.tar.gz.manifest.json",
+          "size": 788,
+          "digest": "sha256:9f1dcc3a70bbb18814aafd48548ceb924c797d512fa7a64695f706cf97fbb3b3"
+        },
+        {
+          "name": "gian-proxy-kimi-0.4.9-darwin-arm64.tar.gz.sha256",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.9/gian-proxy-kimi-0.4.9-darwin-arm64.tar.gz.sha256",
+          "size": 108,
+          "digest": "sha256:5f852775308d4e3b6363847dc27fb8064802b9e3b22a23fd17ef758e927ee6cf"
+        }
+      ]
+    },
+    {
+      "tag": "proxy-grok-v0.3.13",
+      "date": "2026-10-23T11:48:20Z",
+      "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.13",
+      "body": "Independent Proxy 0.3.13. Exact hosted artifacts from proxies-20ad0f3f34fee8602759ddaaa5dba29bbcbdac45-39947050186-1. DSH includes its Bridge. ZCode includes a managed CLI Runtime built from its pinned upstream Git commit. No App or real-provider acceptance is claimed.",
+      "assets": [
+        {
+          "name": "certificate.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.13/certificate.json",
+          "size": 9034,
+          "digest": "sha256:b2b02432089a688ae12bd584d7d1b62d260669ca8373fb3c58eb3346a2bbb8f5"
+        },
+        {
+          "name": "gian-proxy-grok-0.3.13-darwin-arm64.tar.gz",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.13/gian-proxy-grok-0.3.13-darwin-arm64.tar.gz",
+          "size": 179420,
+          "digest": "sha256:c37673c7f4bd018441e0e80a61acc273e40d60fc4f6cc06df31e9306c6dbc1ce"
+        },
+        {
+          "name": "gian-proxy-grok-0.3.13-darwin-arm64.tar.gz.manifest.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.13/gian-proxy-grok-0.3.13-darwin-arm64.tar.gz.manifest.json",
+          "size": 791,
+          "digest": "sha256:83361b9603427b871096fc357d1e6ef789cbacf206eff480a750d554befb5cf0"
+        },
+        {
+          "name": "gian-proxy-grok-0.3.13-darwin-arm64.tar.gz.sha256",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.13/gian-proxy-grok-0.3.13-darwin-arm64.tar.gz.sha256",
+          "size": 109,
+          "digest": "sha256:709513122eb61e7e26246b1d9611bd1e0a72e8e6c52ac17fedff3b4c02aec51f"
+        },
+        {
+          "name": "grok-1.0.67-darwin-arm64",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.13/grok-1.0.67-darwin-arm64",
+          "size": 177770992,
+          "digest": "sha256:036a47ce2987adae04de827f7803bf0cc460bf169b640db168f18ec7acb734db"
         }
       ]
     }

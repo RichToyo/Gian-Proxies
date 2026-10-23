@@ -6,7 +6,7 @@ Grok Build Integration runs coding sessions through the official Grok CLI ACP st
 
 ## 2. Capabilities and limitations
 
-The certified combination supports text, local files, images, tool approval, reasoning, usage and replay. The published CLI 1.0.41 stdio surface does not register the x.ai Steer, Rename, Fork, Side Chat or native-delete methods, so Gian does not advertise them.
+The combination supports text, local files, images, tool approval, reasoning, usage and replay. Steer, Rename, Fork, Side Chat and native deletion depend on verified native methods and current session state; unsupported operations remain unavailable. CLI 1.0.67 advertises image input in its native handshake, but a real image/model turn remains a separate acceptance check.
 
 ## 3. Runtime architecture
 
@@ -18,11 +18,11 @@ The session-scoped Proxy forces the workspace sandbox. Agent HOME directories an
 
 ## 4. Installation and dependencies
 
-Install from Agent Integrations. Gian downloads Proxy 0.3.7 and official Grok CLI 1.0.41 from the signed Catalog, then verifies URL, size, SHA-256, version, Manifest and installation receipt before activation.
+Install from Agent Integrations. Gian downloads Proxy 0.3.13 and official Grok CLI 1.0.67 from the signed Catalog, then verifies URL, size, SHA-256, version, Manifest and installation receipt before activation.
 
 ## 5. First use
 
-After installation, create a Grok Agent and complete OAuth in that Agent's maintenance terminal. Return to Gian, choose Grok 4.7 and the desired reasoning effort, and begin with a small message/tool-approval task.
+After installation, create a Grok Agent and complete OAuth in that Agent's maintenance terminal. Return to Gian, choose a model and reasoning effort from the current Runtime catalog, and begin with a small message/tool-approval task.
 
 ## 6. HOME and isolation
 

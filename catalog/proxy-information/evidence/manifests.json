@@ -2343,5 +2343,80 @@
     "process": {
       "scope": "shared"
     }
+  },
+  {
+    "tag": "proxy-claude-v0.3.12",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.12",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.12/gian-proxy-claude-0.3.12-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:22323ea4a3eacda651926a4400e881d92f190378625d297f3ff4c6b8ee574423",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "claude",
+    "pluginVersion": "0.3.12",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "claude",
+      "displayName": "Claude Code",
+      "verifiedVersions": [
+        "2.1.308"
+      ]
+    },
+    "process": {
+      "scope": "session"
+    }
+  },
+  {
+    "tag": "proxy-kimi-v0.4.9",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.9",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.9/gian-proxy-kimi-0.4.9-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:9f1dcc3a70bbb18814aafd48548ceb924c797d512fa7a64695f706cf97fbb3b3",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "kimi",
+    "pluginVersion": "0.4.9",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "kimi",
+      "displayName": "Kimi Code",
+      "verifiedVersions": [
+        "2.3.0"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
+  },
+  {
+    "tag": "proxy-grok-v0.3.13",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.13",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.13/gian-proxy-grok-0.3.13-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:83361b9603427b871096fc357d1e6ef789cbacf206eff480a750d554befb5cf0",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "grok",
+    "pluginVersion": "0.3.13",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "grok",
+      "displayName": "Grok CLI",
+      "verifiedVersions": [
+        "1.0.67"
+      ]
+    },
+    "process": {
+      "scope": "session"
+    }
   }
 ]

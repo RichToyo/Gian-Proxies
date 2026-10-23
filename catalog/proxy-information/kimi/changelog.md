@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.8**, Runtime **2.2.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.9**, Runtime **2.3.0**. These are distribution targets, not this machine's installed state.
+
+## 0.4.9
+
+First published: 2026-10-23T11:48:09Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.9): 2026-10-23T11:48:09Z.
+- CLI: 2.3.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Update the managed Kimi Code Runtime to official 2.3.0. Compare native OpenAPI and AsyncAPI surfaces against 2.2.0: existing methods and message types remain, with optional fields, new endpoints and session concurrency errors. Preserve native 40931 as SESSION_BUSY and 40932 as CONFLICT without automatic retry. Read the observed KIMI_CODE_HOME/server.token path without relying on a startup banner. Exact artifacts pass hosted qualification; real Provider turns are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.9) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.4.9/packages/proxies/kimi-proxy/README.md)
 
 ## 0.4.8
 

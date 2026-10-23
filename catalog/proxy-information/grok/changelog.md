@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.12**, Runtime **1.0.62**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.13**, Runtime **1.0.67**. These are distribution targets, not this machine's installed state.
+
+## 0.3.13
+
+First published: 2026-10-23T11:48:20Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.13): 2026-10-23T11:48:20Z.
+- CLI: 1.0.67 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Update the managed Grok CLI to official stable 1.0.67. Verify that the x.ai binary equals the Brotli-decoded npm platform package bytes after npm integrity verification, and compare native ACP initialize responses against 1.0.62. Native image input support is now advertised; real image/model turns are not claimed. Per-version 1.0.63-1.0.67 release notes remain NOT_OBSERVED in the accessible official changelog. Exact artifacts pass hosted qualification; native authenticated approval behavior remains unverified. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.13) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-grok-v0.3.13/packages/proxies/grok-proxy/README.md)
 
 ## 0.3.12
 
