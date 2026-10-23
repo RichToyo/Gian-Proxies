@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.12**, Runtime **2.1.308**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.13**, Runtime **2.1.309**. These are distribution targets, not this machine's installed state.
+
+## 0.3.13
+
+First published: 2026-10-23T19:02:22Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.13): 2026-10-23T19:02:22Z.
+- CLI: 2.1.309 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Update the managed Claude Code Runtime to official 2.1.309 (GitHub latest v2.1.309 and npm latest; the vendor /stable pointer still reads 2.1.308 and is recorded as lagging, not as proof of prerelease). Match the official manifest SHA-256 and size and verify the nine selected startup flags. Retain MCP SDK 1.32.0 and bounded HTTP input. The 2.1.309 changelog review found no documented headless spawn/wire compatibility changes. Exact artifacts pass hosted qualification; authenticated Provider turns and App/Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.13) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-claude-v0.3.13/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts)
 
 ## 0.3.12
 

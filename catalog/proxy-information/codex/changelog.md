@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.7**, Runtime **0.163.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.8**, Runtime **0.164.0**. These are distribution targets, not this machine's installed state.
+
+## 0.3.8
+
+First published: 2026-10-23T19:02:29Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.8): 2026-10-23T19:02:29Z.
+- CLI: 0.164.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Update the managed Codex CLI to official stable 0.164.0, matching the GitHub release asset digest. Exact old/new app-server schema comparison: ServerRequest byte-identical, Proxy-used methods unchanged, and imageGeneration output now allows a durable fileId instead of a required inline result (plus optional inputImages); a new fixture regression projects both shapes. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.8) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.8/packages/proxies/codex-proxy/README.md)
 
 ## 0.3.7
 

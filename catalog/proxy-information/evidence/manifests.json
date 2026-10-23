@@ -2418,5 +2418,80 @@
     "process": {
       "scope": "session"
     }
+  },
+  {
+    "tag": "proxy-claude-v0.3.13",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.13",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.13/gian-proxy-claude-0.3.13-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:34040019edac12c957f4fae71dac1f86adac08f260c47c7e889adfa521e52441",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "claude",
+    "pluginVersion": "0.3.13",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "claude",
+      "displayName": "Claude Code",
+      "verifiedVersions": [
+        "2.1.309"
+      ]
+    },
+    "process": {
+      "scope": "session"
+    }
+  },
+  {
+    "tag": "proxy-kimi-v0.4.10",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.10",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.10/gian-proxy-kimi-0.4.10-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:6493dd65895ee7dde6970973b7f28343b0b24ff4829dd3420c56a73b506b74cc",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "kimi",
+    "pluginVersion": "0.4.10",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "kimi",
+      "displayName": "Kimi Code",
+      "verifiedVersions": [
+        "2.3.1"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
+  },
+  {
+    "tag": "proxy-codex-v0.3.8",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.8",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.8/gian-proxy-codex-0.3.8-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:ad92da535a4acb4ccb44788c9e683c21b4cb6f372f0c54b865f4cd50931195ba",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "codex",
+    "pluginVersion": "0.3.8",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "codex",
+      "displayName": "Codex CLI",
+      "verifiedVersions": [
+        "0.164.0"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
   }
 ]

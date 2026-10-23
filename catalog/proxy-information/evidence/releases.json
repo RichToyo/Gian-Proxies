@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-23T11:49:37.664Z",
+  "capturedAt": "2026-10-23T19:04:03.137Z",
   "repositories": [
     "RichLogic/Gian",
     "RichLogic/Gian-Proxies"
@@ -3069,6 +3069,102 @@
           "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.13/grok-1.0.67-darwin-arm64",
           "size": 177770992,
           "digest": "sha256:036a47ce2987adae04de827f7803bf0cc460bf169b640db168f18ec7acb734db"
+        }
+      ]
+    },
+    {
+      "tag": "proxy-claude-v0.3.13",
+      "date": "2026-10-23T19:02:22Z",
+      "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.13",
+      "body": "Independent Proxy 0.3.13. Exact hosted artifacts from proxies-35b1c87038a06b775ccc73d7edbcb606699ac1fb-40007488336-1. DSH includes its Bridge. ZCode includes a managed CLI Runtime built from its pinned upstream Git commit. No App or real-provider acceptance is claimed.",
+      "assets": [
+        {
+          "name": "certificate.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.13/certificate.json",
+          "size": 9299,
+          "digest": "sha256:3643e7ac8add2862cb43f50b3fa6b44b733dc66dcbe5bf1442aa6a0218873ea6"
+        },
+        {
+          "name": "gian-proxy-claude-0.3.13-darwin-arm64.tar.gz",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.13/gian-proxy-claude-0.3.13-darwin-arm64.tar.gz",
+          "size": 588216,
+          "digest": "sha256:4a80be0fe89cb60900e7ff5654dc94d25b8e0290432e8c0a7fe5001b7150dd21"
+        },
+        {
+          "name": "gian-proxy-claude-0.3.13-darwin-arm64.tar.gz.manifest.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.13/gian-proxy-claude-0.3.13-darwin-arm64.tar.gz.manifest.json",
+          "size": 800,
+          "digest": "sha256:34040019edac12c957f4fae71dac1f86adac08f260c47c7e889adfa521e52441"
+        },
+        {
+          "name": "gian-proxy-claude-0.3.13-darwin-arm64.tar.gz.sha256",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.13/gian-proxy-claude-0.3.13-darwin-arm64.tar.gz.sha256",
+          "size": 111,
+          "digest": "sha256:31db88ae75d3fc0b93ea654d876bb2afdadad69b5ebd2c5545ec5f1fe7df392d"
+        }
+      ]
+    },
+    {
+      "tag": "proxy-kimi-v0.4.10",
+      "date": "2026-10-23T19:02:25Z",
+      "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.10",
+      "body": "Independent Proxy 0.4.10. Exact hosted artifacts from proxies-35b1c87038a06b775ccc73d7edbcb606699ac1fb-40007488336-1. DSH includes its Bridge. ZCode includes a managed CLI Runtime built from its pinned upstream Git commit. No App or real-provider acceptance is claimed.",
+      "assets": [
+        {
+          "name": "certificate.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.10/certificate.json",
+          "size": 9299,
+          "digest": "sha256:3643e7ac8add2862cb43f50b3fa6b44b733dc66dcbe5bf1442aa6a0218873ea6"
+        },
+        {
+          "name": "gian-proxy-kimi-0.4.10-darwin-arm64.tar.gz",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.10/gian-proxy-kimi-0.4.10-darwin-arm64.tar.gz",
+          "size": 161240,
+          "digest": "sha256:08269ac893dda960d78e0a7c14847d25c557300e348f2a1c975bd9faf97e510a"
+        },
+        {
+          "name": "gian-proxy-kimi-0.4.10-darwin-arm64.tar.gz.manifest.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.10/gian-proxy-kimi-0.4.10-darwin-arm64.tar.gz.manifest.json",
+          "size": 789,
+          "digest": "sha256:6493dd65895ee7dde6970973b7f28343b0b24ff4829dd3420c56a73b506b74cc"
+        },
+        {
+          "name": "gian-proxy-kimi-0.4.10-darwin-arm64.tar.gz.sha256",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.10/gian-proxy-kimi-0.4.10-darwin-arm64.tar.gz.sha256",
+          "size": 109,
+          "digest": "sha256:51c3e3f0dc1633747b5ee30ef445c364cef433bdf80da59524dd6a0fef01b02f"
+        }
+      ]
+    },
+    {
+      "tag": "proxy-codex-v0.3.8",
+      "date": "2026-10-23T19:02:29Z",
+      "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.8",
+      "body": "Independent Proxy 0.3.8. Exact hosted artifacts from proxies-35b1c87038a06b775ccc73d7edbcb606699ac1fb-40007488336-1. DSH includes its Bridge. ZCode includes a managed CLI Runtime built from its pinned upstream Git commit. No App or real-provider acceptance is claimed.",
+      "assets": [
+        {
+          "name": "certificate.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.8/certificate.json",
+          "size": 9299,
+          "digest": "sha256:3643e7ac8add2862cb43f50b3fa6b44b733dc66dcbe5bf1442aa6a0218873ea6"
+        },
+        {
+          "name": "gian-proxy-codex-0.3.8-darwin-arm64.tar.gz",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.8/gian-proxy-codex-0.3.8-darwin-arm64.tar.gz",
+          "size": 197843,
+          "digest": "sha256:8d9aac50f76236db2ef3fa5b3b794bd883d8a87af4506a15ea57e121d5712fc5"
+        },
+        {
+          "name": "gian-proxy-codex-0.3.8-darwin-arm64.tar.gz.manifest.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.8/gian-proxy-codex-0.3.8-darwin-arm64.tar.gz.manifest.json",
+          "size": 978,
+          "digest": "sha256:ad92da535a4acb4ccb44788c9e683c21b4cb6f372f0c54b865f4cd50931195ba"
+        },
+        {
+          "name": "gian-proxy-codex-0.3.8-darwin-arm64.tar.gz.sha256",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.8/gian-proxy-codex-0.3.8-darwin-arm64.tar.gz.sha256",
+          "size": 109,
+          "digest": "sha256:28956e8f5324c1cda10fdb5cb30c60938f8d7fc29d416c0bd74ecb73b0c4c850"
         }
       ]
     }

@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "codex",
-  "currentVersion": "0.3.7",
+  "currentVersion": "0.3.8",
   "entries": [
+    {
+      "version": "0.3.8",
+      "firstPublishedAt": "2026-10-23T19:02:29Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-codex-v0.3.8",
+          "publishedAt": "2026-10-23T19:02:29Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.8",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.8/gian-proxy-codex-0.3.8-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "ad92da535a4acb4ccb44788c9e683c21b4cb6f372f0c54b865f4cd50931195ba",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.8/gian-proxy-codex-0.3.8-darwin-arm64.tar.gz",
+            "sha256": "8d9aac50f76236db2ef3fa5b3b794bd883d8a87af4506a15ea57e121d5712fc5",
+            "size": 197843
+          },
+          "runtimeDeclaration": {
+            "id": "codex",
+            "versions": [
+              "0.164.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Codex CLI to official stable 0.164.0, matching the GitHub release asset digest. Exact old/new app-server schema comparison: ServerRequest byte-identical, Proxy-used methods unchanged, and imageGeneration output now allows a durable fileId instead of a required inline result (plus optional inputImages); a new fixture regression projects both shapes. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.8",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.8/packages/proxies/codex-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.7",
       "firstPublishedAt": "2026-10-21T12:23:19Z",

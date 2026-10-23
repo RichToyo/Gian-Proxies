@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "claude",
-  "currentVersion": "0.3.12",
+  "currentVersion": "0.3.13",
   "entries": [
+    {
+      "version": "0.3.13",
+      "firstPublishedAt": "2026-10-23T19:02:22Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-claude-v0.3.13",
+          "publishedAt": "2026-10-23T19:02:22Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.13",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.13/gian-proxy-claude-0.3.13-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "34040019edac12c957f4fae71dac1f86adac08f260c47c7e889adfa521e52441",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.13/gian-proxy-claude-0.3.13-darwin-arm64.tar.gz",
+            "sha256": "4a80be0fe89cb60900e7ff5654dc94d25b8e0290432e8c0a7fe5001b7150dd21",
+            "size": 588216
+          },
+          "runtimeDeclaration": {
+            "id": "claude",
+            "versions": [
+              "2.1.309"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Claude Code Runtime to official 2.1.309 (GitHub latest v2.1.309 and npm latest; the vendor /stable pointer still reads 2.1.308 and is recorded as lagging, not as proof of prerelease). Match the official manifest SHA-256 and size and verify the nine selected startup flags. Retain MCP SDK 1.32.0 and bounded HTTP input. The 2.1.309 changelog review found no documented headless spawn/wire compatibility changes. Exact artifacts pass hosted qualification; authenticated Provider turns and App/Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.13",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-claude-v0.3.13/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.12",
       "firstPublishedAt": "2026-10-23T11:48:05Z",

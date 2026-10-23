@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.9**, Runtime **2.3.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.10**, Runtime **2.3.1**. These are distribution targets, not this machine's installed state.
+
+## 0.4.10
+
+First published: 2026-10-23T19:02:25Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.10): 2026-10-23T19:02:25Z.
+- CLI: 2.3.1 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Update the managed Kimi Code Runtime to official 2.3.1, matching the GitHub release asset digest. The exact 2.3.0-to-2.3.1 kap-server source diff (rest-session, sessions, workspaces, openapi/transforms) shows an added optional session-takeover action this Proxy never calls and a workspace trust lookup now read directly from the trust store without instantiating a workspace; native session locks stay at their defaults. A live 2.3.1 native server probe (isolated HOME, production supervisor/token, no user locks, no Provider turn) confirms 112 REST paths with the only addition /api/v1/sessions/{session_id}:takeover and no removals. Exact artifacts pass hosted qualification; real Provider turns are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.10) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.4.10/packages/proxies/kimi-proxy/README.md)
 
 ## 0.4.9
 
