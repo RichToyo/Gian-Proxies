@@ -32,18 +32,18 @@ export const ZCODE_RUNTIME_ASSET_NAME = 'zcode.tar.gz';
 
 export const upstreamRuntimeCandidates = Object.freeze({
   claude: Object.freeze({
-    version: '2.1.308',
+    version: '2.1.309',
     format: 'raw',
     entryRelativePath: 'bin/claude',
-    url: 'https://downloads.claude.ai/claude-code-releases/2.1.308/darwin-arm64/claude',
-    sha256: 'ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37',
-    size: 274675680,
+    url: 'https://downloads.claude.ai/claude-code-releases/2.1.309/darwin-arm64/claude',
+    sha256: '5eadc0009cdcdbc0d06e58110d7b2baf88ced6088b1c33a60a21217fe410619c',
+    size: 275923296,
   }),
   codex: Object.freeze({
-    version: '0.163.0',
+    version: '0.164.0',
     format: 'tar.gz',
     entryRelativePath: 'bin/codex',
-    url: 'https://github.com/openai/codex/releases/download/rust-v0.163.0/codex-package-aarch64-apple-darwin.tar.gz',
+    url: 'https://github.com/openai/codex/releases/download/rust-v0.164.0/codex-package-aarch64-apple-darwin.tar.gz',
     sha256: 'b0344fc2e41f15e0071147e5869008047b8ff4bf2c4a8897975d3bae3f103b34',
     size: 133412281,
   }),
@@ -52,8 +52,8 @@ export const upstreamRuntimeCandidates = Object.freeze({
     format: 'tar.gz',
     entryRelativePath: 'kimi',
     url: 'https://github.com/MoonshotAI/kimi-code/releases/download/%40moonshot-ai/kimi-code%402.3.0/kimi-code-darwin-arm64.tar.gz',
-    sha256: '0c9e161a95a6377fc75dbe1d0a2c685d97a262b8163899b7f3d65831e9130311',
-    size: 62585446,
+    sha256: 'ab2c3cd38b6a100ab66107e0255ebdf68d1fec1efd193afee9d077fb9255bb93',
+    size: 62570326,
   }),
   grok: Object.freeze({
     version: '1.0.67',

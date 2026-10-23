@@ -313,3 +313,119 @@ test('real Codex Proxy CLI completes a full lifecycle through the Fake app-serve
     if (proxy.child.exitCode === null) proxy.child.kill('SIGTERM');
   }
 });
+
+test('imageGeneration items project through the v2 adapter in both the inline-result and 0.164 fileId shapes', async (t) => {
+  // Codex 0.164.0 changed the imageGeneration output from a required inline
+  // `result` string to an alternative durable `fileId` (plus optional
+  // inputImages). The Proxy must project both without requiring `result`.
+  const fakeRuntime = resolve('dist/test/fixtures/fake-codex-lifecycle-server.js');
+  chmodSync(fakeRuntime, 0o755);
+  for (const [scenario, expectKey, expectValue] of [
+    ['image-inline', 'result', 'aW1hZ2UtYnl0ZXM='],
+    ['image-fileid', 'fileId', 'file-fixture-abc123'],
+  ] as const) {
+    await t.test(`scenario ${scenario}`, async () => {
+      process.env.GIAN_FAKE_ITEM_SCENARIO = scenario;
+      let proxy: ReturnType<typeof startV2Proxy> | undefined;
+      try {
+        proxy = startV2Proxy(fakeRuntime);
+        proxy.send({
+          jsonrpc: '2.0',
+          id: 'img-initialize',
+          method: 'initialize',
+          params: {
+            protocol: { name: 'gian.proxy', versions: ['2.1'] },
+            host: { name: 'Gian', version: '9.9.9' },
+          },
+        });
+        await responseFor(proxy, 'img-initialize');
+        proxy.send({
+          jsonrpc: '2.0',
+          id: 'img-create',
+          method: 'session.create',
+          params: {
+            sessionId: 'fake-host-session',
+            workspace: { cwd: '/tmp/fake-codex-workspace', roots: ['/tmp/fake-codex-workspace'] },
+            config: {},
+          },
+        });
+        const createResponse = (await responseFor(proxy, 'img-create')).response;
+        const created = createResponse.result as { session: { streamId: string } };
+        proxy.send({
+          jsonrpc: '2.0',
+          id: 'img-turn',
+          method: 'turn.start',
+          params: {
+            sessionId: 'fake-host-session',
+            streamId: created.session.streamId,
+            turnId: 'fake-host-turn',
+            input: [{ type: 'text', text: 'draw a fixture' }],
+            config: { approval_mode: 'ask', service_tier: false },
+          },
+        });
+        await responseFor(proxy, 'img-turn');
+        const events: Array<{ method: string; params: Record<string, unknown> }> = [];
+        while (!events.some(event => event.method === 'interaction.requested')) {
+          const event = await proxy.next() as { method: string; params: Record<string, unknown> };
+          if ((event.params as { turnId?: unknown })?.turnId === 'fake-host-turn') events.push(event);
+        }
+        const requestedInteraction = events.find(event => event.method === 'interaction.requested');
+        const interactionId = String(
+          (requestedInteraction?.params.data as { interactionId?: unknown } | undefined)?.interactionId ?? '',
+        );
+        proxy.send({
+          jsonrpc: '2.0',
+          id: 'img-interaction',
+          method: 'interaction.respond',
+          params: {
+            sessionId: 'fake-host-session',
+            streamId: created.session.streamId,
+            turnId: 'fake-host-turn',
+            interactionId,
+            responseId: 'fake-response-700',
+            actionId: 'accept',
+          },
+        });
+        await proxy.next();
+        while (!events.some(event => event.method === 'turn.completed')) {
+          const event = await proxy.next() as { method: string; params: Record<string, unknown> };
+          if ((event.params as { turnId?: unknown })?.turnId === 'fake-host-turn') events.push(event);
+        }
+        const activities = events
+          .filter(event => event.method === 'activity.updated')
+          .map(event => event.params.data as {
+            activityId?: unknown;
+            status?: unknown;
+            title?: unknown;
+            presentation?: { type?: unknown; data?: Record<string, unknown> };
+          });
+        assert.deepEqual(
+          activities.map(a => ({ activityId: a.activityId, status: a.status })),
+          [
+            { activityId: 'fake-image-1', status: 'running' },
+            { activityId: 'fake-image-1', status: 'succeeded' },
+          ],
+          'one imageGeneration item keeps one stable activity lifecycle',
+        );
+        assert.equal(activities[0]?.title, 'Image generation');
+        assert.equal(activities[0]?.presentation?.type, 'tool');
+        const input = activities[1]?.presentation?.data?.input as Record<string, unknown> | undefined;
+        assert.ok(input && typeof input === 'object', 'completed activity keeps the bounded native item');
+        assert.equal(input[expectKey], expectValue, `the ${scenario} payload survives projection`);
+        if (scenario === 'image-fileid') {
+          const images = input.inputImages as Array<{ path?: unknown; sha256?: unknown }> | undefined;
+          assert.equal(images?.[0]?.path, '/tmp/input-ref.png');
+          assert.equal(images?.[0]?.sha256, 'a'.repeat(64),
+            'the synthetic input-image identity survives projection');
+          assert.equal(images?.[0]?.sha256?.length, 64, 'identity stays a full 64-hex sha256');
+        }
+        proxy.send({ jsonrpc: '2.0', id: 'img-shutdown', method: 'shutdown', params: {} });
+        await responseFor(proxy, 'img-shutdown');
+        assert.equal(await waitForExit(proxy.child), 0);
+      } finally {
+        delete process.env.GIAN_FAKE_ITEM_SCENARIO;
+        if (proxy && proxy.child.exitCode === null) proxy.child.kill('SIGTERM');
+      }
+    });
+  }
+});

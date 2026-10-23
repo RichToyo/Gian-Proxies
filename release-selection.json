@@ -3,8 +3,8 @@
   "providers": [
     "claude",
     "kimi",
-    "grok"
+    "codex"
   ],
-  "baseCatalogTag": "catalog-v1.35.0",
+  "baseCatalogTag": "catalog-v1.36.0",
   "baseCatalogRepository": "RichToyo/Gian-Proxies"
 }

@@ -1,5 +1,21 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidates - 2026-10-24
+
+- Claude Proxy 0.3.13 pins official Claude Code 2.1.309 (GitHub latest and npm
+  latest; the vendor /stable pointer still reads 2.1.308 and is recorded as
+  lagging, not as proof 2.1.309 is a prerelease).
+- Kimi Proxy 0.4.10 pins Kimi Code 2.3.1; the only server-side change is the
+  added optional session-takeover endpoint, which this Proxy does not use.
+  Native session locks stay at their defaults.
+- Codex Proxy 0.3.8 pins Codex CLI 0.164.0. Exact old/new app-server schema
+  comparison: Proxy-used surfaces unchanged except imageGeneration output now
+  allowing a durable fileId instead of a required inline result (plus optional
+  inputImages); a new fixture regression projects both shapes. ServerRequest
+  is byte-identical.
+- Only these three providers are selected against signed RichToyo Catalog 36.
+  Real Provider turns and target installation are not claimed.
+
 ## Runtime maintenance candidates - 2026-10-22
 
 - Claude Proxy 0.3.12 pins official Claude Code 2.1.308.

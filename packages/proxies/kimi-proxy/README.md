@@ -37,7 +37,7 @@ stored transcripts are not rewritten.
 
 ## Runtime baseline
 
-- Kimi Code CLI `2.3.0` (the Manifest and pinned Runtime candidate select
+- Kimi Code CLI `2.3.1` (the Manifest and pinned Runtime candidate select
   the same exact official archive). Evidence baseline: the
   server's own OpenAPI 3.0.3 (`/openapi.json`) and AsyncAPI 3.1.0
   (`/asyncapi.json`) documents, plus `packages/kap-server` sources embedded in
@@ -46,7 +46,16 @@ stored transcripts are not rewritten.
   diff from 2.2.0 adds optional fields, endpoints and native concurrency
   errors. Codes 40931/40932 map to SESSION_BUSY/CONFLICT without automatic retry.
   A live 2.3.0 `/openapi.json` + `/asyncapi.json` probe confirms
-  every REST route and WS message type this proxy uses.
+  every REST route and WS message type this proxy uses. For the 2.3.1 patch,
+  the exact kap-server source diff (rest-session.ts, sessions.ts,
+  workspaces.ts, openapi/transforms.ts) shows: an added optional
+  session-takeover action this Proxy never calls, and a workspace trust
+  lookup that now reads the trust store directly instead of creating a
+  workspace instance first. Session/message/WS surfaces are unchanged. A
+  live 2.3.1 native server probe (isolated HOME, production supervisor and
+  token path, no user locks, no Provider turn) confirms 112 REST paths: the
+  only addition is `/api/v1/sessions/{session_id}:takeover`, with no existing
+  path or method removed.
 - The proxy spawns its own dedicated server instance on a proxy-chosen free
   port (loopback only, `--no-open --log-level silent`). The bearer token comes
   from `$KIMI_CODE_HOME/server.token` (persisted by the CLI; rotated

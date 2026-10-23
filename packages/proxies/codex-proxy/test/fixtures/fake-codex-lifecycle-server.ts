@@ -31,13 +31,29 @@ input.on('line', (line) => {
   }
   if (message.id === 700 && !message.method) {
     setTimeout(() => {
-      send({
-        method: 'item/completed',
-        params: {
-          threadId,
-          turnId,
-          completedAtMs: 2_000,
-          item: {
+      const itemScenario = process.env.GIAN_FAKE_ITEM_SCENARIO ?? 'mcp-tool';
+      const completedItem = itemScenario === 'image-inline'
+        ? {
+          type: 'imageGeneration',
+          id: 'fake-image-1',
+          status: 'completed',
+          result: 'aW1hZ2UtYnl0ZXM=',
+          revisedPrompt: 'a drawn fixture',
+          savedPath: null,
+          failure: null,
+        }
+        : itemScenario === 'image-fileid'
+          ? {
+            type: 'imageGeneration',
+            id: 'fake-image-1',
+            status: 'completed',
+            fileId: 'file-fixture-abc123',
+            inputImages: [{ path: '/tmp/input-ref.png', sha256: 'a'.repeat(64) }],
+            revisedPrompt: 'a drawn fixture',
+            savedPath: null,
+            failure: null,
+          }
+          : {
             type: 'mcpToolCall',
             id: 'fake-tool-1',
             server: 'fixture',
@@ -49,7 +65,14 @@ input.on('line', (line) => {
             result: { content: [{ type: 'text', text: 'ok' }], structuredContent: null, _meta: null },
             error: null,
             durationMs: 1_000,
-          },
+          };
+      send({
+        method: 'item/completed',
+        params: {
+          threadId,
+          turnId,
+          completedAtMs: 2_000,
+          item: completedItem,
         },
       });
       turnStatus = 'completed';
@@ -134,17 +157,31 @@ input.on('line', (line) => {
         }
         // Deliberately publish visible events before the native response. The
         // real Proxy must still publish the Gian response first.
-        send({
-          method: 'item/agentMessage/delta',
-          params: { threadId, turnId, itemId: 'fake-message-1', delta: 'hello from fake codex' },
-        });
-        send({
-          method: 'item/started',
-          params: {
-            threadId,
-            turnId,
-            startedAtMs: 1_000,
-            item: {
+        // Test seam: GIAN_FAKE_ITEM_SCENARIO=image-inline / image-fileid swaps
+        // the default mcpToolCall item for an imageGeneration item in the
+        // pre-0.164 inline-result shape or the 0.164 fileId shape.
+        const itemScenario = process.env.GIAN_FAKE_ITEM_SCENARIO ?? 'mcp-tool';
+        const inProgressItem = itemScenario === 'image-inline'
+          ? {
+            type: 'imageGeneration',
+            id: 'fake-image-1',
+            status: 'inProgress',
+            result: '',
+            revisedPrompt: null,
+            savedPath: null,
+            failure: null,
+          }
+          : itemScenario === 'image-fileid'
+            ? {
+              type: 'imageGeneration',
+              id: 'fake-image-1',
+              status: 'inProgress',
+              result: '',
+              revisedPrompt: null,
+              savedPath: null,
+              failure: null,
+            }
+            : {
               type: 'mcpToolCall',
               id: 'fake-tool-1',
               server: 'fixture',
@@ -156,7 +193,18 @@ input.on('line', (line) => {
               result: null,
               error: null,
               durationMs: null,
-            },
+            };
+        send({
+          method: 'item/agentMessage/delta',
+          params: { threadId, turnId, itemId: 'fake-message-1', delta: 'hello from fake codex' },
+        });
+        send({
+          method: 'item/started',
+          params: {
+            threadId,
+            turnId,
+            startedAtMs: 1_000,
+            item: inProgressItem,
           },
         });
         send({
