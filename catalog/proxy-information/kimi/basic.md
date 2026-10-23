@@ -14,12 +14,12 @@ The name and icon stay in the title. Install and update actions and progress com
 
 ## Current release-target snapshot
 
-This is the Catalog 36 release target, not this machine's install state: Proxy **0.4.9**, Runtime **2.3.0**. Actual coordinates and certification evidence are in ../evidence/current-combinations.json. The version on a user's machine still comes from the Host receipt.
+The current certified release target is Proxy **0.4.10**, Runtime **2.3.1**. This is a publication target, not this machine's install state. Actual coordinates and certification evidence are in ../evidence/current-combinations.json. The version on a user's machine still comes from the Host receipt.
 
 Example target location:
 
 ```text
-<dataDir>/runtimes/kimi/2.3.0/<artifact-sha256>/kimi
+<dataDir>/runtimes/kimi/2.3.1/<artifact-sha256>/kimi
 ```
 
 `<dataDir>` comes from the running environment. `<artifact-sha256>` comes from the current signed combination. The UI should consume the Host install plan. The Web does not assemble the path itself. Full coordinates are in ../evidence/current-combinations.json.

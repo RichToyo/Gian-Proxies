@@ -16,7 +16,7 @@ The entry point requires an absolute managed binary path:
 node dist/src/cli/spawn.js --kimi-bin /absolute/path/to/kimi
 ```
 
-Current development candidate: **0.4.9**. Successful question dismissal
+Current Proxy version: **0.4.10**. Successful question dismissal
 accepts the native 40909 response only for the dismiss endpoint with its
 verified success payload; REST and WebSocket resolution share one terminal
 fact, including when the native event arrives before the response.
