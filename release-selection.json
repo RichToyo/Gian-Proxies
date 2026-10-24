@@ -2,9 +2,9 @@
   "schema": 1,
   "providers": [
     "claude",
-    "kimi",
-    "codex"
+    "grok",
+    "antigravity"
   ],
-  "baseCatalogTag": "catalog-v1.36.0",
+  "baseCatalogTag": "catalog-v1.38.0",
   "baseCatalogRepository": "RichToyo/Gian-Proxies"
 }

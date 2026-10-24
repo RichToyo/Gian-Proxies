@@ -99,7 +99,7 @@ function handle(message) {
     if (env.FAKE_AGY_IGNORE_INITIALIZE === '1') return;
     if (orphan) spawnDescendant();
     const agentName = env.FAKE_AGY_AGENT_NAME ?? 'antigravity-acp';
-    const agentVersion = env.FAKE_AGY_VERSION ?? '1.4.1';
+    const agentVersion = env.FAKE_AGY_VERSION ?? '1.4.3';
     writeReport('FAKE_AGY_AGENT_REPORT', JSON.stringify({ name: agentName, version: agentVersion }));
     send({
       jsonrpc: '2.0',

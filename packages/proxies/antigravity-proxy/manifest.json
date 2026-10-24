@@ -2,7 +2,7 @@
   "schemaVersion": 4,
   "id": "io.gian.antigravity",
   "displayName": "Antigravity",
-  "pluginVersion": "0.0.3",
+  "pluginVersion": "0.0.4",
   "entry": "proxy.mjs",
   "protocol": { "name": "gian.proxy", "range": ">=2.2 <3.0" },
   "process": { "scope": "shared" },
@@ -10,7 +10,7 @@
     "kind": "external",
     "id": "antigravity-acp",
     "displayName": "Antigravity ACP Server",
-    "verifiedVersions": ["1.4.1"]
+    "verifiedVersions": ["1.4.3"]
   },
   "branding": {
     "logo": {

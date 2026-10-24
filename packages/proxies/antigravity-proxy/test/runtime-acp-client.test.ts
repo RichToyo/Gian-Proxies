@@ -116,7 +116,7 @@ class ScriptedAgent {
     if (this.advertiseResume) sessionCapabilities.resume = {};
     return {
       protocolVersion: this.protocolVersion,
-      agentInfo: { name: this.agentName, title: 'In memory', version: '1.4.1' },
+      agentInfo: { name: this.agentName, title: 'In memory', version: '1.4.3' },
       agentCapabilities: {
         loadSession: this.advertiseLoad,
         sessionCapabilities,
@@ -283,7 +283,7 @@ test('negotiates gian-antigravity-proxy without closing or authenticating', LIMI
     const negotiated = await client.ensureStarted();
     assert.equal(negotiated.protocolVersion, 1);
     assert.equal(negotiated.agentInfo?.name, 'in-memory-peer');
-    assert.equal(negotiated.agentInfo?.version, '1.4.1');
+    assert.equal(negotiated.agentInfo?.version, '1.4.3');
     assert.equal(agent.initializeCount, 1);
     assert.equal(agent.authenticateCount, 0);
     const request = agent.initializeRequest;

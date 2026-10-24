@@ -1,5 +1,26 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidates - 2026-10-25
+
+- Claude Proxy 0.3.14 pins official Claude Code 2.1.310 (GitHub latest
+  v2.1.310 and npm latest; the vendor /stable pointer still reads 2.1.308 and
+  is recorded as lagging). Changelog review found no documented headless
+  spawn/wire compatibility changes; the nine selected startup flags were
+  verified on the new binary.
+- Grok Proxy 0.3.14 pins official stable Grok CLI 1.0.70 (x.ai/cli, official
+  GCS mirror and npm latest agree; downloaded bytes are byte-identical across
+  both sources). Spawn flags and the ACP initialize contract verified on the
+  new binary (agentVersion 1.0.70, grokShell; session creation remains
+  auth-gated). Per-version 1.0.68-1.0.70 notes remain NOT_OBSERVED in the
+  accessible official changelog.
+- Antigravity Proxy 0.0.4 pins upstream ACP Runtime 1.4.3, the current ACP
+  registry version. The official dl.google.com ZIP passes the strict
+  production pair validation; a bounded no-credential ACP initialize reports
+  antigravity-acp 1.4.3 with a capability shape identical to 1.4.1 (raw
+  old/new evidence retained).
+- Only these three providers are selected against signed RichToyo Catalog 38.
+  Real Provider turns and target installation are not claimed.
+
 ## Runtime maintenance candidates - 2026-10-24
 
 - Claude Proxy 0.3.13 pins official Claude Code 2.1.309 (GitHub latest and npm

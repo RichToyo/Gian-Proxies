@@ -1,6 +1,6 @@
 {
   "name": "@gian/antigravity-proxy",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "type": "module",
   "main": "./dist/src/cli/spawn.js",

@@ -22,7 +22,7 @@ function managed(format: 'raw' | 'tar.gz', entryRelativePath: string) {
   return {
     installerVersion: 1 as const,
     runtimeId: ANTIGRAVITY_RUNTIME_ID,
-    version: '1.4.1',
+    version: '1.4.3',
     artifactSha256: sha,
     platform: 'darwin-arm64' as const,
     distribution: {
@@ -48,7 +48,7 @@ test('plans a closed tar.gz layout and does not invent bytes', () => {
   const plan = planRuntimeInstallation(managed('tar.gz', 'agy_acp_server.par'));
   assert.deepEqual(plan.operation, {
     kind: 'managed',
-    directory: `antigravity-acp/1.4.1/${sha}`,
+    directory: `antigravity-acp/1.4.3/${sha}`,
     candidates: [],
     format: 'tar.gz',
     entryRelativePath: 'agy_acp_server.par',

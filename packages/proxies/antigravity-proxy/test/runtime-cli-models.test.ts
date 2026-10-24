@@ -691,7 +691,7 @@ test('times out and does not keep the helper process', async () => {
     const pending = listAntigravityCliModels(queryOptions(paths, {
       FAKE_AGY_CLI_DELAY_MS: '10000',
       FAKE_AGY_CLI_STDERR: SECRET_URL,
-    }, { timeoutMs: 200, stopMs: 1_000 }));
+    }, { timeoutMs: 1_000, stopMs: 1_000 }));
     pending.catch(() => undefined);
     leader = Number(await waitForText(paths.pidPath));
     await assert.rejects(pending, (error: unknown) => {
@@ -1016,7 +1016,7 @@ test('an injected timeout stays bounded and removes the private cwd', async () =
       GIAN_AGENT_HOME: gemini,
       FAKE_AGY_CLI_DELAY_MS: '10000',
       FAKE_AGY_CLI_STDERR: SECRET_URL,
-    }, { timeoutMs: 200, stopMs: 1_000 }));
+    }, { timeoutMs: 1_000, stopMs: 1_000 }));
     pending.catch(() => undefined);
     leader = Number(await waitForText(paths.pidPath));
     queryCwd = (await readReport(paths.report)).cwd;

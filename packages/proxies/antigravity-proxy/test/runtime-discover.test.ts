@@ -234,7 +234,7 @@ test('probe displayName is the manifest Runtime display name', { skip: posixOnly
     assert.equal(result.displayName, 'Antigravity ACP Server');
     assert.equal(result.displayName, ANTIGRAVITY_RUNTIME_DISPLAY_NAME);
     assert.equal(result.runtimeId, ANTIGRAVITY_RUNTIME_ID);
-    assert.equal(result.version, '1.4.1');
+    assert.equal(result.version, '1.4.3');
     assert.equal(result.configHome, agentHome);
     assert.deepEqual(result.contentRoots, [
       { path: server, mode: 'file' },
@@ -274,7 +274,7 @@ test('probe displayName is the manifest Runtime display name', { skip: posixOnly
   }
 });
 
-test('probe rejects a different ACP agent name even at version 1.4.1', { skip: posixOnly }, async () => {
+test('probe rejects a different ACP agent name even at version 1.4.3', { skip: posixOnly }, async () => {
   assert.equal(ANTIGRAVITY_AGENT_NAME, 'antigravity-acp');
   assert.equal(ANTIGRAVITY_RUNTIME_DISPLAY_NAME, 'Antigravity ACP Server');
   const root = await mkdtemp(join(tmpdir(), 'agy-peer-'));
@@ -290,7 +290,7 @@ test('probe rejects a different ACP agent name even at version 1.4.1', { skip: p
         HOME: root,
         PATH: '',
         FAKE_AGY_AGENT_NAME: 'other-acp',
-        FAKE_AGY_VERSION: '1.4.1',
+        FAKE_AGY_VERSION: '1.4.3',
         FAKE_AGY_AGENT_REPORT: agentReport,
         FAKE_AGY_PID: pidPath,
       }),
@@ -304,7 +304,7 @@ test('probe rejects a different ACP agent name even at version 1.4.1', { skip: p
     );
     assert.deepEqual(JSON.parse(await readFile(agentReport, 'utf8')), {
       name: 'other-acp',
-      version: '1.4.1',
+      version: '1.4.3',
     });
     const pid = Number(await readFile(pidPath, 'utf8'));
     assert.equal(processAlive(pid), false);
