@@ -1,6 +1,6 @@
 {
   "name": "@gian/codex-proxy",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "private": true,
   "type": "module",
   "main": "./dist/src/cli/spawn.js",
@@ -22,7 +22,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@gian/proxy-protocol": "https://github.com/RichLogic/Gian/releases/download/proxy-protocol-v1.0.2/gian-proxy-protocol-1.0.2.tgz",
+    "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz",
     "@gian/shared": "workspace:*"
   },
   "devDependencies": {

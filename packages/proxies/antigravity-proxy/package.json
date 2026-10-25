@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.23.0",
-    "@gian/proxy-protocol": "https://github.com/RichLogic/Gian/releases/download/proxy-protocol-v1.0.2/gian-proxy-protocol-1.0.2.tgz"
+    "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

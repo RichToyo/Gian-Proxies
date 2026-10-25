@@ -2,23 +2,23 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "e57efb59612af3ca667d942e078f0528ec2669f2",
+  "sourceCommit": "2d95f2a083dd4f93e5ed094869d50e5dda8f9ea9",
   "workingTree": false,
   "externalPackages": [
     {
       "schema": 1,
       "name": "@gian/proxy-protocol",
-      "repository": "RichLogic/Gian",
-      "version": "1.0.2",
-      "tag": "proxy-protocol-v1.0.2",
-      "filename": "gian-proxy-protocol-1.0.2.tgz",
-      "url": "https://github.com/RichLogic/Gian/releases/download/proxy-protocol-v1.0.2/gian-proxy-protocol-1.0.2.tgz",
-      "sourceCommit": "18aab4fd2f6f592b5a600408a6b66036133c4c45",
-      "size": 97346,
-      "sha256": "0ced38eab45a7a480ff97d493f7faf59f37aba023044a8f49e0fb26c5a373b68",
-      "integrity": "sha512-tbugSdXOjVGhAPT9Xpk5Dd2+O1n/hjetzzho/4QLHrM471FbVUdt4N0Ggpn5adKT01fbPm0GNC0Fl+4EGhoCNw==",
+      "repository": "RichToyo/Gian",
+      "version": "1.0.3",
+      "tag": "proxy-protocol-v1.0.3",
+      "filename": "gian-proxy-protocol-1.0.3.tgz",
+      "url": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz",
+      "sourceCommit": "8999a3c362be6c339eb913f4e55390243e6b0e82",
+      "size": 97601,
+      "sha256": "115a23a611b9e2e924b7145cf3c4a53437415241a8c0cc92a08828ec24e7cebc",
+      "integrity": "sha512-g724D4yRQoNgYM+3M4OE83fkQeAO6I5r7LkboKvwSbLl0xgRUz4PMBSrunzHnil1I7j0tde/50ygVy1dDhYvJQ==",
       "dependencies": {
-        "zod": "4.4.3"
+        "zod": "4.6.6"
       }
     }
   ],
@@ -251,7 +251,7 @@
     {
       "source": "catalog/official-source/plugins/io.gian.antigravity/entry.json",
       "path": "catalog/official-source/plugins/io.gian.antigravity/entry.json",
-      "sha256": "3e7ebcb0f5bad48026e761f7d885f19f084fa33e93d7cf41ab91bb61aa882b3f"
+      "sha256": "6745712bdf7652d248c35a7b192de46b27c3fa826703bed73bf3971e60607495"
     },
     {
       "source": "catalog/official-source/plugins/io.gian.antigravity/overview.md",
@@ -266,7 +266,7 @@
     {
       "source": "catalog/official-source/plugins/io.gian.antigravity/sidecar.json",
       "path": "catalog/official-source/plugins/io.gian.antigravity/sidecar.json",
-      "sha256": "7d1b28addb4a976c760ecabfb500a4d76048b2de0f07ca56cdcfa43addcd7423"
+      "sha256": "97e9f005249a51fe5a69fc123d1e5a687f22d3f10683f23c121a21aeb65935df"
     },
     {
       "source": "catalog/official-source/plugins/io.gian.antigravity/troubleshooting.md",
@@ -546,7 +546,7 @@
     {
       "source": "delivery/proxies/CHANGELOG.md",
       "path": "CHANGELOG.md",
-      "sha256": "b5e8a8592914a66211f0bb4939cbca2ab401c6a70d98f2deea1752e2af474b69"
+      "sha256": "470227ebce8b41e05d3e4d5aebd2e35febb74a39ba9d9fd2a721d8d183d93e09"
     },
     {
       "source": "delivery/proxies/README.md",
@@ -556,12 +556,12 @@
     {
       "source": "delivery/proxies/protocol-package.json",
       "path": "protocol-package.json",
-      "sha256": "d5d250e70a0073ef9001f0383de9a8b0bfd25b2e59aeabf87da8e8f9062d790e"
+      "sha256": "71810eefaea96e02f22f306b923f6dd18e771dd1d0a6d568470efa7d1e8af174"
     },
     {
       "source": "delivery/proxies/release-selection.json",
       "path": "release-selection.json",
-      "sha256": "1f5efdf30d700ee8c8e258165833876bc3339ccdcfc0553683e5590fccefcccd"
+      "sha256": "549c9f7169f5c14d01da50323781ff6e7c87f36eb0db484aa823ecf86ccefa87"
     },
     {
       "source": "delivery/proxies/scripts/catalog-docs-policy.mjs",
@@ -586,7 +586,7 @@
     {
       "source": "delivery/proxies/scripts/runtime-qualification.test.mjs",
       "path": "scripts/runtime-qualification.test.mjs",
-      "sha256": "34e0126fe8122e0f203c7fcfb4754534afda8776e705dea0e572b3f63930b125"
+      "sha256": "1cf1b11c869330e46bfd3e24eae433fd7287de4758d4e2c200d3a0a165521b88"
     },
     {
       "source": "delivery/proxies/scripts/verify-source.mjs",
@@ -596,7 +596,7 @@
     {
       "source": "packages/host/src/runtime/dev-runtime-coordinates.json",
       "path": "support/runtime-extractor/dev-runtime-coordinates.json",
-      "sha256": "93b90ad4db9e638fdb75ec6cf69b95244f13bdcab0b300cbcfe4c1bee1f8d03a"
+      "sha256": "75c33aba4737bc9deaf0e93120690ef9aa20b3f5c209f6b60a07258a3aba6230"
     },
     {
       "source": "packages/host/src/runtime/errors.ts",
@@ -1156,12 +1156,12 @@
     {
       "source": "packages/proxies/codex-proxy/manifest.json",
       "path": "packages/proxies/codex-proxy/manifest.json",
-      "sha256": "ad92da535a4acb4ccb44788c9e683c21b4cb6f372f0c54b865f4cd50931195ba"
+      "sha256": "9178dfbac5a18185b966f86c06dc9107c8dde4295e1617d8f4e2893a9765a1eb"
     },
     {
       "source": "packages/proxies/codex-proxy/package.json",
       "path": "packages/proxies/codex-proxy/package.json",
-      "sha256": "cfbd4c857bd6b76f01d114a6bca94e13f750a96ab26f533421b666aa984ba04f"
+      "sha256": "32946708c3bd281066e7f4345eeac638d41d12413e25ead72c8f5da637198099"
     },
     {
       "source": "packages/proxies/codex-proxy/scripts/fake-catalog-ui-proxy.mjs",
@@ -1226,7 +1226,7 @@
     {
       "source": "packages/proxies/codex-proxy/src/plugin-version.ts",
       "path": "packages/proxies/codex-proxy/src/plugin-version.ts",
-      "sha256": "a08ba0210b08acf490d6ef0e21778295b3608c9d48baaed4b2d6202485128a97"
+      "sha256": "7caad5f847a920c9343a3c90dce07f6591620ec73607e829f5247ac6a88084df"
     },
     {
       "source": "packages/proxies/codex-proxy/src/protocol/native-history.ts",
@@ -1606,12 +1606,12 @@
     {
       "source": "packages/proxies/dsh-proxy/manifest.json",
       "path": "packages/proxies/dsh-proxy/manifest.json",
-      "sha256": "8b3a661aaa320c9d12ccf656e4b537c521fef541052e62636099db232b859850"
+      "sha256": "63c6a7ae7ff5a7ad2278d2dc4072e4e8950abb26b0e6d1a8a29b8c9c445f35b3"
     },
     {
       "source": "packages/proxies/dsh-proxy/package.json",
       "path": "packages/proxies/dsh-proxy/package.json",
-      "sha256": "e3ec4355531e66cbddb256118a3d4d6580551644d74a69976346a9893d47b764"
+      "sha256": "a65d08e803ced60d3e1f9c40af05ff1b692282652eae7dda327b59a9e741030a"
     },
     {
       "source": "packages/proxies/dsh-proxy/scripts/fake-catalog-ui-proxy.mjs",
@@ -1971,12 +1971,12 @@
     {
       "source": "packages/proxies/kimi-proxy/manifest.json",
       "path": "packages/proxies/kimi-proxy/manifest.json",
-      "sha256": "6493dd65895ee7dde6970973b7f28343b0b24ff4829dd3420c56a73b506b74cc"
+      "sha256": "51d931bd3506ea47d355623ec536bf31612ad6b413630c6c3aade3483836672f"
     },
     {
       "source": "packages/proxies/kimi-proxy/package.json",
       "path": "packages/proxies/kimi-proxy/package.json",
-      "sha256": "d0ac829a0b06cafc7de140802bd607adf9277a5e2f5ee06a4cdcf1e0f7d0a45c"
+      "sha256": "83a677dad3c21e7ba120e125e992fa183e71b2a4571211b0db44d613e16d395f"
     },
     {
       "source": "packages/proxies/kimi-proxy/scripts/fake-catalog-ui-proxy.mjs",
@@ -1986,7 +1986,7 @@
     {
       "source": "packages/proxies/kimi-proxy/src/cli/spawn.ts",
       "path": "packages/proxies/kimi-proxy/src/cli/spawn.ts",
-      "sha256": "f6d6c631652afedb3a1403148d50ea3c1ab0752f0d73b1c7454f3ab607e4aba2"
+      "sha256": "3322247fb749f4a9affa86ff952888afc866fee64a0b48459a040eed02643f8f"
     },
     {
       "source": "packages/proxies/kimi-proxy/src/core/customization.ts",
@@ -2241,12 +2241,12 @@
     {
       "source": "packages/proxies/zcode-proxy/manifest.json",
       "path": "packages/proxies/zcode-proxy/manifest.json",
-      "sha256": "a8f62c138e997d4c1ce61b9dcd3f8b0e53240664328d7e0ad38164c8540f7e50"
+      "sha256": "38d07ca74349f60434b10ac733815c531406a8fba2a88bc59692fcb7bc157404"
     },
     {
       "source": "packages/proxies/zcode-proxy/package.json",
       "path": "packages/proxies/zcode-proxy/package.json",
-      "sha256": "4f12f97e9e1b3e70e0618aada54a11b54e534bb9160371170e6e737be3b1762a"
+      "sha256": "03e54e2a6b78e4a3eaadbbd3cc430fa107fb556ffc05af446272bc98d723a74b"
     },
     {
       "source": "packages/proxies/zcode-proxy/probes/wp0/lib.mjs",
@@ -2781,22 +2781,22 @@
     {
       "source": "pnpm-lock.yaml",
       "path": "pnpm-lock.yaml",
-      "sha256": "4ca82469e2fa979b4b4957a7cdf9c715046e1932225f06961b7ee3e9548198f4"
+      "sha256": "5177f278e7021d691e66ab5e1dd454c73d1d6ed855e1ce7c9633db36b835282b"
     },
     {
       "source": "pnpm-workspace.yaml",
       "path": "pnpm-workspace.yaml",
-      "sha256": "93db24aa897ad826ee5b02a737fadfcf390e53a28d71897e4e4c2d9d03fa9581"
+      "sha256": "e2cd0bfbf9df636c149bbbd86b4c5491b548f46d09603152b1e703befd5c6129"
     },
     {
       "source": "runtimes/deepseek-harness/package-lock.json",
       "path": "runtimes/deepseek-harness/package-lock.json",
-      "sha256": "3f3978c07b74aaaf04aafa1eabb0836487b2eeecef4d950991244b6465c909a7"
+      "sha256": "6cc3ec6a03dcf38ad8e016171be659103c6357cee2eb147826d99e7192f40f87"
     },
     {
       "source": "runtimes/deepseek-harness/package.json",
       "path": "runtimes/deepseek-harness/package.json",
-      "sha256": "f61f5c52baaf68f3665c2f64c7b610e548751760dfbbc96414a460f74e75258d"
+      "sha256": "685776a5128347166628c475ac0c0ee5826a350ca521f18e48df1be803823e75"
     },
     {
       "source": "scripts/build-antigravity-runtime.mjs",
@@ -2938,7 +2938,7 @@
     {
       "path": "catalog/official-source/plugins/ai.deepseek.harness/entry.json",
       "mode": 420,
-      "sha256": "b762f41f357cee62bd4fe1eb04bd3b92df091a33deb35242f979d50c32f1b1e8"
+      "sha256": "c8dbe15da9e14918a939945417ab44b8f20b24554618c70d9093169bd2ddad9f"
     },
     {
       "path": "catalog/official-source/plugins/ai.deepseek.harness/overview.md",
@@ -2953,7 +2953,7 @@
     {
       "path": "catalog/official-source/plugins/ai.deepseek.harness/sidecar.json",
       "mode": 420,
-      "sha256": "8b3a661aaa320c9d12ccf656e4b537c521fef541052e62636099db232b859850"
+      "sha256": "63c6a7ae7ff5a7ad2278d2dc4072e4e8950abb26b0e6d1a8a29b8c9c445f35b3"
     },
     {
       "path": "catalog/official-source/plugins/ai.deepseek.harness/troubleshooting.md",
@@ -3018,7 +3018,7 @@
     {
       "path": "catalog/official-source/plugins/codex/entry.json",
       "mode": 420,
-      "sha256": "cdef2f2fa6c5858f7be4969362367ff432cac7e189b5ffb14059f7d07823eb54"
+      "sha256": "f9eb503e6b1d1965983813c3a2fa897c5c6d87b022581e1440fd38025eee90f2"
     },
     {
       "path": "catalog/official-source/plugins/codex/overview.md",
@@ -3033,7 +3033,7 @@
     {
       "path": "catalog/official-source/plugins/codex/sidecar.json",
       "mode": 420,
-      "sha256": "ad92da535a4acb4ccb44788c9e683c21b4cb6f372f0c54b865f4cd50931195ba"
+      "sha256": "9178dfbac5a18185b966f86c06dc9107c8dde4295e1617d8f4e2893a9765a1eb"
     },
     {
       "path": "catalog/official-source/plugins/codex/troubleshooting.md",
@@ -3058,7 +3058,7 @@
     {
       "path": "catalog/official-source/plugins/com.zhipu.zcode/entry.json",
       "mode": 420,
-      "sha256": "1c64c39a0c8bdbe5c135d148682541702cef9be513e0658bdbae692cdf9b30f6"
+      "sha256": "a11091bfedd8f5c5ef9821d716c28246d692242877746c92ba025042bc3c1474"
     },
     {
       "path": "catalog/official-source/plugins/com.zhipu.zcode/overview.md",
@@ -3073,7 +3073,7 @@
     {
       "path": "catalog/official-source/plugins/com.zhipu.zcode/sidecar.json",
       "mode": 420,
-      "sha256": "a8f62c138e997d4c1ce61b9dcd3f8b0e53240664328d7e0ad38164c8540f7e50"
+      "sha256": "38d07ca74349f60434b10ac733815c531406a8fba2a88bc59692fcb7bc157404"
     },
     {
       "path": "catalog/official-source/plugins/com.zhipu.zcode/troubleshooting.md",
@@ -3178,7 +3178,7 @@
     {
       "path": "catalog/official-source/plugins/kimi/entry.json",
       "mode": 420,
-      "sha256": "82cf27e42597858a87ae67bac5baef7bc6b456ac11b1c9372a49f44e7f02924a"
+      "sha256": "eb1685ca1fe6ad826822ec7d28663e79828141e0139cb44688197c9bf0d74d2f"
     },
     {
       "path": "catalog/official-source/plugins/kimi/overview.md",
@@ -3193,7 +3193,7 @@
     {
       "path": "catalog/official-source/plugins/kimi/sidecar.json",
       "mode": 420,
-      "sha256": "6493dd65895ee7dde6970973b7f28343b0b24ff4829dd3420c56a73b506b74cc"
+      "sha256": "51d931bd3506ea47d355623ec536bf31612ad6b413630c6c3aade3483836672f"
     },
     {
       "path": "catalog/official-source/plugins/kimi/troubleshooting.md",
@@ -3408,7 +3408,7 @@
     {
       "path": "CHANGELOG.md",
       "mode": 420,
-      "sha256": "b5e8a8592914a66211f0bb4939cbca2ab401c6a70d98f2deea1752e2af474b69"
+      "sha256": "470227ebce8b41e05d3e4d5aebd2e35febb74a39ba9d9fd2a721d8d183d93e09"
     },
     {
       "path": "LICENSE",
@@ -3433,7 +3433,7 @@
     {
       "path": "packages/proxies/antigravity-proxy/package.json",
       "mode": 420,
-      "sha256": "07204f06417a3743d48c00dd6f0627819f978cfd1cf3fdbc01c6593b5a854974"
+      "sha256": "78d1a87bb97499413e576c21ae336b3f10d4867f3e5e3d9f0d23d52a7706d0d2"
     },
     {
       "path": "packages/proxies/antigravity-proxy/README.md",
@@ -3663,7 +3663,7 @@
     {
       "path": "packages/proxies/cc-proxy/package.json",
       "mode": 420,
-      "sha256": "b4bfddc19808585477c18b02b0f537b651d71c1a18b45e2c527e9a7a9da3fcb3"
+      "sha256": "4c3746b00c805579dff1d83d1a81129f4d272ff01d715bf0b17c855be5ee8b89"
     },
     {
       "path": "packages/proxies/cc-proxy/scripts/fake-catalog-ui-proxy.mjs",
@@ -3963,12 +3963,12 @@
     {
       "path": "packages/proxies/codex-proxy/manifest.json",
       "mode": 420,
-      "sha256": "ad92da535a4acb4ccb44788c9e683c21b4cb6f372f0c54b865f4cd50931195ba"
+      "sha256": "9178dfbac5a18185b966f86c06dc9107c8dde4295e1617d8f4e2893a9765a1eb"
     },
     {
       "path": "packages/proxies/codex-proxy/package.json",
       "mode": 420,
-      "sha256": "8466adea67116a613b037047a6342881e658a79f84c70697fd22f97f2c4350d1"
+      "sha256": "6ae3db0f6484ef44812fb02d52e6b320beb2344f8000f05204e96c356ea300cb"
     },
     {
       "path": "packages/proxies/codex-proxy/README.md",
@@ -4038,7 +4038,7 @@
     {
       "path": "packages/proxies/codex-proxy/src/plugin-version.ts",
       "mode": 420,
-      "sha256": "a08ba0210b08acf490d6ef0e21778295b3608c9d48baaed4b2d6202485128a97"
+      "sha256": "7caad5f847a920c9343a3c90dce07f6591620ec73607e829f5247ac6a88084df"
     },
     {
       "path": "packages/proxies/codex-proxy/src/protocol/native-history.ts",
@@ -4413,12 +4413,12 @@
     {
       "path": "packages/proxies/dsh-proxy/manifest.json",
       "mode": 420,
-      "sha256": "8b3a661aaa320c9d12ccf656e4b537c521fef541052e62636099db232b859850"
+      "sha256": "63c6a7ae7ff5a7ad2278d2dc4072e4e8950abb26b0e6d1a8a29b8c9c445f35b3"
     },
     {
       "path": "packages/proxies/dsh-proxy/package.json",
       "mode": 420,
-      "sha256": "20a753a3ee5e65d442bddc2d7477437cf96abcab1aeb392e8a5b29beaf694989"
+      "sha256": "179176cd62301d43e41d41fcb060c6064ebc2e22f84aea73b8e44127736a7af5"
     },
     {
       "path": "packages/proxies/dsh-proxy/README.md",
@@ -4543,7 +4543,7 @@
     {
       "path": "packages/proxies/grok-proxy/package.json",
       "mode": 420,
-      "sha256": "93eb1c76d4bba44550885aae06b38b24f1912c4f4dc931586eec8e290249b630"
+      "sha256": "c9706a63f670df24a383ed4879563bb3ffbc5f6e746eb62c31e50f3ba72808f4"
     },
     {
       "path": "packages/proxies/grok-proxy/README.md",
@@ -4778,12 +4778,12 @@
     {
       "path": "packages/proxies/kimi-proxy/manifest.json",
       "mode": 420,
-      "sha256": "6493dd65895ee7dde6970973b7f28343b0b24ff4829dd3420c56a73b506b74cc"
+      "sha256": "51d931bd3506ea47d355623ec536bf31612ad6b413630c6c3aade3483836672f"
     },
     {
       "path": "packages/proxies/kimi-proxy/package.json",
       "mode": 420,
-      "sha256": "3265e9fd5e84f6bd93aad0dfa0fb4af825be96c0c80103e26232f4286209e7a3"
+      "sha256": "81b30387007b1f3ba034cdae242061deb31277108720d7500d8c173e8b89d7be"
     },
     {
       "path": "packages/proxies/kimi-proxy/README.md",
@@ -4798,7 +4798,7 @@
     {
       "path": "packages/proxies/kimi-proxy/src/cli/spawn.ts",
       "mode": 420,
-      "sha256": "f6d6c631652afedb3a1403148d50ea3c1ab0752f0d73b1c7454f3ab607e4aba2"
+      "sha256": "3322247fb749f4a9affa86ff952888afc866fee64a0b48459a040eed02643f8f"
     },
     {
       "path": "packages/proxies/kimi-proxy/src/core/customization.ts",
@@ -5048,12 +5048,12 @@
     {
       "path": "packages/proxies/zcode-proxy/manifest.json",
       "mode": 420,
-      "sha256": "a8f62c138e997d4c1ce61b9dcd3f8b0e53240664328d7e0ad38164c8540f7e50"
+      "sha256": "38d07ca74349f60434b10ac733815c531406a8fba2a88bc59692fcb7bc157404"
     },
     {
       "path": "packages/proxies/zcode-proxy/package.json",
       "mode": 420,
-      "sha256": "71d1cefed505a5dbeba6bd8c5d8f56511073779b1f73bd114283d99611e0e8e4"
+      "sha256": "68308a2d4dae9d8401248af76c06b29e545b96a99239e05c8a876efff6057945"
     },
     {
       "path": "packages/proxies/zcode-proxy/probes/wp0/lib.mjs",
@@ -5298,7 +5298,7 @@
     {
       "path": "packages/proxy-catalog-contract/package.json",
       "mode": 420,
-      "sha256": "4740ead5d618fac150aaa8384edbd23d003f7a458dd017c50488f62e58698421"
+      "sha256": "d2bc463a027ec7d660dd985d5a146246d7003f166e29bd3b3019438357a3ca44"
     },
     {
       "path": "packages/proxy-catalog-contract/src/bundle.ts",
@@ -5593,17 +5593,17 @@
     {
       "path": "pnpm-lock.yaml",
       "mode": 420,
-      "sha256": "f808a4a8e6c0390c75179c754196764754107ac663f670968516e813b41946e1"
+      "sha256": "c9891eb198bb4458e291f1d00e25d4a45cfec37136bf9de13e43af37632990b8"
     },
     {
       "path": "pnpm-workspace.yaml",
       "mode": 420,
-      "sha256": "611e2ecf3732c829c877723273944e07f13f055b59243f3ef6ee255608a0dc4d"
+      "sha256": "ce4e00ccd058382b19eeae84928369d8a2ee8ef1bcaf5efeffd76198df9b7097"
     },
     {
       "path": "protocol-package.json",
       "mode": 420,
-      "sha256": "d5d250e70a0073ef9001f0383de9a8b0bfd25b2e59aeabf87da8e8f9062d790e"
+      "sha256": "71810eefaea96e02f22f306b923f6dd18e771dd1d0a6d568470efa7d1e8af174"
     },
     {
       "path": "README.md",
@@ -5613,17 +5613,17 @@
     {
       "path": "release-selection.json",
       "mode": 420,
-      "sha256": "1f5efdf30d700ee8c8e258165833876bc3339ccdcfc0553683e5590fccefcccd"
+      "sha256": "549c9f7169f5c14d01da50323781ff6e7c87f36eb0db484aa823ecf86ccefa87"
     },
     {
       "path": "runtimes/deepseek-harness/package-lock.json",
       "mode": 420,
-      "sha256": "3f3978c07b74aaaf04aafa1eabb0836487b2eeecef4d950991244b6465c909a7"
+      "sha256": "6cc3ec6a03dcf38ad8e016171be659103c6357cee2eb147826d99e7192f40f87"
     },
     {
       "path": "runtimes/deepseek-harness/package.json",
       "mode": 420,
-      "sha256": "f61f5c52baaf68f3665c2f64c7b610e548751760dfbbc96414a460f74e75258d"
+      "sha256": "685776a5128347166628c475ac0c0ee5826a350ca521f18e48df1be803823e75"
     },
     {
       "path": "scripts/build-antigravity-runtime.mjs",
@@ -5708,7 +5708,7 @@
     {
       "path": "scripts/runtime-qualification.test.mjs",
       "mode": 420,
-      "sha256": "34e0126fe8122e0f203c7fcfb4754534afda8776e705dea0e572b3f63930b125"
+      "sha256": "1cf1b11c869330e46bfd3e24eae433fd7287de4758d4e2c200d3a0a165521b88"
     },
     {
       "path": "scripts/stage-official-catalog-release.mjs",
@@ -5743,7 +5743,7 @@
     {
       "path": "support/runtime-extractor/dev-runtime-coordinates.json",
       "mode": 420,
-      "sha256": "93b90ad4db9e638fdb75ec6cf69b95244f13bdcab0b300cbcfe4c1bee1f8d03a"
+      "sha256": "75c33aba4737bc9deaf0e93120690ef9aa20b3f5c209f6b60a07258a3aba6230"
     },
     {
       "path": "support/runtime-extractor/src/errors.ts",

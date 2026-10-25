@@ -26,7 +26,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@gian/proxy-protocol": "https://github.com/RichLogic/Gian/releases/download/proxy-protocol-v1.0.2/gian-proxy-protocol-1.0.2.tgz",
+    "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz",
     "@gian/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.0",
     "zod": "^4.3.6"

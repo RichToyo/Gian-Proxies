@@ -31,12 +31,12 @@
     "entryRelativePath": "node_modules/@deepseek-ai/dsh/lib/bin.js",
     "build": {
       "kind": "dsh-lock",
-      "packageSha256": "f61f5c52baaf68f3665c2f64c7b610e548751760dfbbc96414a460f74e75258d",
-      "lockSha256": "3f3978c07b74aaaf04aafa1eabb0836487b2eeecef4d950991244b6465c909a7"
+      "packageSha256": "685776a5128347166628c475ac0c0ee5826a350ca521f18e48df1be803823e75",
+      "lockSha256": "6cc3ec6a03dcf38ad8e016171be659103c6357cee2eb147826d99e7192f40f87"
     },
     "asset": {
-      "sha256": "db49450cd7cc1ab18c8338c6a0ffb4a3c455c5574b7351cd95dde5be19619a92",
-      "size": 179224562
+      "sha256": "6151cd00a55165683fd2646332892077b56c840042725eed692fda4f4669692b",
+      "size": 144826646
     }
   },
   {

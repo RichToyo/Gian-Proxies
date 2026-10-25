@@ -1,6 +1,6 @@
 {
   "name": "@gian/zcode-proxy",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "private": true,
   "description": "com.zhipu.zcode — shared-scope Gian Proxy translating gian.proxy/2.1 over ZCode Protocol v1 (zcode.cjs app-server)",
   "type": "module",
@@ -23,7 +23,7 @@
     "test:real-app-server": "pnpm run build && node --test dist/test/real-app-server-lifecycle.canary.js"
   },
   "dependencies": {
-    "@gian/proxy-protocol": "https://github.com/RichLogic/Gian/releases/download/proxy-protocol-v1.0.2/gian-proxy-protocol-1.0.2.tgz"
+    "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
   },
   "devDependencies": {
     "@types/node": "^24.12.2",

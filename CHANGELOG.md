@@ -1,5 +1,23 @@
 # Gian Proxies Changelog
 
+## Shared security repair candidates - 2026-10-25
+
+- Shared dependency set: Proxy Protocol SDK 1.0.3 with zod exactly 4.6.6
+  (wire protocol unchanged), body-parser 2.4.0 via the MCP SDK chain, and
+  undici 8.12.2 via the DSH fetch/proxy chains. The managed DeepSeek Harness
+  Runtime lock resolves a single zod 4.6.7 and undici 8.12.2.
+- Claude Proxy 0.3.14 pins official Claude Code 2.1.310.
+- Grok Proxy 0.3.14 pins official stable Grok CLI 1.0.70.
+- Antigravity Proxy 0.0.4 pins upstream ACP Runtime 1.4.3.
+- Codex Proxy 0.3.9 and Kimi Proxy 0.4.11 carry the new shared dependency set
+  with unchanged verified Runtimes 0.164.0 and 2.3.1.
+- DeepSeek Harness Proxy 0.3.8 ships the dependency-repaired managed Runtime
+  (CLI still 0.2.1-rc.2); its bytes live under the new 0.3.8 tag, never
+  overwriting 0.3.7.
+- Six providers selected against signed RichToyo Catalog 38. ZCode is
+  excluded pending its upstream lock review and keeps its exact 0.4.7/0.17.0
+  tuple. Real Provider turns and target installation are not claimed.
+
 ## Runtime maintenance candidates - 2026-10-25
 
 - Claude Proxy 0.3.14 pins official Claude Code 2.1.310 (GitHub latest
