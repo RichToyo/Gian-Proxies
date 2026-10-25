@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "io.gian.antigravity",
-  "currentVersion": "0.0.3",
+  "currentVersion": "0.0.4",
   "entries": [
+    {
+      "version": "0.0.4",
+      "firstPublishedAt": "2026-10-25T04:45:35Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-antigravity-v0.0.4",
+          "publishedAt": "2026-10-25T04:45:35Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.4",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.4/gian-proxy-antigravity-0.0.4-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "97e9f005249a51fe5a69fc123d1e5a687f22d3f10683f23c121a21aeb65935df",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.4/gian-proxy-antigravity-0.0.4-darwin-arm64.tar.gz",
+            "sha256": "adc2846a1a9bcb624477ff8859d2091db74a1b56ff20e687c18cb011f00a81f7",
+            "size": 190366
+          },
+          "runtimeDeclaration": {
+            "id": "antigravity-acp",
+            "versions": [
+              "1.4.3"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the upstream Antigravity ACP Runtime to 1.4.3, the current ACP registry version. The official dl.google.com ZIP passes strict production pair validation with pinned bytes; a bounded no-credential ACP initialize reports antigravity-acp 1.4.3 with a capability shape identical to 1.4.1 (raw old/new evidence retained). Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.4",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-antigravity-v0.0.4/packages/proxies/antigravity-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.0.3",
       "firstPublishedAt": "2026-10-21T12:23:59Z",

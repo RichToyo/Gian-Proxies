@@ -1,8 +1,56 @@
 {
   "schemaVersion": 1,
   "pluginId": "ai.deepseek.harness",
-  "currentVersion": "0.3.7",
+  "currentVersion": "0.3.8",
   "entries": [
+    {
+      "version": "0.3.8",
+      "firstPublishedAt": "2026-10-25T04:45:27Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-dsh-v0.3.8",
+          "publishedAt": "2026-10-25T04:45:27Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.8",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.8/gian-proxy-dsh-0.3.8-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "63c6a7ae7ff5a7ad2278d2dc4072e4e8950abb26b0e6d1a8a29b8c9c445f35b3",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.8/gian-proxy-dsh-0.3.8-darwin-arm64.tar.gz",
+            "sha256": "1c92a058147ed73cf85c3df9de10b40527e17966dedbb5a256081946b959cdc3",
+            "size": 209096
+          },
+          "runtimeDeclaration": {
+            "id": "deepseek-harness",
+            "versions": [
+              "0.2.1-rc.2"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [
+            {
+              "id": "@gian/dsh-bridge",
+              "version": "0.1.7",
+              "basis": "bundled-package-source"
+            }
+          ],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Republish the DeepSeek Harness Proxy at 0.3.8 with the shared security repair set: Proxy Protocol SDK 1.0.3 (zod exactly 4.6.6, wire unchanged) and a dependency-repaired managed Runtime whose lock resolves a single zod 4.6.7 and undici 8.12.2 (CLI stays 0.2.1-rc.2; the repaired bytes live under the new 0.3.8 tag, never overwriting 0.3.7). Bundled Bridge remains 0.1.7. Exact artifacts pass hosted qualification; real Provider turns are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.8",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-dsh-v0.3.8/packages/proxies/dsh-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.7",
       "firstPublishedAt": "2026-10-21T12:23:44Z",

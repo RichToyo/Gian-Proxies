@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "kimi",
-  "currentVersion": "0.4.10",
+  "currentVersion": "0.4.11",
   "entries": [
+    {
+      "version": "0.4.11",
+      "firstPublishedAt": "2026-10-25T04:45:07Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-kimi-v0.4.11",
+          "publishedAt": "2026-10-25T04:45:07Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.11",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.11/gian-proxy-kimi-0.4.11-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "51d931bd3506ea47d355623ec536bf31612ad6b413630c6c3aade3483836672f",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.11/gian-proxy-kimi-0.4.11-darwin-arm64.tar.gz",
+            "sha256": "aff7ed87810faa665d0d716b137dba4fa2cf57b9815330281cba85c8775704eb",
+            "size": 198649
+          },
+          "runtimeDeclaration": {
+            "id": "kimi",
+            "versions": [
+              "2.3.1"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Republish the Kimi Proxy at 0.4.11 with the shared security repair set: Proxy Protocol SDK 1.0.3 (zod exactly 4.6.6, wire unchanged), body-parser 2.4.0 and undici 8.12.2. The verified Kimi Code Runtime stays 2.3.1. Exact artifacts pass hosted qualification; real Provider turns are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.11",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.4.11/packages/proxies/kimi-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.4.10",
       "firstPublishedAt": "2026-10-23T19:02:25Z",

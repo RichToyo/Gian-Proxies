@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.8**, Runtime **0.164.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.9**, Runtime **0.164.0**. These are distribution targets, not this machine's installed state.
+
+## 0.3.9
+
+First published: 2026-10-25T04:45:04Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.9): 2026-10-25T04:45:04Z.
+- CLI: 0.164.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Republish the Codex Proxy at 0.3.9 with the shared security repair set: Proxy Protocol SDK 1.0.3 (zod exactly 4.6.6, wire unchanged), body-parser 2.4.0 and undici 8.12.2. The verified Codex CLI Runtime stays 0.164.0. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.9) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.9/packages/proxies/codex-proxy/README.md)
 
 ## 0.3.8
 

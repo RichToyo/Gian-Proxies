@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "grok",
-  "currentVersion": "0.3.13",
+  "currentVersion": "0.3.14",
   "entries": [
+    {
+      "version": "0.3.14",
+      "firstPublishedAt": "2026-10-25T04:45:17Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-grok-v0.3.14",
+          "publishedAt": "2026-10-25T04:45:17Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.14",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.14/gian-proxy-grok-0.3.14-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "56782802c90dcecf5426900bfe01ea1c0227edb27708067278add226259e9369",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.14/gian-proxy-grok-0.3.14-darwin-arm64.tar.gz",
+            "sha256": "a1c845be7181944d59e7c58ac6447df8d1e0283fe1b2f66bea3e63be4282d085",
+            "size": 216003
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.70"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Grok CLI to official stable 1.0.70 (x.ai/cli stable, the official GCS mirror and npm latest agree; downloaded bytes are byte-identical across both sources). Verify the spawn flags and ACP initialize contract on the new binary (agentVersion 1.0.70, grokShell; session creation stays auth-gated, raw evidence preserved). Per-version 1.0.68-1.0.70 release notes remain NOT_OBSERVED in the accessible official changelog. Exact artifacts pass hosted qualification; native authenticated approval behavior remains unverified.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.14",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-grok-v0.3.14/packages/proxies/grok-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.13",
       "firstPublishedAt": "2026-10-23T11:48:20Z",

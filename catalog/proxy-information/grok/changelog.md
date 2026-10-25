@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.13**, Runtime **1.0.67**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.14**, Runtime **1.0.70**. These are distribution targets, not this machine's installed state.
+
+## 0.3.14
+
+First published: 2026-10-25T04:45:17Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.14): 2026-10-25T04:45:17Z.
+- CLI: 1.0.70 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Update the managed Grok CLI to official stable 1.0.70 (x.ai/cli stable, the official GCS mirror and npm latest agree; downloaded bytes are byte-identical across both sources). Verify the spawn flags and ACP initialize contract on the new binary (agentVersion 1.0.70, grokShell; session creation stays auth-gated, raw evidence preserved). Per-version 1.0.68-1.0.70 release notes remain NOT_OBSERVED in the accessible official changelog. Exact artifacts pass hosted qualification; native authenticated approval behavior remains unverified. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.14) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-grok-v0.3.14/packages/proxies/grok-proxy/README.md)
 
 ## 0.3.13
 

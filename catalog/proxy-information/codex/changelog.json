@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "codex",
-  "currentVersion": "0.3.8",
+  "currentVersion": "0.3.9",
   "entries": [
+    {
+      "version": "0.3.9",
+      "firstPublishedAt": "2026-10-25T04:45:04Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-codex-v0.3.9",
+          "publishedAt": "2026-10-25T04:45:04Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.9",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.9/gian-proxy-codex-0.3.9-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "9178dfbac5a18185b966f86c06dc9107c8dde4295e1617d8f4e2893a9765a1eb",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.9/gian-proxy-codex-0.3.9-darwin-arm64.tar.gz",
+            "sha256": "d79a05e158ee221271981da33be25b25b7a0defd721789522531a16347d22bdf",
+            "size": 235356
+          },
+          "runtimeDeclaration": {
+            "id": "codex",
+            "versions": [
+              "0.164.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Republish the Codex Proxy at 0.3.9 with the shared security repair set: Proxy Protocol SDK 1.0.3 (zod exactly 4.6.6, wire unchanged), body-parser 2.4.0 and undici 8.12.2. The verified Codex CLI Runtime stays 0.164.0. Exact artifacts pass hosted qualification; real Provider turns and App/Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.9",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.9/packages/proxies/codex-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.8",
       "firstPublishedAt": "2026-10-23T19:02:29Z",

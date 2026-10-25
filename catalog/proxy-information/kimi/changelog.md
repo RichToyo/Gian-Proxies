@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.10**, Runtime **2.3.1**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.11**, Runtime **2.3.1**. These are distribution targets, not this machine's installed state.
+
+## 0.4.11
+
+First published: 2026-10-25T04:45:07Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.11): 2026-10-25T04:45:07Z.
+- CLI: 2.3.1 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Republish the Kimi Proxy at 0.4.11 with the shared security repair set: Proxy Protocol SDK 1.0.3 (zod exactly 4.6.6, wire unchanged), body-parser 2.4.0 and undici 8.12.2. The verified Kimi Code Runtime stays 2.3.1. Exact artifacts pass hosted qualification; real Provider turns are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.11) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.4.11/packages/proxies/kimi-proxy/README.md)
 
 ## 0.4.10
 

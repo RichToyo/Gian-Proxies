@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.7**, Runtime **0.2.1-rc.2**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.8**, Runtime **0.2.1-rc.2**. These are distribution targets, not this machine's installed state.
+
+## 0.3.8
+
+First published: 2026-10-25T04:45:27Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.8): 2026-10-25T04:45:27Z.
+- CLI: 0.2.1-rc.2 (Manifest compatibility declaration, not local installation state). Bridge: 0.1.7 (source package corresponding to this archive).
+
+### Changed
+
+- Republish the DeepSeek Harness Proxy at 0.3.8 with the shared security repair set: Proxy Protocol SDK 1.0.3 (zod exactly 4.6.6, wire unchanged) and a dependency-repaired managed Runtime whose lock resolves a single zod 4.6.7 and undici 8.12.2 (CLI stays 0.2.1-rc.2; the repaired bytes live under the new 0.3.8 tag, never overwriting 0.3.7). Bundled Bridge remains 0.1.7. Exact artifacts pass hosted qualification; real Provider turns are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.8) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-dsh-v0.3.8/packages/proxies/dsh-proxy/README.md)
 
 ## 0.3.7
 
