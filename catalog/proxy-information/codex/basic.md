@@ -14,7 +14,7 @@ The name and icon stay in the title. Install and update actions and progress com
 
 ## Current release-target snapshot
 
-The current certified release target is Proxy **0.3.8**, Runtime **0.164.0**. This is a publication target, not this machine's install state.
+The current certified release target is Proxy **0.3.9**, Runtime **0.164.0**. This is a publication target, not this machine's install state.
 
 Example target location:
 

@@ -14,4 +14,4 @@ The name and icon stay in the title. Installation actions and progress follow th
 
 ## Current release-target snapshot
 
-The latest retained Catalog 1.33.0 includes Proxy **0.0.2** with Runtime **1.4.1**. This is a published target, not this machine's installation state.
+The latest retained Catalog 1.39.0 includes Proxy **0.0.4** with Runtime **1.4.3**. This is a published target, not this machine's installation state.

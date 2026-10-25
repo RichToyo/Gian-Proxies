@@ -16,7 +16,7 @@ The name and icon stay in the title. Install and update actions and progress com
 
 This is the 2026-09-20 Catalog 1.7.0 target, not this machine's install state: Proxy **0.3.1**, Runtime **0.1.1-rc.2**. That distribution from the newer repository bundles Bridge 0.1.3. The Bridge is covered by the whole Proxy archive digest. The dependency is explained in the tutorial. It does not add a fourth Basic line.
 
-Example path shape (Runtime 0.2.0-rc.2 as pinned by current source; `<artifact-sha256>` comes from that version's signed artifact):
+Example path shape (Runtime 0.2.1-rc.2 as pinned by current source; `<artifact-sha256>` comes from that version's signed artifact):
 
 ```text
 <dataDir>/runtimes/deepseek-harness/0.2.0-rc.2/<artifact-sha256>/node_modules/@deepseek-ai/dsh/lib/bin.js

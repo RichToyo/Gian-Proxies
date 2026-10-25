@@ -31,7 +31,7 @@ The Runtime owns tool execution. Gian maps interrupt requests to native prompt c
 
 ## 4. Installation and dependencies
 
-Install Kimi Code from Agent Integrations. The current target is Proxy 0.4.10 with Runtime 2.3.1. Gian verifies the signed Catalog's exact Runtime archive, Proxy, digests, installation plan, extraction result and actual version before activation.
+Install Kimi Code from Agent Integrations. The current target is Proxy 0.4.11 with Runtime 2.3.1. Gian verifies the signed Catalog's exact Runtime archive, Proxy, digests, installation plan, extraction result and actual version before activation.
 
 ```text
 <dataDir>/runtimes/kimi/<runtime-version>/<artifact-sha256>/kimi

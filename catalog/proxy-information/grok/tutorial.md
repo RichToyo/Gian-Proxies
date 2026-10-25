@@ -6,7 +6,7 @@ Grok Build Integration runs coding sessions through the official Grok CLI ACP st
 
 ## 2. Capabilities and limitations
 
-The combination supports text, local files, images, tool approval, reasoning, usage and replay. Steer, Rename, Fork, Side Chat and native deletion depend on verified native methods and current session state; unsupported operations remain unavailable. CLI 1.0.67 advertises image input in its native handshake, but a real image/model turn remains a separate acceptance check.
+The combination supports text, local files, images, tool approval, reasoning, usage and replay. Steer, Rename, Fork, Side Chat and native deletion depend on verified native methods and current session state; unsupported operations remain unavailable. CLI 1.0.70 advertises image input in its native handshake, but a real image/model turn remains a separate acceptance check.
 
 ## 3. Runtime architecture
 
@@ -18,7 +18,7 @@ The session-scoped Proxy forces the workspace sandbox. Agent HOME directories an
 
 ## 4. Installation and dependencies
 
-Install from Agent Integrations. Gian downloads Proxy 0.3.13 and official Grok CLI 1.0.67 from the signed Catalog, then verifies URL, size, SHA-256, version, Manifest and installation receipt before activation.
+Install from Agent Integrations. Gian downloads Proxy 0.3.14 and official Grok CLI 1.0.70 from the signed Catalog, then verifies URL, size, SHA-256, version, Manifest and installation receipt before activation.
 
 ## 5. First use
 
