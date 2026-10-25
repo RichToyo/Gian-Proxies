@@ -20,20 +20,14 @@ test('the real standalone verifier imports without Host and retains the package-
   assert.ok(existsSync(new URL('./build-antigravity-runtime.mjs', builderUrl)));
 });
 
-test('this batch selects six Runtime/dependency upgrades on signed RichToyo Catalog 38 with ZCode excluded', () => {
+test('this batch selects only the Kimi Runtime upgrade on signed RichToyo Catalog 40', () => {
   const selection = JSON.parse(readFileSync(new URL('../release-selection.json', import.meta.url), 'utf8'));
-  const providers = ['claude', 'codex', 'kimi', 'grok', 'dsh', 'antigravity'];
-  assert.deepEqual(selection, { schema: 1, providers, baseCatalogRepository: 'RichToyo/Gian-Proxies', baseCatalogTag: 'catalog-v1.38.0' });
+  assert.deepEqual(selection, { schema: 1, providers: ['kimi'], baseCatalogRepository: 'RichToyo/Gian-Proxies', baseCatalogTag: 'catalog-v1.40.0' });
   const selected = selectReleaseDefinitions(proxyDefinitions, selection);
-  assert.deepEqual(selected.map(item => item.id), providers);
-  assert.deepEqual(selectRuntimeProviders(providers), providers);
-  assert.deepEqual(selected.map(item => item.pluginVersion), [
-    '0.3.14', '0.3.9', '0.4.11', '0.3.14', '0.3.8', '0.0.4',
-  ]);
-  assert.deepEqual(selected.map(item => item.runtime.verifiedCliVersions), [
-    ['2.1.310'], ['0.164.0'], ['2.3.1'], ['1.0.70'], ['0.2.1-rc.2'], ['1.4.3'],
-  ]);
-  assert.equal(selection.providers.includes('zcode'), false, 'ZCode stays excluded pending its upstream lock review');
+  assert.deepEqual(selected.map(item => item.id), ['kimi']);
+  assert.deepEqual(selectRuntimeProviders(['kimi']), ['kimi']);
+  assert.equal(selected[0].pluginVersion, '0.4.12');
+  assert.deepEqual(selected[0].runtime.verifiedCliVersions, ['2.3.2']);
   for (const id of ['claude', 'codex', 'kimi', 'grok', 'dsh', 'zcode', 'antigravity']) assert.ok(proxyDefinitions.some(item => item.id === id));
 });
 

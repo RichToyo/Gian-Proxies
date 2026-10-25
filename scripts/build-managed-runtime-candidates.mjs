@@ -48,12 +48,12 @@ export const upstreamRuntimeCandidates = Object.freeze({
     size: 136007998,
   }),
   kimi: Object.freeze({
-    version: '2.3.1',
+    version: '2.3.2',
     format: 'tar.gz',
     entryRelativePath: 'kimi',
-    url: 'https://github.com/MoonshotAI/kimi-code/releases/download/%40moonshot-ai/kimi-code%402.3.1/kimi-code-darwin-arm64.tar.gz',
-    sha256: 'ab2c3cd38b6a100ab66107e0255ebdf68d1fec1efd193afee9d077fb9255bb93',
-    size: 62570326,
+    url: 'https://github.com/MoonshotAI/kimi-code/releases/download/%40moonshot-ai/kimi-code%402.3.2/kimi-code-darwin-arm64.tar.gz',
+    sha256: 'cbbf09cf2581a7dda6fb3b1fd20c55081865781e451becb95420fbd676cee1c2',
+    size: 62586250,
   }),
   grok: Object.freeze({
     version: '1.0.70',

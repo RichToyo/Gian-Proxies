@@ -37,7 +37,7 @@ stored transcripts are not rewritten.
 
 ## Runtime baseline
 
-- Kimi Code CLI `2.3.1` (the Manifest and pinned Runtime candidate select
+- Kimi Code CLI `2.3.2` (the Manifest and pinned Runtime candidate select
   the same exact official archive). Evidence baseline: the
   server's own OpenAPI 3.0.3 (`/openapi.json`) and AsyncAPI 3.1.0
   (`/asyncapi.json`) documents, plus `packages/kap-server` sources embedded in
@@ -55,7 +55,12 @@ stored transcripts are not rewritten.
   live 2.3.1 native server probe (isolated HOME, production supervisor and
   token path, no user locks, no Provider turn) confirms 112 REST paths: the
   only addition is `/api/v1/sessions/{session_id}:takeover`, with no existing
-  path or method removed.
+  path or method removed. The 2.3.2 patch changes no kap-server file at all
+  (22 changed files across agent-core swarm/tooling, transcript folding and
+  docs; the swarm removal disables tool-driven swarm entry until the user
+  enables swarm mode - shared code that CAN affect web-runtime behavior, so
+  this Proxy declares and enables no swarm policy and relies on generic
+  isError/replay handling).
 - The proxy spawns its own dedicated server instance on a proxy-chosen free
   port (loopback only, `--no-open --log-level silent`). The bearer token comes
   from `$KIMI_CODE_HOME/server.token` (persisted by the CLI; rotated

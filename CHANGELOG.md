@@ -1,5 +1,20 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidates - 2026-10-26
+
+- Kimi Proxy 0.4.12 pins Kimi Code 2.3.2 (GitHub latest, published
+  2026-10-25; archive SHA-256 matches the official asset metadata). The
+  2.3.1-to-2.3.2 diff touches no kap-server file (22 files across agent-core
+  swarm/tooling, transcript folding and docs; shared tool-driven swarm entry
+  is now disabled until the user enables swarm mode, which can affect
+  web-runtime behavior - this Proxy declares/enables no swarm policy and its
+  generic isError/replay handling stays compatible). A bounded no-Provider native
+  probe confirms 2.3.2 serves the same 112 REST paths and the production
+  token layout.
+- Only Kimi is selected against signed RichToyo Catalog 40. All other
+  published tuples are preserved exactly. Real Provider turns and target
+  installation are not claimed.
+
 ## Shared security repair candidates - 2026-10-25
 
 - Shared dependency set: Proxy Protocol SDK 1.0.3 with zod exactly 4.6.6

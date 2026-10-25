@@ -442,7 +442,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && path === '/api/v1/healthz') return ok(res, { ok: true });
     if (req.method === 'GET' && path === '/api/v1/meta') {
       return ok(res, {
-        server_version: '2.3.1-fake', server_id: `srv_${ulid()}`,
+        server_version: '2.3.2-fake', server_id: `srv_${ulid()}`,
         started_at: new Date().toISOString(), capabilities: {}, backend: 'v2',
       });
     }
