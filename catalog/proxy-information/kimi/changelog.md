@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.11**, Runtime **2.3.1**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.12**, Runtime **2.3.2**. These are distribution targets, not this machine's installed state.
+
+## 0.4.12
+
+First published: 2026-10-25T18:19:48Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.12): 2026-10-25T18:19:48Z.
+- CLI: 2.3.2 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Update the managed Kimi Code Runtime to official 2.3.2, matching the GitHub release asset digest. The 2.3.1-to-2.3.2 diff touches no kap-server file, so the transport/API is unchanged; shared agent-core tool-driven swarm entry is disabled until the user enables swarm mode (swarmService.enter("tool") throws, AgentSwarm resolve/execute return isError when inactive, transcript folding ignores tool-triggered activation), which can affect web-runtime behavior - this Proxy declares and enables no swarm policy and its generic isError/replay handling stays compatible. A bounded no-Provider native probe confirms 2.3.2 reports 2.3.2, serves the same 112 REST paths and the production token layout (raw evidence preserved). Exact artifacts pass hosted qualification; real Provider turns are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.12) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.4.12/packages/proxies/kimi-proxy/README.md)
 
 ## 0.4.11
 
