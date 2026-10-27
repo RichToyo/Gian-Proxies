@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "ec59296888e2773133831c7d78fa10d17b8fd8c4",
+  "sourceCommit": "5172239d71608bec51b874677a86521e1ca12a59",
   "workingTree": false,
   "externalPackages": [
     {
@@ -571,7 +571,7 @@
     {
       "source": "delivery/proxies/scripts/catalog-docs-policy.test.mjs",
       "path": "scripts/catalog-docs-policy.test.mjs",
-      "sha256": "e760298b7c4af10f84aff051b905f00710fc2427f3f6cff45036cf38612ed435"
+      "sha256": "1f1477d937efb534cf95a0fb3992bd8401aba751c6f1634021c9900e7bbbc6fa"
     },
     {
       "source": "delivery/proxies/scripts/protocol-dependency.mjs",
@@ -586,7 +586,7 @@
     {
       "source": "delivery/proxies/scripts/runtime-qualification.test.mjs",
       "path": "scripts/runtime-qualification.test.mjs",
-      "sha256": "4f7d15e6884889311579edc53aa4b87462eb7b4efae5ee94e4afff76398683c8"
+      "sha256": "a7191cf1423ec0ec837672a88fd9669c9c25b68c54598254f89d3d91bef68c9d"
     },
     {
       "source": "delivery/proxies/scripts/verify-source.mjs",
@@ -5863,7 +5863,7 @@
     {
       "path": "scripts/catalog-docs-policy.test.mjs",
       "mode": 420,
-      "sha256": "e760298b7c4af10f84aff051b905f00710fc2427f3f6cff45036cf38612ed435"
+      "sha256": "1f1477d937efb534cf95a0fb3992bd8401aba751c6f1634021c9900e7bbbc6fa"
     },
     {
       "path": "scripts/check-node.cjs",
@@ -5908,7 +5908,7 @@
     {
       "path": "scripts/runtime-qualification.test.mjs",
       "mode": 420,
-      "sha256": "4f7d15e6884889311579edc53aa4b87462eb7b4efae5ee94e4afff76398683c8"
+      "sha256": "a7191cf1423ec0ec837672a88fd9669c9c25b68c54598254f89d3d91bef68c9d"
     },
     {
       "path": "scripts/stage-official-catalog-release.mjs",
