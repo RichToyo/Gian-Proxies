@@ -243,6 +243,7 @@ test('stdio session streams Gemini text and reaps the paired ACP process', POSIX
     'runtime.discover': 1,
     'runtime.probe': 1,
     'runtime.install.plan': 1,
+    'account.quota.read': 1,
     'session.native.list': 1,
   });
   assertLaunch(harness);
