@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.12**, Runtime **2.3.2**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.13**, Runtime **2.3.2**. These are distribution targets, not this machine's installed state.
+
+## 0.4.13
+
+First published: 2026-10-27T13:43:37Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.13): 2026-10-27T13:43:37Z.
+- CLI: 2.3.2 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Add official-account quota inspection through the local Kimi server API. Record authoritative live cumulative usage without emitting placeholder session totals at finalization. Use Proxy Protocol SDK 1.0.4 and retain Kimi Code 2.3.2. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.13) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.4.13/packages/proxies/kimi-proxy/README.md)
 
 ## 0.4.12
 

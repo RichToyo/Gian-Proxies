@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.9**, Runtime **0.164.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.10**, Runtime **0.164.0**. These are distribution targets, not this machine's installed state.
+
+## 0.3.10
+
+First published: 2026-10-27T13:43:33Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.10): 2026-10-27T13:43:33Z.
+- CLI: 0.164.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Add read-only ChatGPT subscription quota inspection through the bound Codex account, without sending a model prompt. Use Proxy Protocol SDK 1.0.4 and retain Codex CLI 0.164.0. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.10) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.10/packages/proxies/codex-proxy/README.md)
 
 ## 0.3.9
 

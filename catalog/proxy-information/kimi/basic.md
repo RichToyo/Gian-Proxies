@@ -14,7 +14,7 @@ The name and icon stay in the title. Install and update actions and progress com
 
 ## Current release-target snapshot
 
-The current certified release target is Proxy **0.4.12**, Runtime **2.3.2**. This is a publication target, not this machine's install state. Actual coordinates and certification evidence are in ../evidence/current-combinations.json. The version on a user's machine still comes from the Host receipt.
+The current certified release target is Proxy **0.4.13**, Runtime **2.3.2**. This is a publication target, not this machine's install state. Actual coordinates and certification evidence are in ../evidence/current-combinations.json. The version on a user's machine still comes from the Host receipt.
 
 Example target location:
 

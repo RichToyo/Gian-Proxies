@@ -1,6 +1,6 @@
 # Grok Build: basic information review
 
-Basic information shows the Runtime path, the Runtime version, and the Proxy version. The current release target is Proxy **0.3.14** and Grok CLI **1.0.70**. That does not mean the user's machine has finished install or sign-in.
+Basic information shows the Runtime path, the Runtime version, and the Proxy version. The current release target is Proxy **0.3.15** and Grok CLI **1.0.70**. That does not mean the user's machine has finished install or sign-in.
 
 Target location:
 

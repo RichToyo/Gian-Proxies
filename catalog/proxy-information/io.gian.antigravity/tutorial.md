@@ -2,7 +2,7 @@
 
 ## 1. What it does in Gian
 
-The Antigravity Integration connects Google's official Antigravity ACP Server to Gian: create and manage Antigravity sessions in Gian, send text tasks, and review tool activity and approval requests. Proxy 0.0.4 pairs with upstream ACP Runtime 1.4.3; the Proxy and upstream Runtime versions are independent. This is not a wrapper around the separate `agy --print` CLI.
+The Antigravity Integration connects Google's official Antigravity ACP Server to Gian: create and manage Antigravity sessions in Gian, send text tasks, and review tool activity and approval requests. Proxy 0.0.5 pairs with upstream ACP Runtime 1.4.3; the Proxy and upstream Runtime versions are independent. This is not a wrapper around the separate `agy --print` CLI.
 
 ## 2. Capabilities and limitations
 
