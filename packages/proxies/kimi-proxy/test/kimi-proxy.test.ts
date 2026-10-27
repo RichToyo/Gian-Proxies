@@ -50,6 +50,18 @@ async function waitFor(harness: Harness, method: string, timeoutMs = 10_000): Pr
   return harness.waitNotificationFor((line) => line.method === method, timeoutMs);
 }
 
+async function waitShortTurn(harness: Harness): Promise<OutgoingLine[]> {
+  const before: OutgoingLine[] = [];
+  const idle = await harness.waitNotificationFor((line) => line.method === 'session.updated'
+    && (line.payload.params as { data: { state: string } }).data.state === 'idle', 10_000, before);
+  const notifications = [...before, idle];
+  assert.equal(notifications.length, 10);
+  assert.equal(notifications.filter((line) => line.method === 'usage.updated').length, 1,
+    'only authoritative live usage is emitted, never a placeholder finalization snapshot');
+  assert.equal(notifications.filter((line) => line.method === 'turn.completed').length, 1);
+  return notifications;
+}
+
 function assertStreamSequence(harness: Harness, streamId: string): void {
   const sequences = harness.notifications
     .map((line) => line.payload.params as { streamId: string; sequence: number })
@@ -411,7 +423,7 @@ test('toggle thinking sends on/off through Host conformance to REST and rejects 
         sessionId, streamId, turnId: `t_${value}`,
         input: [{ type: 'text', text: 'say hi' }], config,
       });
-      for (const notification of await harness.waitNotifications(11)) {
+      for (const notification of await waitShortTurn(harness)) {
         host.acceptLine(JSON.stringify(notification.payload));
       }
     }
@@ -529,7 +541,7 @@ for (const version of ['2.1', '2.2', '2.3']) {
         input: [{ type: 'text', text: 'say hi' }],
         config: { model: 'kimi', thinking: 'low', approval_mode: 'manual' },
       });
-      const notifications = await harness.waitNotifications(11);
+      const notifications = await waitShortTurn(harness);
       for (const notification of notifications) {
         host.acceptLine(JSON.stringify(notification.payload));
       }
@@ -564,10 +576,10 @@ test('turn lifecycle: prompt payload, event projection, single terminal, barrier
     });
     assert.equal(accepted.kind, 'result', JSON.stringify(accepted.payload));
 
-    const notifications = await harness.waitNotifications(11);
+    const notifications = await waitShortTurn(harness);
     const methods = notifications.map((line) => line.method);
     // turn.started, session.updated running, content.delta x2, activity running + terminal,
-    // usage live, content.completed, usage final, turn.completed, session.updated idle
+    // usage live, content.completed, turn.completed, session.updated idle
     assert.equal(methods.filter((method) => method === 'turn.started').length, 1);
     assert.equal(methods.filter((method) => method === 'turn.completed').length, 1, 'exactly one terminal');
     assert.equal(methods.includes('turn.failed'), false);
@@ -1485,7 +1497,7 @@ test('head fork replays multiple newest-first native pages in chronological Host
       sessionId: 's_parent', streamId: parentStream, turnId: 't_head',
       input: [{ type: 'text', text: 'new-head-input' }], config: { approval_mode: 'manual' },
     });
-    for (const line of await harness.waitNotifications(11)) host.acceptLine(JSON.stringify(line.payload));
+    for (const line of await waitShortTurn(harness)) host.acceptLine(JSON.stringify(line.payload));
     const fork = await request('session.fork', { sourceSessionId: 's_parent', sourceStreamId: parentStream, sessionId: 's_child', anchor: { type: 'head' } });
     const child = (fork.payload as { result: { session: { streamId: string; nativeSession: { id: string } } } }).result.session;
     const replayValidator = new ReplayPageValidator('s_child');
@@ -1646,7 +1658,7 @@ test('cold Side Chat waits for accepted subscription, completes, interrupts, res
       sessionId: 's_parent', streamId: parentStream, turnId: 't_parent_1',
       input: [{ type: 'text', text: 'remember synthetic parent marker' }], config: { approval_mode: 'manual' },
     });
-    accept(await harness.waitNotifications(11));
+    accept(await waitShortTurn(harness));
     const created = await request('sidechat.create', { parentSessionId: 's_parent', parentStreamId: parentStream, sidechatId: 'sc_cold' });
     const sidechat = (created.payload as { result: { sidechat: { streamId: string; resumeRef: { id: string } } } }).result.sidechat;
     const start = (turnId: string, text: string) => request('turn.start', {
@@ -1654,7 +1666,7 @@ test('cold Side Chat waits for accepted subscription, completes, interrupts, res
       input: [{ type: 'text', text }], config: { approval_mode: 'manual' },
     });
     await start('t_child_1', 'reply in the child');
-    const first = await harness.waitNotifications(11);
+    const first = await waitShortTurn(harness);
     accept(first);
     assert.ok(first.every((line) => (line.payload.params as { sessionId: string }).sessionId === 'sc_cold'));
     assert.equal(first.filter((line) => line.method === 'content.completed')
@@ -1681,7 +1693,7 @@ test('cold Side Chat waits for accepted subscription, completes, interrupts, res
     assert.equal(afterStop.some((line) => line.method === 'turn.failed'), false);
 
     await start('t_child_resume', 'continue after interrupt');
-    const resumed = await harness.waitNotifications(11);
+    const resumed = await waitShortTurn(harness);
     accept(resumed);
     assert.equal(resumed.filter((line) => line.method === 'content.completed')
       .map((line) => (line.payload.params as { data: { content: string } }).data.content).join(''), 'Hello world');
@@ -1691,7 +1703,7 @@ test('cold Side Chat waits for accepted subscription, completes, interrupts, res
       sessionId: 's_parent', streamId: parentStream, turnId: 't_parent_2',
       input: [{ type: 'text', text: 'parent still works' }], config: { approval_mode: 'manual' },
     });
-    const parentAgain = await harness.waitNotifications(11);
+    const parentAgain = await waitShortTurn(harness);
     accept(parentAgain);
     assert.ok(parentAgain.every((line) => (line.payload.params as { sessionId: string }).sessionId === 's_parent'));
     assert.equal(parentAgain.filter((line) => line.method === 'turn.completed').length, 1);
