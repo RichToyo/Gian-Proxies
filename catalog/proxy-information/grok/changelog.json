@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "grok",
-  "currentVersion": "0.3.14",
+  "currentVersion": "0.3.15",
   "entries": [
+    {
+      "version": "0.3.15",
+      "firstPublishedAt": "2026-10-27T13:43:48Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-grok-v0.3.15",
+          "publishedAt": "2026-10-27T13:43:48Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.15",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.15/gian-proxy-grok-0.3.15-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "5ce0cb620a3fe0957b13e321d9814cf1def76d4236f6db6587c056afadc78caf",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.15/gian-proxy-grok-0.3.15-darwin-arm64.tar.gz",
+            "sha256": "e84b790cba6dd8d02f36e846b8da4cb04a63090c25804d2012c71d0c95aff706",
+            "size": 218578
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.70"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Add first-party Grok account and billing inspection through prefixed native ACP extension methods, without creating a session or sending a prompt. Use Proxy Protocol SDK 1.0.4 and retain Grok CLI 1.0.70. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.15",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-grok-v0.3.15/packages/proxies/grok-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.14",
       "firstPublishedAt": "2026-10-25T04:45:17Z",

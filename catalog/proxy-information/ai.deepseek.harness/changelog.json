@@ -1,8 +1,56 @@
 {
   "schemaVersion": 1,
   "pluginId": "ai.deepseek.harness",
-  "currentVersion": "0.3.8",
+  "currentVersion": "0.3.9",
   "entries": [
+    {
+      "version": "0.3.9",
+      "firstPublishedAt": "2026-10-27T13:44:00Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-dsh-v0.3.9",
+          "publishedAt": "2026-10-27T13:44:00Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.9",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.9/gian-proxy-dsh-0.3.9-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "778342acaa5a13f78349df90580656e6685eddb153db2064e235e44c99085731",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.9/gian-proxy-dsh-0.3.9-darwin-arm64.tar.gz",
+            "sha256": "cdb39a9f6a48d8d137c009170fca9ac0c43487dbd2e48f3c0b51545b38401507",
+            "size": 212065
+          },
+          "runtimeDeclaration": {
+            "id": "deepseek-harness",
+            "versions": [
+              "0.2.1-rc.2"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [
+            {
+              "id": "@gian/dsh-bridge",
+              "version": "0.1.8",
+              "basis": "bundled-package-source"
+            }
+          ],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Add official DeepSeek balance inspection and step-level usage identity for local Token statistics. Use Proxy Protocol SDK 1.0.4 and bundled Bridge 0.1.8; retain the dependency-repaired DeepSeek Harness 0.2.1-rc.2 Runtime. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.9",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-dsh-v0.3.9/packages/proxies/dsh-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.8",
       "firstPublishedAt": "2026-10-25T04:45:27Z",

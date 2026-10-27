@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "codex",
-  "currentVersion": "0.3.9",
+  "currentVersion": "0.3.10",
   "entries": [
+    {
+      "version": "0.3.10",
+      "firstPublishedAt": "2026-10-27T13:43:33Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-codex-v0.3.10",
+          "publishedAt": "2026-10-27T13:43:33Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.10",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.10/gian-proxy-codex-0.3.10-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "56bfcd7db294c198db65859a7fb78d233e9f05ae7bdaaf98a335707a71e1fb6c",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.10/gian-proxy-codex-0.3.10-darwin-arm64.tar.gz",
+            "sha256": "fa294177dab4de981a55c5af20c4a5b6eebf75224fb6eccc983f1ea6978306c9",
+            "size": 244157
+          },
+          "runtimeDeclaration": {
+            "id": "codex",
+            "versions": [
+              "0.164.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Add read-only ChatGPT subscription quota inspection through the bound Codex account, without sending a model prompt. Use Proxy Protocol SDK 1.0.4 and retain Codex CLI 0.164.0. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.10",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.10/packages/proxies/codex-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.9",
       "firstPublishedAt": "2026-10-25T04:45:04Z",

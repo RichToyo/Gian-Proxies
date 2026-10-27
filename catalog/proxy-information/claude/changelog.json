@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "claude",
-  "currentVersion": "0.3.14",
+  "currentVersion": "0.3.15",
   "entries": [
+    {
+      "version": "0.3.15",
+      "firstPublishedAt": "2026-10-27T13:43:29Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-claude-v0.3.15",
+          "publishedAt": "2026-10-27T13:43:29Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.15",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.15/gian-proxy-claude-0.3.15-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "8f5ca92121d337240678c0a046d8948c06a0cab4f731e686578e0879fae7937e",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.15/gian-proxy-claude-0.3.15-darwin-arm64.tar.gz",
+            "sha256": "d42edc5749273c9b21ac5d5c5e0984894e387e1836b6ba456af4378a8b8d7e7f",
+            "size": 629716
+          },
+          "runtimeDeclaration": {
+            "id": "claude",
+            "versions": [
+              "2.1.310"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Add first-party account quota inspection for the Gian menu bar and preserve cumulative usage identity for local Token statistics. Use Proxy Protocol SDK 1.0.4 and retain Claude Code 2.1.310. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.15",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-claude-v0.3.15/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.14",
       "firstPublishedAt": "2026-10-25T04:45:01Z",
