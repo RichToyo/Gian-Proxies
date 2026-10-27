@@ -76,6 +76,7 @@ export interface ClaudeRuntimeEvents {
 }
 
 export interface ClaudeRuntime extends EventEmitter<ClaudeRuntimeEvents> {
+  readOfficialQuota?(params: import('@gian/proxy-protocol').OfficialQuotaReadParams): Promise<import('@gian/proxy-protocol').ProxyOfficialQuotaReadResult>;
   /** Initialize the runtime. Returns 0 (no server port). */
   start(): Promise<number>;
 

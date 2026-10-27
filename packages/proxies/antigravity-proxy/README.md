@@ -35,6 +35,30 @@ Proxy does not point the CLI at another account and does not read CLI
 credential files. A missing CLI is an unavailable catalog, not an empty one.
 The query does not create an ACP session or send a prompt.
 
+## Account quota
+
+On `gian.proxy/2.3`, `account.quota.read` reads the separately signed-in
+official CLI account with `agy -p /usage --output-format json`. This is a
+native read-only command, not a model turn or the session Runtime. It uses
+the same default-HOME and helper-discovery boundaries as the cold catalog.
+An installed ACP Runtime alone does not supply the separate `agy` helper.
+
+Metadata preflight rejects unknown versions and CLI releases older than
+1.1.11 before sending a print command. The supported family is 1.x. Queries
+force slash-command handling on, close stdin, use an isolated working directory,
+cap output and execution time, and stop the owned helper on sign-in requests.
+They never answer a login prompt, copy credentials or alter account settings.
+
+Responses carry `source: "cli"` and no invented account identity. The menu says
+`CLI account`, because CLI and ACP may be signed into different accounts.
+Failed refreshes discard old CLI values; account changes are not monitored
+continuously. Missing fractions stay unknown, and G1 credits are not presented
+as money. This query does not contribute to Gian's local Token statistics.
+
+[Official read-only print-mode release notes](https://www.antigravity.google/docs/changelog/#v1111).
+
+## Authentication
+
 Explicit personal login:
 
 ```sh

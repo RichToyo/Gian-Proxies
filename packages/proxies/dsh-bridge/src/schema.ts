@@ -20,6 +20,7 @@ export const MAX_DETAIL_BYTES = 1 * 1024 * 1024;
 export const BRIDGE_METHODS = [
   'initialize',
   'catalog.list',
+  'account.quota.read',
   'catalog.resolve',
   'session.create',
   'session.resume',

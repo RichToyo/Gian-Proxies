@@ -1,6 +1,6 @@
 {
   "name": "@gian/dsh-proxy",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "private": true,
   "description": "ai.deepseek.harness — shared-scope Gian Proxy translating gian.proxy/2.1 over gian.dsh.bridge/1.0",
   "type": "module",
@@ -33,7 +33,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
+    "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz"
   },
   "devDependencies": {
     "@types/node": "^24.12.2",

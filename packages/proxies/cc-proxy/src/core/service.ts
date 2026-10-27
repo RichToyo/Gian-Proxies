@@ -231,6 +231,11 @@ export class CcProxyService {
     this.emitEvent = handler;
   }
 
+  async readOfficialQuota(params: import('@gian/proxy-protocol').OfficialQuotaReadParams): Promise<import('@gian/proxy-protocol').ProxyOfficialQuotaReadResult> {
+    return this.runtime.readOfficialQuota ? this.runtime.readOfficialQuota(params)
+      : { status: 'unsupported', authRevision: null, error: null, windows: [], balances: [] };
+  }
+
   async inspectCustomizations(params: {
     kind: import('@gian/proxy-protocol').CustomizationKind;
     cwd?: string;

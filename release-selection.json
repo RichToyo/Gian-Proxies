@@ -1,8 +1,13 @@
 {
   "schema": 1,
   "providers": [
-    "kimi"
+    "claude",
+    "codex",
+    "kimi",
+    "grok",
+    "dsh",
+    "antigravity"
   ],
-  "baseCatalogTag": "catalog-v1.40.0",
+  "baseCatalogTag": "catalog-v1.41.0",
   "baseCatalogRepository": "RichToyo/Gian-Proxies"
 }

@@ -8,6 +8,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { officialQuotaReadParamsSchema } from '@gian/proxy-protocol';
 
 import { KimiProxyService, normalizeKimiError } from '../core/service.js';
 import type { TurnConfigMap } from '../core/service.js';
@@ -288,6 +289,9 @@ export class KimiProtocolV2Adapter {
     }
     switch (request.method) {
       case 'initialize': return this.initialize(request.params);
+      case 'account.quota.read':
+        if (this.protocolVersion !== PROTOCOL_V23) throw new KimiProtocolError('CAPABILITY_NOT_SUPPORTED', 'Quota requires protocol 2.3.');
+        return this.service.readOfficialQuota(officialQuotaReadParamsSchema.parse(request.params));
       case 'catalog.list': return this.catalog();
       case 'catalog.resolve': return this.resolveCatalog(request.params);
       case 'session.create': return this.createSession(request.params);
@@ -361,7 +365,7 @@ export class KimiProtocolV2Adapter {
       capabilities['runtime.discover'] = 1;
       capabilities['runtime.probe'] = 1;
     }
-    if (selected === '2.3') Object.assign(capabilities, CUSTOMIZATION_CAPABILITIES);
+    if (selected === '2.3') Object.assign(capabilities, CUSTOMIZATION_CAPABILITIES, { 'account.quota.read': 1 });
     return {
       protocol: { name: PROTOCOL_NAME, version: selected },
       plugin: { id: 'kimi', name: 'Kimi Code', version: this.pluginVersion },

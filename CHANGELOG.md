@@ -1,5 +1,20 @@
 # Gian Proxies Changelog
 
+## Official quota candidates - 2026-10-27
+
+- Select Claude 0.3.15, Codex 0.3.10, Kimi 0.4.13, Grok 0.3.15,
+  DeepSeek Harness 0.3.9 and Antigravity 0.0.5 against signed Catalog 41.
+  Preserve the complete excluded ZCode tuple and all existing Runtime pins.
+- Add structured read-only official-account quota readers with first-party
+  identity checks, bounded requests and explicit unsupported/auth/error states.
+- Accept Antigravity help on stderr and its supported native quota-group
+  envelopes without sending a model prompt or confusing CLI and ACP accounts.
+- Project complete Kimi main-agent cumulative Token totals with cache counted
+  once. Context occupancy and placeholder metadata are not consumption.
+- These are release candidates until the hosted artifact qualification and
+  immutable publication steps succeed. Real Provider and Desktop acceptance
+  remain separate from artifact qualification.
+
 ## Runtime maintenance candidates - 2026-10-26
 
 - Kimi Proxy 0.4.12 pins Kimi Code 2.3.2 (GitHub latest, published

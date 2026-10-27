@@ -654,6 +654,13 @@ export class CodexProxyService {
     this.emitEvent = handler;
   }
 
+  async readOfficialQuota(params: import('@gian/proxy-protocol').OfficialQuotaReadParams) {
+    if (!this.runtime.readOfficialQuota) {
+      return { status: 'unsupported' as const, authRevision: null, error: null, windows: [], balances: [] };
+    }
+    return this.runtime.readOfficialQuota(params);
+  }
+
   async inspectCustomizations(params: {
     kind: import('@gian/proxy-protocol').CustomizationKind;
     cwd?: string;

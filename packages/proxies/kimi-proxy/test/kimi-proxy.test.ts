@@ -620,9 +620,16 @@ test('turn lifecycle: prompt payload, event projection, single terminal, barrier
     // usage from agent.status.updated usage.total
     const usage = notifications.find((line) => line.method === 'usage.updated');
     assert.ok(usage, 'usage projected');
-    const conversation = ((usage!.payload.params as { data: { conversation: { inputTokens?: number; outputTokens?: number } } }).data.conversation);
-    assert.equal(conversation.inputTokens, 110);
-    assert.equal(conversation.outputTokens, 10);
+    const conversation = ((usage!.payload.params as { data: { conversation: {
+      mode: string; inputTokens: number; outputTokens: number; cachedInputTokens: number; totalTokens: number;
+    } } }).data.conversation);
+    assert.deepEqual(conversation, {
+      mode: 'absolute',
+      inputTokens: 110,
+      outputTokens: 10,
+      cachedInputTokens: 20,
+      totalTokens: 120,
+    });
 
     // outer sequence continuity 1..N
     const sequences = notifications.map((line) => (line.payload.params as { sequence: number }).sequence);

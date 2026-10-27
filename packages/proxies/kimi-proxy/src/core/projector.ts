@@ -25,6 +25,10 @@
  * Main-agent filtering: only `agentId === "main"` frames project as turn
  * content/tools; subagent work arrives via the dedicated `subagent.*` /
  * `task.*` lifecycle frames and becomes agent activities.
+ * Main-agent consumption is only `usage.total` from `agent.status.updated`.
+ * In pinned Kimi Code 2.2.0 that total is the agent-space sum of durable
+ * `usage.record` rows. `currentTurn` resets per native turn, and
+ * `contextTokens` is occupancy. Neither is consumption.
  */
 
 import { createHash } from 'node:crypto';
@@ -65,7 +69,9 @@ export interface ProjectorServices {
    *  work running unattributed. */
   onBindingOverflow?: (gianTurnId: string) => void;
   /** Async terminal hooks; failures skip the facet honestly (never fake). */
-  finalUsage: () => Promise<Record<string, unknown> | null>;
+  /** Compatibility seam for fixtures. Never queried: plain session metadata
+   * returns placeholder zeros, not a second authoritative usage counter. */
+  finalUsage?: () => Promise<Record<string, unknown> | null>;
   fileDiff: (nativeTurnId: number) => Promise<{ diff: string; truncated: boolean; files: Array<Record<string, unknown>> } | null>;
 }
 
@@ -337,23 +343,15 @@ export class KimiSessionProjector {
         if (agentId !== 'main') return true;
         const usage = (payload.usage ?? null) as Record<string, unknown> | null;
         const rawTotal: unknown = usage?.total;
-        if (rawTotal !== null && rawTotal !== undefined && typeof rawTotal === 'object') {
-          const total = rawTotal as Record<string, unknown>;
-          const fingerprint = JSON.stringify(total);
-          if (fingerprint !== this.lastUsageFingerprint) {
-            this.lastUsageFingerprint = fingerprint;
-            const inputTokens = (numberOr(total.inputOther) ?? 0) + (numberOr(total.inputCacheRead) ?? 0) + (numberOr(total.inputCacheCreation) ?? 0);
-            const outputTokens = numberOr(total.output);
-            const cached = numberOr(total.inputCacheRead);
-            this.emitTurn('usage.updated', ['usage', turn?.promptId ?? '', fingerprint], {
-              conversation: {
-                mode: 'absolute',
-                ...(inputTokens > 0 ? { inputTokens } : {}),
-                ...(outputTokens !== null ? { outputTokens } : {}),
-                ...(cached !== null && cached > 0 ? { cachedInputTokens: cached } : {}),
-              },
-            }, turn);
-          }
+        if (rawTotal === null || rawTotal === undefined || typeof rawTotal !== 'object') return true;
+        const fingerprint = JSON.stringify(rawTotal);
+        if (fingerprint === this.lastUsageFingerprint) return true;
+        this.lastUsageFingerprint = fingerprint;
+        const conversation = projectKimiCumulativeUsage(rawTotal);
+        if (conversation) {
+          this.emitTurn('usage.updated', ['usage', turn?.promptId ?? '', fingerprint], {
+            conversation,
+          }, turn);
         }
         return true;
       }
@@ -690,19 +688,8 @@ export class KimiSessionProjector {
 
     const facetDeadline = Date.now() + FINAL_FACET_BUDGET_MS;
 
-    if (!this.facetsAborted) {
-      const usage = await this.withFacetDeadline(this.services.finalUsage(), facetDeadline);
-      if (usage !== null && !this.facetsAborted) {
-        this.emitTurn('usage.updated', ['final-usage', turn.promptId, usage], {
-          conversation: {
-            mode: 'absolute',
-            ...(numberOr(usage.input_tokens) !== null ? { inputTokens: numberOr(usage.input_tokens) } : {}),
-            ...(numberOr(usage.output_tokens) !== null ? { outputTokens: numberOr(usage.output_tokens) } : {}),
-            ...(numberOr(usage.cache_read_tokens) !== null ? { cachedInputTokens: numberOr(usage.cache_read_tokens) } : {}),
-          },
-        }, turn);
-      }
-    }
+    // Consumption comes only from the existing stream. Do not query session
+    // metadata at finalization: its rollup can be a placeholder zero snapshot.
 
     if (!this.facetsAborted && turn.nativeTurnId !== null) {
       const diff = await this.withFacetDeadline(this.services.fileDiff(turn.nativeTurnId), facetDeadline);
@@ -866,8 +853,46 @@ function projectToolCall(name: string, display: KimiToolDisplay | undefined, arg
   return genericTool(name, args);
 }
 
-function numberOr(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+export interface KimiCumulativeUsage {
+  mode: 'absolute';
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  totalTokens: number;
+}
+
+function safeUsageCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+/** Project one main-agent `usage.total` snapshot.
+ *
+ * Pinned Kimi Code 2.2.0 adds `inputOther`, `output`, `inputCacheRead`, and
+ * `inputCacheCreation` on every `usage.record`. `status().total` is their
+ * sum for that agent space, so this snapshot is cumulative. Cache read and
+ * cache creation are already inside `inputTokens` and are not added again.
+ * `cachedInputTokens` reports cache read only. A missing, fractional,
+ * negative, or overflowing component is incomplete and is not coerced to zero.
+ */
+export function projectKimiCumulativeUsage(total: unknown): KimiCumulativeUsage | null {
+  if (!total || typeof total !== 'object') return null;
+  const source = total as Record<string, unknown>;
+  const inputOther = safeUsageCount(source.inputOther);
+  const cacheRead = safeUsageCount(source.inputCacheRead);
+  const cacheCreation = safeUsageCount(source.inputCacheCreation);
+  const output = safeUsageCount(source.output);
+  if (inputOther === null || cacheRead === null || cacheCreation === null || output === null) return null;
+  const inputTokens = inputOther + cacheRead + cacheCreation;
+  if (!Number.isSafeInteger(inputTokens)) return null;
+  const totalTokens = inputTokens + output;
+  if (!Number.isSafeInteger(totalTokens)) return null;
+  return {
+    mode: 'absolute',
+    inputTokens,
+    outputTokens: output,
+    cachedInputTokens: cacheRead,
+    totalTokens,
+  };
 }
 
 /** Map a Kimi error code to a gian DomainCode (subset that matters). */

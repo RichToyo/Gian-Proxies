@@ -22,6 +22,7 @@ import { ApprovalServer, APPROVAL_PROMPT_TOOL } from '../mcp/approval-server.js'
 import type { EffortLevel, ModelCapabilities, PermissionMode } from '../core/types.js';
 import type { ClaudeRuntime, ClaudeRuntimeEvents } from './types.js';
 import { probeClaudeNativeModels } from './native-model-catalog.js';
+import { readClaudeOfficialQuota } from './official-quota-control.js';
 
 const NO_SESSION_PERSISTENCE_FLAG = '--no-session-persistence';
 const CLAUDE_DEFAULT_MODEL_ID = 'claude-default';
@@ -787,6 +788,9 @@ export function sanitizeDisplayName(raw: string | null | undefined): string | nu
 }
 
 export class ClaudeMcpRuntime extends EventEmitter<ClaudeRuntimeEvents> implements ClaudeRuntime {
+  readOfficialQuota(params: import('@gian/proxy-protocol').OfficialQuotaReadParams) {
+    return readClaudeOfficialQuota(params);
+  }
   private readonly sessions = new Map<string, ManagedSession>();
   private discoveredModels: ModelCapabilities[] = [];
   /** True only while the menu is the built-in opus/sonnet/haiku list. */

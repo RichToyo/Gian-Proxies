@@ -2,7 +2,7 @@
   "schemaVersion": 4,
   "id": "io.gian.antigravity",
   "displayName": "Antigravity",
-  "pluginVersion": "0.0.4",
+  "pluginVersion": "0.0.5",
   "entry": "proxy.mjs",
   "protocol": {
     "name": "gian.proxy",

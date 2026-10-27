@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 
 import type { SessionNotification } from '@agentclientprotocol/sdk';
-import { OpaqueSidechatResumeStore } from '@gian/proxy-protocol';
+import { officialQuotaReadParamsSchema, OpaqueSidechatResumeStore } from '@gian/proxy-protocol';
 
 import { toV2ConfigOptions } from '../core/catalog.js';
 import { GrokCustomizationInspector } from '../core/customization.js';
@@ -583,6 +583,14 @@ export class GrokProtocolV2Adapter {
     switch (request.method) {
       case 'initialize': return this.initialize(request.params);
       case 'catalog.list': return this.catalog();
+      case 'account.quota.read': {
+        if (this.protocolVersion !== PROTOCOL_V23) {
+          throw new GrokProtocolError('CAPABILITY_NOT_SUPPORTED', 'account.quota.read requires gian.proxy/2.3.');
+        }
+        const parsed = officialQuotaReadParamsSchema.safeParse(request.params);
+        if (!parsed.success) throw new GrokJsonRpcError(-32602, 'Invalid quota parameters.');
+        return this.service.readOfficialQuota(parsed.data);
+      }
       case 'session.create': return this.createSession(request.params);
       case 'session.get': return { session: this.serialize(this.requireOrdinarySession(String(request.params.sessionId ?? ''))) };
       case 'sidechat.create': return this.createSidechat(request.params);
@@ -665,6 +673,7 @@ export class GrokProtocolV2Adapter {
           'runtime.discover': 1,
           'runtime.probe': 1,
           'customization.list': 1,
+          'account.quota.read': 1,
         }
       : selected === PROTOCOL_V22
         ? { ...CAPABILITIES, 'runtime.discover': 1, 'runtime.probe': 1 }

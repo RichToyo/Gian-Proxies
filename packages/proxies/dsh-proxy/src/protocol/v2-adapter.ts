@@ -10,6 +10,8 @@
 import { createHash } from 'node:crypto';
 import {
   OpaqueSidechatResumeStore,
+  officialQuotaReadParamsSchema,
+  officialQuotaReadResultSchema,
   verifyNativeSessionHostBinding,
   type SidechatAnchor,
 } from '@gian/proxy-protocol';
@@ -240,6 +242,9 @@ export class DshV2Adapter {
         return this.initialize(params);
       case 'catalog.list':
         return this.catalogList();
+      case 'account.quota.read':
+        if (this.capabilities['account.quota.read'] !== 1) throw new ServiceError('CAPABILITY_NOT_SUPPORTED', 'Official quota is unsupported.');
+        return officialQuotaReadResultSchema.parse(await this.bridge.request('account.quota.read', officialQuotaReadParamsSchema.parse(params)));
       case 'catalog.resolve':
         return this.catalogResolve(params);
       case 'session.create':
@@ -409,6 +414,7 @@ export class DshV2Adapter {
         ...BASE_CAPABILITIES,
         ...structuredEvents,
         ...runtimeCapabilities,
+        ...(selected === '2.3' && bridgeCapabilities['account.quota.read'] === 1 ? { 'account.quota.read': 1 } : {}),
         ...(bridgeCapabilities.interaction === undefined ? {} : { interaction: 1 }),
         ...(selected === '2.1'
           ? {}

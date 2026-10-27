@@ -23,7 +23,7 @@
     "test:real-app-server": "pnpm run build && node --test dist/test/real-app-server-lifecycle.canary.js"
   },
   "dependencies": {
-    "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
+    "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz"
   },
   "devDependencies": {
     "@types/node": "^24.12.2",

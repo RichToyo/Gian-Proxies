@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import { OpaqueSidechatResumeStore } from '@gian/proxy-protocol';
+import { officialQuotaReadParamsSchema, OpaqueSidechatResumeStore } from '@gian/proxy-protocol';
 
 import { AppError } from '../core/errors.js';
 import { normalizeInputItems } from '../core/input.js';
@@ -627,6 +627,14 @@ export class ClaudeProtocolV2Adapter {
         case 'catalog.list': return await this.catalog();
         case 'catalog.resolve': return await this.resolveCatalog(request.params);
         case 'session.create': return await this.createSession(request.params);
+        case 'account.quota.read': {
+          if (this.protocolVersion !== PROTOCOL_V23) {
+            throw new ClaudeProtocolError('CAPABILITY_NOT_SUPPORTED', 'account.quota.read requires gian.proxy/2.3.');
+          }
+          const parsed = officialQuotaReadParamsSchema.safeParse(request.params);
+          if (!parsed.success) throw new ClaudeProtocolError('INVALID_PARAMS', 'Invalid quota parameters.');
+          return await this.service.readOfficialQuota(parsed.data);
+        }
         case 'session.get': return { session: this.serialize(this.requireOrdinarySession(String(request.params.sessionId ?? ''))) };
         case 'sidechat.create': return await this.createSidechat(request.params);
         case 'sidechat.resume': return await this.resumeSidechat(request.params);
@@ -720,6 +728,7 @@ export class ClaudeProtocolV2Adapter {
             'runtime.discover': 1,
             'runtime.probe': 1,
             ...CUSTOMIZATION_CAPABILITIES,
+            'account.quota.read': 1,
           }
         : selected === PROTOCOL_V22
           ? { ...CAPABILITIES, 'runtime.discover': 1, 'runtime.probe': 1 }

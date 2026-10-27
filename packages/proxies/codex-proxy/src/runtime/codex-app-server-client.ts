@@ -735,6 +735,11 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
     return this.requestInternal(method, params, { generation });
   }
 
+  async readOfficialQuota(params: import('@gian/proxy-protocol').OfficialQuotaReadParams) {
+    const { queryCodexOfficialQuota } = await import('../core/official-quota.js');
+    return queryCodexOfficialQuota((method, body) => this.request(method, body), params);
+  }
+
   async startThread(options: {
     textOnly?: boolean;
     cwd: string;

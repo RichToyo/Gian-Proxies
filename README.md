@@ -12,7 +12,9 @@ source export, not a copy of private Git history.
   not assign a repository-wide version or automatically bump Proxy versions.
 - DSH Proxy includes its exact Bridge rather than relying on an App-bundled copy.
 - Catalog source, Markdown documentation, logos, compiler and signing workflows.
-- Exact public `@gian/proxy-protocol` archive dependency from RichLogic/Gian. That pin stays on the published digest. New Proxy product publishes use RichToyo/Gian-Proxies.
+- Exact public `@gian/proxy-protocol` archive dependency from its verified
+  publication repository. Existing pins stay on their published digests.
+  New Proxy product publishes use RichToyo/Gian-Proxies.
 - Shared support source and the production Runtime extractor snapshot. No Host,
   Web, Desktop or private protocol checkout is needed to build this product.
 
@@ -23,7 +25,7 @@ by `pnpm build` builds the standalone product. No Provider credentials are neede
 
 `release-selection.json` explicitly selects the Proxies to build, qualify and
 publish, plus the signed base Catalog repository and tag. The current pin is
-`RichToyo/Gian-Proxies` at the already published `catalog-v1.34.0`.
+`RichToyo/Gian-Proxies` at the already published `catalog-v1.41.0`.
 Publication stays on `RichToyo/Gian-Proxies`. The base is verified against the
 existing pinned key; its artifact URLs, digests and certificate stay as signed.
 Unselected Proxies retain their complete immutable executable and certificate
@@ -34,9 +36,10 @@ has complete Catalog source, and matches actual PASS-qualified artifacts and
 shipping metadata. A failed or NOT_RUN qualification cannot admit an addition.
 Update the selection in GianDev before exporting source.
 
-This batch selects all seven new patches: Claude 0.3.11, Codex 0.3.7,
-Kimi 0.4.8, Grok 0.3.12, DSH 0.3.7, ZCode 0.4.7 and Antigravity 0.0.3.
-Their declared Runtime versions are unchanged. Each new archive must qualify
+This batch selects six quota-capable patches: Claude 0.3.15, Codex 0.3.10,
+Kimi 0.4.13, Grok 0.3.15, DSH 0.3.9 and Antigravity 0.0.5. Their declared
+Runtime versions are unchanged from the signed base. ZCode keeps its complete
+base tuple and is not rebuilt or republished. Each new archive must qualify
 before the next signed Catalog can replace its base tuple.
 
 1. Dispatch **Qualify Proxy Artifacts** on main. The hosted macOS ARM64 workflow

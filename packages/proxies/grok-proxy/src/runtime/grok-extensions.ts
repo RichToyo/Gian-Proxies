@@ -12,6 +12,8 @@
 export type GrokExtMethodState = 'unknown' | 'confirmed' | 'refuted';
 
 export const GROK_EXT_METHODS = [
+  'x.ai/auth/info',
+  'x.ai/billing',
   'x.ai/interject',
   'x.ai/session/fork',
   'x.ai/session/rename',

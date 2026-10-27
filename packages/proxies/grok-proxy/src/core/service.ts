@@ -1,5 +1,7 @@
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import type { OfficialQuotaReadParams, ProxyOfficialQuotaReadResult } from '@gian/proxy-protocol';
+import { quotaFailure } from '@gian/proxy-protocol/node';
 
 import type {
   AvailableCommand,
@@ -311,6 +313,23 @@ export class GrokProxyService {
     } catch (error) {
       if (this.capabilityInspection === inspection) this.capabilityInspection = null;
       throw error;
+    }
+  }
+
+  async readOfficialQuota(params: OfficialQuotaReadParams): Promise<ProxyOfficialQuotaReadResult> {
+    const aux = this.createRuntime(resolve(tmpdir()), this.auxBoundary());
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        aux.readOfficialQuota(params),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), 25_000); }),
+      ]);
+    } catch (error) {
+      return quotaFailure(error, null);
+    } finally {
+      if (timer) clearTimeout(timer);
+      // This is a disposable inspection child, never an attached session.
+      await aux.stop({ force: true });
     }
   }
 

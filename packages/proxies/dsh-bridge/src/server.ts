@@ -132,6 +132,14 @@ export class BridgeServer {
           newSessionId: stringField(request.params, 'newSessionId'),
           anchor: forkAnchor(request.params.anchor),
         });
+      case 'account.quota.read':
+        if (!host.accountQuotaRead) throw new BridgeProtocolError(-32601, 'Account quota is unsupported.');
+        if (Object.keys(request.params).some(key => !['provider', 'model', 'identityNonce'].includes(key))
+          || typeof request.params.identityNonce !== 'string' || !/^[a-f0-9]{64}$/u.test(request.params.identityNonce)
+          || [request.params.provider, request.params.model].some(value => value !== null && typeof value !== 'string')) {
+          throw new BridgeProtocolError(-32602, 'Invalid quota selection.');
+        }
+        return host.accountQuotaRead({ provider: request.params.provider as string | null, model: request.params.model as string | null, identityNonce: request.params.identityNonce });
       case 'customization.list':
         return host.customizationList({
           kind: customizationKind(request.params, 'kind'),

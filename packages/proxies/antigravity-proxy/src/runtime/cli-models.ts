@@ -56,6 +56,8 @@ const GEMINI_MODEL_PREFIX = 'gemini';
 export type AntigravityCliHelperSource = 'official-user' | 'official-system' | 'injected';
 
 export type AntigravityCliModelsFailure =
+  | 'auth_required'
+  | 'helper_changed'
   | 'helper_missing'
   | 'home_not_default'
   | 'models_unavailable'
@@ -96,6 +98,19 @@ export interface AntigravityCliModelsResult {
   helper: AntigravityCliHelperIdentity;
   models: readonly AntigravityCliModelOption[];
 }
+
+export type AntigravityCliReportCommand = 'help' | 'changelog' | 'usage';
+export interface AntigravityCliReport {
+  helper: AntigravityCliHelperIdentity;
+  /** Help includes stderr (native Go help uses it); data commands are stdout-only. */
+  stdout: string;
+}
+
+const REPORT_ARGS = {
+  help: ['--help'],
+  changelog: ['changelog'],
+  usage: ['--output-format', 'json', '--print', '/usage', '--print-timeout', '20s', '--disable-slash-commands=false'],
+} as const;
 
 /** Internal diagnostics contain no helper output, environment, paths or raw errors. */
 export interface AntigravityCliModelsCleanupDiagnostic {
@@ -248,7 +263,8 @@ export class AntigravityCliModels {
       if (signal.aborted || this.closed) throw new AntigravityCliModelsError('cancelled');
       const cwd = ownedCwd ?? this.config.cwd;
       if (cwd === null) throw new AntigravityCliModelsError('query_failed');
-      result = await runQuery(helper, env, { ...this.config, cwd }, signal);
+      const report = await runQuery(helper, env, { ...this.config, cwd }, signal);
+      result = { helper: report.helper, models: parseModelsDocument(report.stdout) };
     } catch (error) {
       queryError = error;
     }
@@ -266,6 +282,35 @@ export function listAntigravityCliModels(
   options: AntigravityCliModelsOptions = {},
 ): Promise<AntigravityCliModelsResult> {
   return new AntigravityCliModels(options).list();
+}
+
+/** Fixed metadata/usage commands share the existing default-HOME, private-cwd,
+ * output-limit and process-group cleanup policy. No arbitrary argv is accepted. */
+export async function readAntigravityCliReport(command: AntigravityCliReportCommand,
+  options: AntigravityCliModelsOptions, expectedHelper?: AntigravityCliHelperIdentity): Promise<AntigravityCliReport> {
+  if (!Object.hasOwn(REPORT_ARGS, command)) throw new AntigravityCliModelsError('invalid_response');
+  const { config, signal: external } = resolveConfig(options);
+  const signal = external ?? new AbortController().signal;
+  await assertDefaultCliHome({ ...config.env }, config.osUserHome);
+  if (signal.aborted) throw new AntigravityCliModelsError('cancelled');
+  const helper = await selectHelper(candidateSpecs(config));
+  if (expectedHelper && !sameAntigravityCliHelper(helper, expectedHelper)) throw new AntigravityCliModelsError('helper_changed');
+  const ownedCwd = config.cwd === null ? await createIsolatedQueryCwd() : null;
+  try {
+    const cwd = ownedCwd ?? config.cwd;
+    if (cwd === null) throw new AntigravityCliModelsError('query_failed');
+    const report = await runQuery(helper, { ...config.env }, { ...config, cwd }, signal, command);
+    const after = await selectHelper(candidateSpecs(config));
+    if (!sameAntigravityCliHelper(helper, after)) throw new AntigravityCliModelsError('helper_changed');
+    return report;
+  } finally {
+    if (ownedCwd !== null && !await removeIsolatedQueryCwd(ownedCwd)) throw new AntigravityCliModelsError('cleanup_failed');
+  }
+}
+
+export function sameAntigravityCliHelper(a: AntigravityCliHelperIdentity, b: AntigravityCliHelperIdentity): boolean {
+  return a.path === b.path && a.source === b.source && a.dev === b.dev && a.ino === b.ino
+    && a.size === b.size && a.mtimeMs === b.mtimeMs;
 }
 
 function resolveConfig(options: AntigravityCliModelsOptions): {
@@ -413,11 +458,12 @@ async function runQuery(
   env: NodeJS.ProcessEnv,
   config: ResolvedConfig,
   signal: AbortSignal,
-): Promise<AntigravityCliModelsResult> {
+  command?: AntigravityCliReportCommand,
+): Promise<AntigravityCliReport> {
   const cwd = config.cwd;
   if (cwd === null) throw new AntigravityCliModelsError('query_failed');
   if (signal.aborted) throw new AntigravityCliModelsError('cancelled');
-  const child = spawn(helper.path, [...ANTIGRAVITY_CLI_MODELS_ARGS], {
+  const child = spawn(helper.path, command ? [...REPORT_ARGS[command]] : [...ANTIGRAVITY_CLI_MODELS_ARGS], {
     cwd,
     env: { ...env, PWD: cwd },
     shell: false,
@@ -428,8 +474,10 @@ async function runQuery(
   const pid = child.pid ?? -1;
   const release = ownGroup(pid);
   const chunks: Buffer[] = [];
+  const helpStderr: Buffer[] = [];
   let received = 0;
   let failure: AntigravityCliModelsError | null = null;
+  let diagnosticTail = '';
   let done = false;
   let queryTimer: NodeJS.Timeout | undefined;
   let cleanupTimer: NodeJS.Timeout | undefined;
@@ -459,6 +507,7 @@ async function runQuery(
       if (done) return;
       if (failure === null || error.failure === 'cleanup_failed') failure = error;
       chunks.length = 0;
+      helpStderr.length = 0;
       received = 0;
       if (leaderSettled || cleanupTimer) return;
       if (pid > 0) {
@@ -490,8 +539,21 @@ async function runQuery(
     };
     const onStderr = (chunk: Buffer | string): void => {
       if (done || failure) return;
-      received += takeBytes(chunk).byteLength;
-      if (received > config.maxOutputBytes) beginCleanup(new AntigravityCliModelsError('output_limit'));
+      const bytes = takeBytes(chunk);
+      received += bytes.byteLength;
+      if (received > config.maxOutputBytes) {
+        beginCleanup(new AntigravityCliModelsError('output_limit'));
+        return;
+      }
+      if (command === 'help') helpStderr.push(bytes);
+      if (command === 'usage') {
+        diagnosticTail = (diagnosticTail + bytes.toString('utf8')).slice(-4096);
+        // Refuse native interactive login instead of waiting for a browser or
+        // reading an authorization code. Never return the diagnostic or URL.
+        if (/authentication required|authentication failed|waiting for authentication|paste the authorization code/iu.test(diagnosticTail)) {
+          beginCleanup(new AntigravityCliModelsError('auth_required'));
+        }
+      }
     };
     const onStdoutError = (): void => beginCleanup(new AntigravityCliModelsError('query_failed'));
     stdout?.on('data', onStdout);
@@ -521,8 +583,10 @@ async function runQuery(
     if (!(await finishesWithin(streamsDone, config.stopMs))) {
       failure ??= new AntigravityCliModelsError('query_failed');
     }
-    const text = failure === null ? Buffer.concat(chunks).toString('utf8') : '';
+    const text = failure === null ? Buffer.concat(chunks).toString('utf8')
+      + (helpStderr.length ? `\n${Buffer.concat(helpStderr).toString('utf8')}` : '') : '';
     chunks.length = 0;
+    helpStderr.length = 0;
     if (pid > 0 && failure?.failure !== 'cleanup_failed') {
       try {
         await reapOwnedGroup(pid, config.stopMs, config.onCleanupDiagnostic);
@@ -537,7 +601,7 @@ async function runQuery(
     if (event.error !== undefined || event.signal !== null || event.code !== 0) {
       throw new AntigravityCliModelsError('query_failed');
     }
-    return { helper, models: parseModelsDocument(text) };
+    return { helper, stdout: text };
   } finally {
     done = true;
     if (queryTimer) clearTimeout(queryTimer);
@@ -545,6 +609,8 @@ async function runQuery(
     detachStreams();
     release();
     chunks.length = 0;
+    helpStderr.length = 0;
+    diagnosticTail = '';
     closePipes(child);
   }
 }
@@ -812,6 +878,8 @@ function requireBound(value: number | undefined, fallback: number): number {
 /** Fixed proxy-local sentences. Host and Web select a reason token, not this text. */
 function failureMessage(failure: AntigravityCliModelsFailure): string {
   switch (failure) {
+    case 'auth_required': return 'Antigravity CLI sign-in is required.';
+    case 'helper_changed': return 'Antigravity CLI changed during the query.';
     case 'helper_missing':
       return 'Antigravity CLI helper is not installed.';
     case 'home_not_default':
@@ -841,6 +909,8 @@ function failureMessage(failure: AntigravityCliModelsFailure): string {
 
 function failureDomain(failure: AntigravityCliModelsFailure): DomainCode {
   switch (failure) {
+    case 'auth_required': return 'RUNTIME_AUTH_REQUIRED';
+    case 'helper_changed': return 'RUNTIME_ERROR';
     case 'helper_missing':
     case 'models_unavailable':
       return 'RUNTIME_UNAVAILABLE';

@@ -14,7 +14,7 @@ upstream tag `dsh-v0.2.1-rc.2`, commit
 `687f282e8625c6b8d11ff58211a90524be2e4317`). The session format version the
 bridge reports and keys its identity with is DSH `SESSION_FORMAT_VERSION = 4`.
 The bridge `peerDependencies` range is `^0.2.0-rc.2 || 0.2.1-rc.2` — the 0.2.0 RC line stays admitted, and 0.2.1-rc.2 is admitted explicitly because npm semver treats prerelease tuples strictly. Handshake defaults read
-the bridge package version (`0.1.7`) instead of a second hardcoded value.
+the bridge package version (`0.1.8`) instead of a second hardcoded value.
 Every native surface below was originally checked against the shipped `.d.ts`
 contracts of 0.2.0-rc.2; the exact 0.2.1-rc.2 package diff leaves those
 surfaces unchanged (session format stays 4, event vocabulary additive-only).

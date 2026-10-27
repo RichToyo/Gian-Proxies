@@ -1188,6 +1188,11 @@ export class CordisDshHost implements BridgeHost {
     else this.early.push(event);
   }
 
+  async accountQuotaRead(params: { provider: string | null; model: string | null; identityNonce: string }): Promise<Record<string, unknown>> {
+    const { readDeepSeekBalance } = await import('./official-quota.js');
+    return readDeepSeekBalance({ get: name => this.optionalContextValue(name) }, params);
+  }
+
   async initialize(): Promise<Record<string, unknown>> {
     const skills = this.skillsRuntime() !== null;
     return {
@@ -1200,6 +1205,7 @@ export class CordisDshHost implements BridgeHost {
         sessionFormatVersion: this.sessionFormatVersion,
       },
       capabilities: {
+        'account.quota.read': 1,
         'session.events.read': 1,
         'session.fork': 1,
         ...(this.sessionPersistenceRuntime() !== null ? { 'session.native.list': 1 } : {}),

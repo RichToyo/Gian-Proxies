@@ -2,7 +2,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { isAbsolute, resolve } from 'node:path';
 
 import type { InitializeResponse, ListSessionsResponse, SessionConfigOption } from '@agentclientprotocol/sdk';
-import { proxyNotificationSchema } from '@gian/proxy-protocol';
+import { officialQuotaReadParamsSchema, proxyNotificationSchema } from '@gian/proxy-protocol';
+import { AntigravityCliQuota } from '../runtime/cli-quota.js';
 
 import type {
   AntigravityService, ConfigValues, JsonRecord, ProjectionContext,
@@ -54,6 +55,8 @@ interface PendingNotification {
 
 export interface AntigravityProtocolV2AdapterOptions {
   cliModels?: AntigravityCliModelsOptions;
+  cliQuota?: AntigravityCliModelsOptions;
+  quotaReader?: Pick<AntigravityCliQuota, 'read' | 'stop'>;
   catalogTtlMs?: number;
   now?: () => number;
   /** Test sequencing after a warm helper recheck, before the closed-catalog recheck. */
@@ -101,6 +104,7 @@ function stopReason(reason: string): string {
 
 export class AntigravityProtocolV2Adapter {
   private initialized = false;
+  private protocolVersion = '2.2';
   private negotiated: InitializeResponse | null = null;
   private readonly sessions = new Map<string, AttachedSession>();
   private readonly interactions = new Map<string, { sessionId: string; turnId: string; options: Set<string> }>();
@@ -111,6 +115,7 @@ export class AntigravityProtocolV2Adapter {
     cwd: string | undefined; remaining: ListSessionsResponse['sessions']; upstream: string | undefined;
   }>();
   private readonly cliModels: AntigravityCliModels;
+  private readonly cliQuota: Pick<AntigravityCliQuota, 'read' | 'stop'>;
   private readonly catalogTtlMs: number;
   private readonly now: () => number;
   private readonly afterHelperCheck: () => Promise<void> | void;
@@ -127,6 +132,7 @@ export class AntigravityProtocolV2Adapter {
     options: AntigravityProtocolV2AdapterOptions = {},
   ) {
     this.cliModels = new AntigravityCliModels(options.cliModels ?? {});
+    this.cliQuota = options.quotaReader ?? new AntigravityCliQuota(options.cliQuota ?? options.cliModels ?? {});
     this.catalogTtlMs = requireCatalogTtl(options.catalogTtlMs);
     this.now = options.now ?? (() => Date.now());
     this.afterHelperCheck = options.afterHelperCheck ?? (() => undefined);
@@ -187,6 +193,12 @@ export class AntigravityProtocolV2Adapter {
     switch (request.method) {
       case 'initialize': return this.initialize(p);
       case 'catalog.list': return this.listColdCatalog();
+      case 'account.quota.read': {
+        if (this.protocolVersion !== '2.3') throw new ProtocolError('CAPABILITY_NOT_SUPPORTED', 'account.quota.read requires gian.proxy/2.3.');
+        const parsed = officialQuotaReadParamsSchema.safeParse(p);
+        if (!parsed.success) throw new RpcError(-32602, 'Invalid quota parameters.');
+        return this.cliQuota.read(parsed.data);
+      }
       case 'catalog.resolve': return this.resolveCatalog(p);
       case 'session.create': return this.createSession(p);
       case 'session.get': return { session: this.snapshot(this.requireSession(text(p.sessionId, 'sessionId'))) };
@@ -221,6 +233,7 @@ export class AntigravityProtocolV2Adapter {
       throw new ProtocolError('INCOMPATIBLE_PROTOCOL', 'Antigravity requires gian.proxy 2.2 or 2.3.');
     }
     this.negotiated = await this.service.initialize();
+    this.protocolVersion = version;
     this.initialized = true;
     return {
       protocol: { name: 'gian.proxy', version },
@@ -230,6 +243,7 @@ export class AntigravityProtocolV2Adapter {
         'catalog.resolve': 1, 'catalog.modeSemantics': 1,
         interaction: 1, 'event.reasoning': 1, 'event.plan': 1, 'event.usage': 1,
         'runtime.discover': 1, 'runtime.probe': 1, 'runtime.install.plan': 1,
+        ...(version === '2.3' ? { 'account.quota.read': 1 } : {}),
         ...(this.negotiated.agentCapabilities?.mcpCapabilities?.http ? { 'integration.mcp.streamableHttp': 1 } : {}),
         ...(this.negotiated.agentCapabilities?.sessionCapabilities?.list ? { 'session.native.list': 1 } : {}),
       },
@@ -504,11 +518,8 @@ export class AntigravityProtocolV2Adapter {
     this.catalogClosed = true;
     this.cold = null;
     let helperError: unknown;
-    try {
-      await this.cliModels.stop();
-    } catch (error) {
-      helperError = error;
-    }
+    const stopped = await Promise.allSettled([this.cliModels.stop(), this.cliQuota.stop()]);
+    for (const result of stopped) if (result.status === 'rejected') helperError ??= result.reason;
     await this.service.close();
     if (helperError !== undefined) throw this.catalogFailure(helperError);
   }
@@ -764,6 +775,9 @@ function coldModelOptions(models: readonly AntigravityCliModelOption[]): Session
 /** Fixed operational token for JSON-RPC `data.details.reason`. Not display copy. */
 function catalogQueryReason(failure: AntigravityCliModelsFailure): string {
   switch (failure) {
+    case 'auth_required':
+    case 'helper_changed':
+      return failure;
     case 'home_not_default':
       return 'home_unsupported';
     case 'helper_missing':

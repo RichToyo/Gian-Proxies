@@ -29,6 +29,9 @@ import {
 
 import { buildSpawnArgs } from '../core/mcp-isolation.js';
 import { agentHome, grokChildHomeEnv } from '../core/home.js';
+import type { OfficialQuotaReadParams, ProxyOfficialQuotaReadResult } from '@gian/proxy-protocol';
+import { hasBoundQuotaHome, quotaState } from '@gian/proxy-protocol/node';
+import { queryGrokOfficialQuota } from '../core/official-quota.js';
 import type { GrokSandboxProfile } from '../core/sandbox.js';
 import {
   fromWireExtensionMethod,
@@ -417,6 +420,12 @@ export class GrokAcpClient extends EventEmitter<GrokAcpClientEvents> {
   async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
     validateAbsolutePath(params.cwd, 'cwd');
     return (await this.connection()).newSession(params);
+  }
+
+  async readOfficialQuota(params: OfficialQuotaReadParams): Promise<ProxyOfficialQuotaReadResult> {
+    const env = grokChildProcessEnv({ ...process.env, ...this.options.env }, this.options.sandboxProfile ?? 'workspace');
+    if (!hasBoundQuotaHome(env, 'GROK_HOME')) return quotaState('unsupported');
+    return queryGrokOfficialQuota(await this.ensureStarted(), method => this.extRequest(method, {}), params, env);
   }
 
   async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {

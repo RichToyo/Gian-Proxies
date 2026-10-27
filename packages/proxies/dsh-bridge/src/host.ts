@@ -116,6 +116,7 @@ export interface BridgeHost {
 
   initialize(params: { protocol: { versions: string[] } }): Promise<Record<string, unknown>>;
   catalogList(): Promise<Record<string, unknown>>;
+  accountQuotaRead?(params: { provider: string | null; model: string | null; identityNonce: string }): Promise<Record<string, unknown>>;
   catalogResolve(params: Record<string, unknown>): Promise<Record<string, unknown>>;
   sessionCreate(params: BridgeSessionCreateParams): Promise<Record<string, unknown>>;
   sessionResume(params: { sessionId: string; nativeSessionId: string }): Promise<Record<string, unknown>>;

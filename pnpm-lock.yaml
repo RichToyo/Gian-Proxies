@@ -59,8 +59,8 @@
           "version": "0.23.0(patch_hash=f6c793aced1f0bd3e72bf99d6adfb78ec2d95ba21b45c9629cac2724bc59d220)(zod@4.6.6)"
         },
         "@gian/proxy-protocol": {
-          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz",
-          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
+          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz",
+          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz"
         }
       },
       "devDependencies": {
@@ -77,8 +77,8 @@
     "packages/proxies/cc-proxy": {
       "dependencies": {
         "@gian/proxy-protocol": {
-          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz",
-          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
+          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz",
+          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz"
         },
         "@gian/shared": {
           "specifier": "workspace:*",
@@ -107,8 +107,8 @@
     "packages/proxies/codex-proxy": {
       "dependencies": {
         "@gian/proxy-protocol": {
-          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz",
-          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
+          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz",
+          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz"
         },
         "@gian/shared": {
           "specifier": "workspace:*",
@@ -155,8 +155,8 @@
     "packages/proxies/dsh-proxy": {
       "dependencies": {
         "@gian/proxy-protocol": {
-          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz",
-          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
+          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz",
+          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz"
         }
       },
       "devDependencies": {
@@ -177,8 +177,8 @@
           "version": "0.23.0(patch_hash=f6c793aced1f0bd3e72bf99d6adfb78ec2d95ba21b45c9629cac2724bc59d220)(zod@4.6.6)"
         },
         "@gian/proxy-protocol": {
-          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz",
-          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
+          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz",
+          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz"
         }
       },
       "devDependencies": {
@@ -195,8 +195,8 @@
     "packages/proxies/kimi-proxy": {
       "dependencies": {
         "@gian/proxy-protocol": {
-          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz",
-          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
+          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz",
+          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz"
         }
       },
       "devDependencies": {
@@ -213,8 +213,8 @@
     "packages/proxies/zcode-proxy": {
       "dependencies": {
         "@gian/proxy-protocol": {
-          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz",
-          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
+          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz",
+          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz"
         }
       },
       "devDependencies": {
@@ -231,8 +231,8 @@
     "packages/proxy-catalog-contract": {
       "dependencies": {
         "@gian/proxy-protocol": {
-          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz",
-          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
+          "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz",
+          "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz"
         },
         "mdast-util-from-markdown": {
           "specifier": "2.0.2",
@@ -13122,12 +13122,12 @@
         "integrity": "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="
       }
     },
-    "@gian/proxy-protocol@https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz": {
+    "@gian/proxy-protocol@https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz": {
       "resolution": {
-        "integrity": "sha512-g724D4yRQoNgYM+3M4OE83fkQeAO6I5r7LkboKvwSbLl0xgRUz4PMBSrunzHnil1I7j0tde/50ygVy1dDhYvJQ==",
-        "tarball": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz"
+        "integrity": "sha512-UmY69gyup+vq3fW9C4j7En981n9RC6paiEegAhue/AojGF7F+oj1WggwfDpU4CgcH5gPnxzUYIBhirFL6r5MaQ==",
+        "tarball": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz"
       },
-      "version": "1.0.3"
+      "version": "1.0.4"
     }
   },
   "snapshots": {
@@ -22160,7 +22160,7 @@
     "zod@4.4.3": {},
     "zod@4.6.6": {},
     "zwitch@2.0.4": {},
-    "@gian/proxy-protocol@https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.3/gian-proxy-protocol-1.0.3.tgz": {
+    "@gian/proxy-protocol@https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz": {
       "dependencies": {
         "zod": "4.6.6"
       }

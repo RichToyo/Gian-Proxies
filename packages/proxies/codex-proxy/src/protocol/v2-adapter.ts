@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import { OpaqueSidechatResumeStore } from '@gian/proxy-protocol';
+import { OpaqueSidechatResumeStore, officialQuotaReadParamsSchema } from '@gian/proxy-protocol';
 
 import { AppError } from '../core/errors.js';
 import { CodexProxyService } from '../core/service.js';
@@ -1096,6 +1096,9 @@ export class CodexProtocolV2Adapter {
     switch (request.method) {
       case 'initialize': return this.initialize(request.params);
       case 'catalog.list': return this.catalog();
+      case 'account.quota.read':
+        if (this.protocolVersion !== PROTOCOL_V23) throw new CodexProtocolError('CAPABILITY_NOT_SUPPORTED', 'Quota requires protocol 2.3.');
+        return this.service.readOfficialQuota(officialQuotaReadParamsSchema.parse(request.params));
       case 'session.create': return this.createSession(request.params);
       case 'session.get': return { session: this.serialize(this.requireOrdinarySession(String(request.params.sessionId ?? ''))) };
       case 'sidechat.create': return this.createSidechat(request.params);
@@ -1179,6 +1182,7 @@ export class CodexProtocolV2Adapter {
             'runtime.discover': 1,
             'runtime.probe': 1,
             ...CUSTOMIZATION_CAPABILITIES,
+            'account.quota.read': 1,
           }
         : selected === PROTOCOL_V22
           ? { ...CAPABILITIES, 'runtime.discover': 1, 'runtime.probe': 1 }

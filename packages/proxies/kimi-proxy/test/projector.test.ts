@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { KimiSessionProjector, type KimiProjectedFrame, type OuterNotification } from '../src/core/projector.js';
+import { KimiSessionProjector, projectKimiCumulativeUsage, type KimiProjectedFrame, type OuterNotification } from '../src/core/projector.js';
 
 function createProjector(): { projector: KimiSessionProjector; events: OuterNotification[] } {
   const events: OuterNotification[] = [];
@@ -194,12 +194,18 @@ test('volatile usage updates that share a seq keep distinct event ids', () => {
   const usage = events.filter((event) => event.method === 'usage.updated');
   assert.equal(usage.length, 2);
   assert.notEqual(usage[0]!.params.eventId, usage[1]!.params.eventId);
-  assert.equal((dataOf(usage[1]!).conversation as { inputTokens: number }).inputTokens, 4);
+  assert.deepEqual(dataOf(usage[0]!).conversation, {
+    mode: 'absolute', inputTokens: 1, outputTokens: 1, cachedInputTokens: 0, totalTokens: 2,
+  });
+  assert.deepEqual(dataOf(usage[1]!).conversation, {
+    mode: 'absolute', inputTokens: 4, outputTokens: 2, cachedInputTokens: 0, totalTokens: 6,
+  });
 });
 
-test('the same session usage snapshot on a later turn keeps a distinct event id', async () => {
+test('later-turn live usage keeps distinct identity and finalization never queries placeholder session totals', async () => {
   const events: OuterNotification[] = [];
   let sequence = 0;
+  let finalReads = 0;
   const snapshot = {
     input_tokens: 0,
     output_tokens: 0,
@@ -218,7 +224,7 @@ test('the same session usage snapshot on a later turn keeps a distinct event id'
       return sequence;
     },
     emit: (notification) => events.push(notification),
-    finalUsage: async () => snapshot,
+    finalUsage: async () => { finalReads++; return snapshot; },
     fileDiff: async () => null,
   });
   projector.setStreamId('stream-1');
@@ -243,11 +249,101 @@ test('the same session usage snapshot on a later turn keeps a distinct event id'
   await projector.finalizeTurn('completed');
 
   const usage = events.filter((event) => event.method === 'usage.updated');
-  assert.equal(usage.length, 4, 'each turn emits its live total and its final snapshot');
+  assert.equal(usage.length, 2, 'each turn emits only the existing live total');
+  assert.equal(finalReads, 0, 'Token accounting must not trigger an extra Runtime query');
   const ids = usage.map((event) => String(event.params.eventId));
   assert.equal(new Set(ids).size, ids.length);
-  const finals = usage.filter((event) => event.params.sourceTurnId === 'prompt-1' || event.params.sourceTurnId === 'prompt-2')
-    .filter((event) => (dataOf(event).conversation as { inputTokens?: number }).inputTokens === 0);
-  assert.deepEqual(finals.map((event) => event.params.sourceTurnId), ['prompt-1', 'prompt-2']);
-  assert.notEqual(finals[0]!.params.eventId, finals[1]!.params.eventId);
+  assert.deepEqual(usage.map(event => event.params.sourceTurnId), ['prompt-1', 'prompt-2']);
+  assert.equal(usage.every(event => {
+    const conversation = dataOf(event).conversation as {
+      inputTokens: number; outputTokens: number; cachedInputTokens: number; totalTokens: number;
+    };
+    return conversation.inputTokens === 3
+      && conversation.outputTokens === 1
+      && conversation.cachedInputTokens === 0
+      && conversation.totalTokens === 4;
+  }), true, 'placeholder final zeros must not replace the known live counters');
+});
+
+test('main-agent usage.total keeps cache inside input and drops incomplete snapshots', () => {
+  const { projector, events } = createProjector();
+  const status = (payload: Record<string, unknown>): KimiProjectedFrame => frame({
+    type: 'agent.status.updated',
+    seq: 3,
+    volatile: true,
+    payload,
+  });
+  const total = {
+    inputOther: 60,
+    output: 20,
+    inputCacheRead: 30,
+    inputCacheCreation: 10,
+  };
+  projector.handleFrame(status({
+    agentId: 'main',
+    contextTokens: 9_000,
+    usage: {
+      total,
+      currentTurn: { inputOther: 1, output: 1, inputCacheRead: 0, inputCacheCreation: 0 },
+      byModel: { 'kimi-for-coding': total },
+    },
+  }));
+  projector.handleFrame(status({
+    agentId: 'child',
+    usage: { total: { inputOther: 500, output: 500, inputCacheRead: 0, inputCacheCreation: 0 } },
+  }));
+  projector.handleFrame(status({
+    agentId: 'main',
+    usage: { total: { inputOther: 60, output: 20, inputCacheRead: 30 } },
+  }));
+  projector.handleFrame(status({
+    agentId: 'main',
+    usage: { total: { inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0 } },
+  }));
+  const usage = events.filter((event) => event.method === 'usage.updated');
+  assert.deepEqual(usage.map((event) => dataOf(event).conversation), [
+    {
+      mode: 'absolute',
+      inputTokens: 100,
+      outputTokens: 20,
+      cachedInputTokens: 30,
+      totalTokens: 120,
+    },
+    {
+      mode: 'absolute',
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedInputTokens: 0,
+      totalTokens: 0,
+    },
+  ]);
+  assert.equal(projectKimiCumulativeUsage({
+    inputOther: 60,
+    output: 20,
+    inputCacheRead: 30,
+  }), null);
+  assert.equal(projectKimiCumulativeUsage({
+    inputOther: Number.MAX_SAFE_INTEGER,
+    output: 1,
+    inputCacheRead: 0,
+    inputCacheCreation: 0,
+  }), null);
+  assert.equal(projectKimiCumulativeUsage({
+    inputOther: 1.5,
+    output: 1,
+    inputCacheRead: 0,
+    inputCacheCreation: 0,
+  }), null);
+  assert.equal(projectKimiCumulativeUsage({
+    inputOther: 4,
+    output: Number.NaN,
+    inputCacheRead: 0,
+    inputCacheCreation: 0,
+  }), null);
+  assert.equal(projectKimiCumulativeUsage({
+    inputOther: -1,
+    output: 1,
+    inputCacheRead: 0,
+    inputCacheCreation: 0,
+  }), null);
 });

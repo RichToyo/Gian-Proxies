@@ -35,6 +35,7 @@ export interface CodexNativeThreadSummary {
 
 export interface CodexRuntime extends RuntimeEventSource {
   ensureStarted(): Promise<void>;
+  readOfficialQuota?(params: import('@gian/proxy-protocol').OfficialQuotaReadParams): Promise<import('@gian/proxy-protocol').ProxyOfficialQuotaReadResult>;
   /** Start a fresh thread using Codex's effective config. */
   startThread(options: {
     textOnly?: boolean;
