@@ -76,8 +76,8 @@ test('quota reads traverse the native extension wire without creating or prompti
       extMethod: async (method: string, params: unknown) => {
         calls.push(method);
         assert.deepEqual(params, {});
-        if (method === 'x.ai/auth/info') return { methodId: 'grok.com', email: 'fixture@example.invalid' };
-        if (method === 'x.ai/billing') return { config: { creditUsagePercent: 25 } };
+        if (method === '_x.ai/auth/info') return { methodId: 'grok.com', email: 'fixture@example.invalid' };
+        if (method === '_x.ai/billing') return { config: { creditUsagePercent: 25 } };
         throw Error('unexpected method');
       },
       newSession: async () => { throw Error('must not create a session'); },
@@ -86,8 +86,8 @@ test('quota reads traverse the native extension wire without creating or prompti
   });
   try {
     const result = await client.readOfficialQuota({ model: null, provider: null, identityNonce: 'a'.repeat(64) });
-    assert.equal(result.status, 'ready');
-    assert.deepEqual(calls, ['x.ai/auth/info', 'x.ai/billing', 'x.ai/auth/info']);
+    assert.equal(result.status, 'ready', JSON.stringify({ result, calls }));
+    assert.deepEqual(calls, ['_x.ai/auth/info', '_x.ai/billing', '_x.ai/auth/info']);
     assert.equal(client.extensions.supports('x.ai/billing'), true);
   } finally { await client.stop(); }
 });

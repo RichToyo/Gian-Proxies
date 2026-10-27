@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "43712b4bc097c0c861664380dfd82bcf869f89c0",
+  "sourceCommit": "b7bcb06c60c6aefee69c4c1f1c900dd5f240fa99",
   "workingTree": false,
   "externalPackages": [
     {
@@ -1976,7 +1976,7 @@
     {
       "source": "packages/proxies/grok-proxy/test/grok-acp-client.test.ts",
       "path": "packages/proxies/grok-proxy/test/grok-acp-client.test.ts",
-      "sha256": "86fef9a12fc52f7803e442fbfbbdf755650ff936a6c113d3741a0dbfbdc3dfcc"
+      "sha256": "1b7b9d4b7f74c5441c6c1c80d78e49c91b14f09881775f5c55ebf63328ada2a4"
     },
     {
       "source": "packages/proxies/grok-proxy/test/grok-extensions.test.ts",
@@ -4888,7 +4888,7 @@
     {
       "path": "packages/proxies/grok-proxy/test/grok-acp-client.test.ts",
       "mode": 420,
-      "sha256": "86fef9a12fc52f7803e442fbfbbdf755650ff936a6c113d3741a0dbfbdc3dfcc"
+      "sha256": "1b7b9d4b7f74c5441c6c1c80d78e49c91b14f09881775f5c55ebf63328ada2a4"
     },
     {
       "path": "packages/proxies/grok-proxy/test/grok-extensions.test.ts",
