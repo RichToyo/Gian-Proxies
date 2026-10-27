@@ -54,7 +54,7 @@ async function waitShortTurn(harness: Harness): Promise<OutgoingLine[]> {
   const before: OutgoingLine[] = [];
   const idle = await harness.waitNotificationFor((line) => line.method === 'session.updated'
     && (line.payload.params as { data: { state: string } }).data.state === 'idle', 10_000, before);
-  const notifications = [...before, idle];
+  const notifications = [...before, idle].filter((line) => line.kind === 'notification');
   assert.equal(notifications.length, 10);
   assert.equal(notifications.filter((line) => line.method === 'usage.updated').length, 1,
     'only authoritative live usage is emitted, never a placeholder finalization snapshot');
