@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "7ab30b2305c581eb186f6ee566e7ecfff19a2099",
+  "sourceCommit": "4249b89018b36b8554c4753c99491e96f41d910a",
   "workingTree": false,
   "externalPackages": [
     {
@@ -571,7 +571,7 @@
     {
       "source": "delivery/proxies/scripts/catalog-docs-policy.test.mjs",
       "path": "scripts/catalog-docs-policy.test.mjs",
-      "sha256": "1f1477d937efb534cf95a0fb3992bd8401aba751c6f1634021c9900e7bbbc6fa"
+      "sha256": "0b47caf90e6ca5f9643d10b071f47a62009a02661aa90c8a32c0f705a465608b"
     },
     {
       "source": "delivery/proxies/scripts/protocol-dependency.mjs",
@@ -586,7 +586,7 @@
     {
       "source": "delivery/proxies/scripts/runtime-qualification.test.mjs",
       "path": "scripts/runtime-qualification.test.mjs",
-      "sha256": "a7191cf1423ec0ec837672a88fd9669c9c25b68c54598254f89d3d91bef68c9d"
+      "sha256": "1c63b7919397536a7c57ffbc8facacae9a8edcf01e27c0702636febe87cdd117"
     },
     {
       "source": "delivery/proxies/scripts/verify-source.mjs",
@@ -2791,7 +2791,7 @@
     {
       "source": "packages/shared/src/proxy.ts",
       "path": "packages/shared/src/proxy.ts",
-      "sha256": "096b73d034a6c557a9aa8a976f5ac7d56c43d475dd02c26541685fc77df7bff1"
+      "sha256": "325cdd29a1ce701d3e80c2cecaf521db3d34899ce1a2961b26844472632a6f1f"
     },
     {
       "source": "packages/shared/src/remote-account.ts",
@@ -5703,7 +5703,7 @@
     {
       "path": "packages/shared/src/proxy.ts",
       "mode": 420,
-      "sha256": "096b73d034a6c557a9aa8a976f5ac7d56c43d475dd02c26541685fc77df7bff1"
+      "sha256": "325cdd29a1ce701d3e80c2cecaf521db3d34899ce1a2961b26844472632a6f1f"
     },
     {
       "path": "packages/shared/src/remote-account.ts",
@@ -5863,7 +5863,7 @@
     {
       "path": "scripts/catalog-docs-policy.test.mjs",
       "mode": 420,
-      "sha256": "1f1477d937efb534cf95a0fb3992bd8401aba751c6f1634021c9900e7bbbc6fa"
+      "sha256": "0b47caf90e6ca5f9643d10b071f47a62009a02661aa90c8a32c0f705a465608b"
     },
     {
       "path": "scripts/check-node.cjs",
@@ -5908,7 +5908,7 @@
     {
       "path": "scripts/runtime-qualification.test.mjs",
       "mode": 420,
-      "sha256": "a7191cf1423ec0ec837672a88fd9669c9c25b68c54598254f89d3d91bef68c9d"
+      "sha256": "1c63b7919397536a7c57ffbc8facacae9a8edcf01e27c0702636febe87cdd117"
     },
     {
       "path": "scripts/stage-official-catalog-release.mjs",
