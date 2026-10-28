@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "kimi",
-  "currentVersion": "0.4.13",
+  "currentVersion": "0.4.14",
   "entries": [
+    {
+      "version": "0.4.14",
+      "firstPublishedAt": "2026-10-28T04:36:28Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-kimi-v0.4.14",
+          "publishedAt": "2026-10-28T04:36:28Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.14",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.14/gian-proxy-kimi-0.4.14-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "69caccef574eacdeb2ff43b0103f1a4b90b9ba318ea0b74ec0a29f98e5132749",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.14/gian-proxy-kimi-0.4.14-darwin-arm64.tar.gz",
+            "sha256": "61b8889e2bfc6c6aa2da4b89bb20969fd1288f26f301a5ceacdaa2abab7f2608",
+            "size": 208875
+          },
+          "runtimeDeclaration": {
+            "id": "kimi",
+            "versions": [
+              "2.3.3"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Fix TodoList and plan-review A-B-A updates reusing an event identity and blocking subsequent output and turn completion. Preserve adjacent-plan suppression and native-event replay idempotency. Upgrade the managed Kimi Code Runtime to official 2.3.3 with pinned archive bytes. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.14",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.4.14/packages/proxies/kimi-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.4.13",
       "firstPublishedAt": "2026-10-27T13:43:37Z",

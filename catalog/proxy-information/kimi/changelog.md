@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.13**, Runtime **2.3.2**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.14**, Runtime **2.3.3**. These are distribution targets, not this machine's installed state.
+
+## 0.4.14
+
+First published: 2026-10-28T04:36:28Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.14): 2026-10-28T04:36:28Z.
+- CLI: 2.3.3 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Fix TodoList and plan-review A-B-A updates reusing an event identity and blocking subsequent output and turn completion. Preserve adjacent-plan suppression and native-event replay idempotency. Upgrade the managed Kimi Code Runtime to official 2.3.3 with pinned archive bytes. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.14) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.4.14/packages/proxies/kimi-proxy/README.md)
 
 ## 0.4.13
 

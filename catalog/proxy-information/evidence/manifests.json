@@ -2818,5 +2818,30 @@
     "process": {
       "scope": "shared"
     }
+  },
+  {
+    "tag": "proxy-kimi-v0.4.14",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.14",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.14/gian-proxy-kimi-0.4.14-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:69caccef574eacdeb2ff43b0103f1a4b90b9ba318ea0b74ec0a29f98e5132749",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "kimi",
+    "pluginVersion": "0.4.14",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "kimi",
+      "displayName": "Kimi Code",
+      "verifiedVersions": [
+        "2.3.3"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
   }
 ]
