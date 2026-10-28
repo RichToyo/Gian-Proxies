@@ -1,5 +1,23 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidates - 2026-10-29
+
+- Select Claude 0.3.16 and Codex 0.3.11 against signed Catalog 45. Preserve
+  the complete excluded Kimi, Grok, DeepSeek Harness, Antigravity and ZCode
+  tuples and all their Runtime pins.
+- Upgrade the managed Claude Code Runtime from 2.1.310 to official 2.1.312,
+  with its exact binary size and SHA-256 pinned for macOS Apple Silicon. The
+  official 2.1.311-2.1.312 changelog documents no headless spawn or wire
+  contract change.
+- Upgrade the managed Codex Runtime from 0.164.0 to official 0.165.0, with
+  its exact archive size and SHA-256 pinned for macOS Apple Silicon. The
+  app-server schema delta is one additive `modelNotFound` error variant on
+  existing surfaces.
+- Retain first-party official-account quota inspection on both Proxies.
+  These are release candidates until the hosted artifact qualification and
+  immutable publication steps succeed. Real Provider and Desktop acceptance
+  remain separate from artifact qualification.
+
 ## Kimi Proxy 0.4.14 - 2026-10-28
 
 - Fix repeated TodoList and plan-review updates that return to an earlier

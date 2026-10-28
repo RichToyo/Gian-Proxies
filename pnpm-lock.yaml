@@ -13,6 +13,8 @@
     "express@5>body-parser": "2.4.0",
     "@gian/cc-proxy>zod": "4.6.6",
     "@gian/proxy-protocol>zod": "4.6.6",
+    "@gian/remote-protocol>zod": "4.6.6",
+    "@gian/remote-web>zod": "4.6.6",
     "@deepseek-ai/dsh-web-fetch-http>undici": "8.12.2",
     "@deepseek-ai/dsh-http-proxy>undici": "8.12.2",
     "express@5>qs": "6.16.0",
@@ -21,7 +23,7 @@
     "@hono/node-server": "1.19.15",
     "express@5>proxy-addr": "2.0.8",
     "lodash-es": "4.18.1",
-    "dompurify": "3.4.16",
+    "dompurify": "3.4.17",
     "katex": "0.18.7",
     "@modelcontextprotocol/sdk": "1.32.0"
   },
@@ -8916,9 +8918,9 @@
         "integrity": "sha512-7ZgogeTnjuHbo+ct10G9Ffp0mif17idi0IyWNVA/wcwcm7NPOD/WEHVP3n7n3MhXqxoIYm8d6MuZohYWIZ4T3w=="
       }
     },
-    "dompurify@3.4.16": {
+    "dompurify@3.4.17": {
       "resolution": {
-        "integrity": "sha512-sqo+pNp3qRhCIpbgRi1y8Tgk27Bo2Ry7w0dC1NBeNTdZChWjz9Xb/KOoZbRP/R6pQZ80Qw8YhXw13hWWBbMRnQ=="
+        "integrity": "sha512-B/pSlYVHQ58kqISD/yDjuJ1yfzI34m1gF4lAod2bwSRhiN4K5Cl3H8Af7hqB2PmTL911tdEudnnXn5FnhRoz0w=="
       }
     },
     "dotenv-expand@11.0.7": {
@@ -13105,11 +13107,6 @@
       },
       "peerDependencies": {
         "zod": "^3.25.28 || ^4"
-      }
-    },
-    "zod@4.4.3": {
-      "resolution": {
-        "integrity": "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="
       }
     },
     "zod@4.6.6": {
@@ -19325,7 +19322,7 @@
     },
     "dom-accessibility-api@0.5.16": {},
     "dom-accessibility-api@0.6.3": {},
-    "dompurify@3.4.16": {
+    "dompurify@3.4.17": {
       "optionalDependencies": {
         "@types/trusted-types": "2.0.7"
       }
@@ -20572,7 +20569,7 @@
         "d3-sankey": "0.12.3",
         "dagre-d3-es": "7.0.14",
         "dayjs": "1.11.23",
-        "dompurify": "3.4.16",
+        "dompurify": "3.4.17",
         "elkjs": "0.9.3",
         "es-toolkit": "1.52.0",
         "katex": "0.18.7",
@@ -22157,7 +22154,6 @@
         "zod": "4.6.6"
       }
     },
-    "zod@4.4.3": {},
     "zod@4.6.6": {},
     "zwitch@2.0.4": {},
     "@gian/proxy-protocol@https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz": {

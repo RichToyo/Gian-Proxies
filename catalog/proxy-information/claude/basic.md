@@ -14,12 +14,12 @@ The name and icon stay in the title. Install and update actions and progress com
 
 ## Current release-target snapshot
 
-The current certified release target is Proxy **0.3.15**, Runtime **2.1.310**. This is a publication target, not this machine's install state.
+The current certified release target is Proxy **0.3.16**, Runtime **2.1.312**. This is a publication target, not this machine's install state.
 
 Example target location:
 
 ```text
-<dataDir>/runtimes/claude/2.1.309/<artifact-sha256>/bin/claude
+<dataDir>/runtimes/claude/2.1.312/<artifact-sha256>/bin/claude
 ```
 
 `<dataDir>` comes from the running environment. `<artifact-sha256>` comes from the current signed combination. The UI should consume the Host install plan. The Web does not assemble the path itself. Full coordinates are in ../evidence/current-combinations.json.
