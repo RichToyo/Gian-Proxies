@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -31,6 +31,27 @@ test('managed Runtime candidates pin exact official Claude, Codex, Kimi, and Gro
   assert.equal(upstreamRuntimeCandidates.grok.publish, true);
   assert.match(upstreamRuntimeCandidates.grok.url, /^https:\/\/x\.ai\/cli\/grok-1\.0\.70-macos-aarch64$/);
   assert.match(upstreamRuntimeCandidates.kimi.url, /^https:\/\/github\.com\/MoonshotAI\/kimi-code\/releases\/download\//);
+});
+
+test('Kimi Dev and release coordinates pin the same Manifest version and official archive', () => {
+  const root = new URL('../', import.meta.url);
+  const manifest = JSON.parse(readFileSync(new URL('packages/proxies/kimi-proxy/manifest.json', root), 'utf8'));
+  const sourceCoordinates = new URL('packages/host/src/runtime/dev-runtime-coordinates.json', root);
+  const coordinates = JSON.parse(readFileSync(existsSync(sourceCoordinates) ? sourceCoordinates
+    : new URL('support/runtime-extractor/dev-runtime-coordinates.json', root), 'utf8'));
+  const coordinate = coordinates.find(item => item.pluginId === manifest.id);
+  const candidate = upstreamRuntimeCandidates.kimi;
+  assert.ok(coordinate);
+  assert.deepEqual(manifest.runtime.verifiedVersions, [candidate.version]);
+  assert.equal(coordinate.runtimeId, manifest.runtime.id);
+  assert.equal(coordinate.version, candidate.version);
+  assert.equal(coordinate.format, candidate.format);
+  assert.equal(coordinate.entryRelativePath, candidate.entryRelativePath);
+  assert.deepEqual(coordinate.asset, {
+    url: candidate.url,
+    sha256: candidate.sha256,
+    size: candidate.size,
+  });
 });
 
 test('DeepSeek Harness Runtime has a complete exact npm lock', async () => {

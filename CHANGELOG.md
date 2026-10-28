@@ -1,5 +1,17 @@
 # Gian Proxies Changelog
 
+## Kimi Proxy 0.4.14 - 2026-10-28
+
+- Fix repeated TodoList and plan-review updates that return to an earlier
+  state reusing an event identity, which could prevent Gian from receiving
+  subsequent output and the completed-turn notification.
+- Preserve adjacent-plan suppression and native-event replay idempotency.
+- Upgrade the managed Kimi Code Runtime from 2.3.2 to official 2.3.3, with
+  its exact archive size and SHA-256 pinned for macOS Apple Silicon.
+- Only Kimi is selected against signed Catalog 43. Other Proxy and Runtime
+  coordinates are unchanged. Real Provider and Desktop acceptance remain
+  separate from hosted artifact qualification.
+
 ## Official quota candidates - 2026-10-27
 
 - Select Claude 0.3.15, Codex 0.3.10, Kimi 0.4.13, Grok 0.3.15,

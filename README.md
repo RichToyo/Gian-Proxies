@@ -25,7 +25,7 @@ by `pnpm build` builds the standalone product. No Provider credentials are neede
 
 `release-selection.json` explicitly selects the Proxies to build, qualify and
 publish, plus the signed base Catalog repository and tag. The current pin is
-`RichToyo/Gian-Proxies` at the already published `catalog-v1.41.0`.
+`RichToyo/Gian-Proxies` at the already published `catalog-v1.43.0`.
 Publication stays on `RichToyo/Gian-Proxies`. The base is verified against the
 existing pinned key; its artifact URLs, digests and certificate stay as signed.
 Unselected Proxies retain their complete immutable executable and certificate
@@ -36,11 +36,12 @@ has complete Catalog source, and matches actual PASS-qualified artifacts and
 shipping metadata. A failed or NOT_RUN qualification cannot admit an addition.
 Update the selection in GianDev before exporting source.
 
-This batch selects six quota-capable patches: Claude 0.3.15, Codex 0.3.10,
-Kimi 0.4.13, Grok 0.3.15, DSH 0.3.9 and Antigravity 0.0.5. Their declared
-Runtime versions are unchanged from the signed base. ZCode keeps its complete
-base tuple and is not rebuilt or republished. Each new archive must qualify
-before the next signed Catalog can replace its base tuple.
+This batch selects Kimi Proxy 0.4.14 with official Kimi Code CLI 2.3.3.
+Plan updates retain distinct native tool-call identities when their content
+returns to an earlier state, so subsequent output and completion remain
+deliverable. All other Proxies keep their complete base tuples and are not
+rebuilt or republished. The new archive must qualify before the next signed
+Catalog can replace the Kimi tuple.
 
 1. Dispatch **Qualify Proxy Artifacts** on main. The hosted macOS ARM64 workflow
    audits production dependencies, verifies source provenance, compiles, exercises Proxy contracts with fake

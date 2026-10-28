@@ -16,7 +16,7 @@ The entry point requires an absolute managed binary path:
 node dist/src/cli/spawn.js --kimi-bin /absolute/path/to/kimi
 ```
 
-Current Proxy version: **0.4.10**. Successful question dismissal
+Current Proxy version: **0.4.14**. Successful question dismissal
 accepts the native 40909 response only for the dismiss endpoint with its
 verified success payload; REST and WebSocket resolution share one terminal
 fact, including when the native event arrives before the response.
@@ -37,8 +37,9 @@ stored transcripts are not rewritten.
 
 ## Runtime baseline
 
-- Kimi Code CLI `2.3.2` (the Manifest and pinned Runtime candidate select
-  the same exact official archive). Evidence baseline: the
+- Kimi Code CLI `2.3.3` (the Manifest and pinned Runtime candidate select
+  the same exact official archive). The native probes below cover earlier
+  baselines, not acceptance of the 2.3.3 Runtime. Evidence baseline: the
   server's own OpenAPI 3.0.3 (`/openapi.json`) and AsyncAPI 3.1.0
   (`/asyncapi.json`) documents, plus `packages/kap-server` sources embedded in
   the official binary (`protocol/error-codes.ts`, `transport/ws/*`,
@@ -118,7 +119,7 @@ dependency.
 | `session.native.list` | `GET /sessions` (cursor pagination mapped to the outer cursor; busy sessions excluded — they are not adoptable; owned sessions filtered). |
 | `session.native.delete` | `POST /sessions/{id}:delete` (`{deleted:true}`). Attached sessions refuse with `SESSION_BUSY`. |
 | `session.replay` + adoption | `GET /messages` (cursor-paged) → replay events keyed by native `prompt_id`; terminal eventIds shared with the live projector, so replayed and live facts share one identity. Attach history is pull-only: `nativeSession.history:"replay"` leads the Host to page `session.replay` after create; create itself emits no replay-shaped notifications. |
-| `event.plan` | Native `tool.call.started display.kind:"todo_list"` items → `plan.updated` (status map done→completed); `plan_review` displays carry the plan text. Fingerprint-deduped. |
+| `event.plan` | Native `tool.call.started display.kind:"todo_list"` items → `plan.updated` (status map done→completed); `plan_review` displays carry the plan text. Adjacent identical content is suppressed; each update is identified by its native tool call, so A→B→A remains three distinct events. |
 | `event.diff` | Per-turn `GET /file-history/changes?turn_id` (path/status/additions/deletions) + before/after `file-history/content` checkpoints rendered as a bounded LCS unified diff. All terminal facets are bounded (shared 10 s deadline; per-request timeouts; the REST deadline covers the response body) — a wedged call skips the facet instead of stalling the terminal. |
 | Subagent/task activity | `subagent.spawned/started/completed/failed/cancelled` and `task.*`/`background.task.*` → `activity.updated` with `presentation.type:"agent"`, stable identity = `subagentId`/`taskId`, `parentToolCallId` preserved. Subagent streams (non-main agentId) do not pollute the main transcript. |
 | `event.usage` | `agent.status.updated.usage.total` (by-model tokens) live; final session usage attached at the terminal. |

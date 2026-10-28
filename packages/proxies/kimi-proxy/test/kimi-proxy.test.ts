@@ -1404,6 +1404,55 @@ test('reused tool ids and identical plans stay scoped to each native prompt in l
   }
 });
 
+test('TodoList A-B-A updates preserve Host sequencing through final output and completion', async () => {
+  const plans = ['pending', 'in_progress', 'pending'].flatMap((status, index) => [
+    {
+      type: 'tool.call.started', payload: {
+        agentId: 'main', toolCallId: `todo-${index}`, name: 'TodoList',
+        display: { kind: 'todo_list', items: [{ title: 'Verify recovery', status }] },
+      },
+    },
+    { type: 'tool.result', payload: { agentId: 'main', toolCallId: `todo-${index}`, output: 'updated' } },
+  ]);
+  const harness = startHarness({
+    turn: {
+      delayBefore: 10,
+      events: [
+        { type: 'turn.started' },
+        ...plans,
+        { type: 'assistant.delta', payload: { delta: 'Finished after the repeated plan.' } },
+        { type: 'turn.ended', payload: { reason: 'completed' } },
+        { type: 'prompt.completed', payload: { reason: 'completed' } },
+      ],
+    },
+  }, { validateProtocol: true });
+  try {
+    await initialize(harness);
+    const catalog = await harness.request('catalog.list', {});
+    assert.equal(catalog.kind, 'result', JSON.stringify(catalog.payload));
+    const streamId = await createSession(harness, 's_plan_cycle');
+    const started = await harness.request('turn.start', {
+      sessionId: 's_plan_cycle', streamId, turnId: 't_plan_cycle',
+      input: [{ type: 'text', text: 'Update the plan A-B-A and finish.' }],
+      config: { approval_mode: 'manual' },
+    });
+    assert.equal(started.kind, 'result', JSON.stringify(started.payload));
+    await harness.waitNotificationFor((line) => line.method === 'session.updated'
+      && (line.payload.params as { data: { state: string } }).data.state === 'idle');
+    const updates = harness.notifications.filter((line) => line.method === 'plan.updated')
+      .map((line) => line.payload.params as { eventId: string; data: { steps: Array<{ status: string }> } });
+    assert.deepEqual(updates.map((update) => update.data.steps[0]!.status), ['pending', 'in_progress', 'pending']);
+    assert.equal(new Set(updates.map((update) => update.eventId)).size, 3);
+    assert.equal(harness.notifications.filter((line) => line.method === 'turn.completed').length, 1);
+    const output = harness.notifications.find((line) => line.method === 'content.completed');
+    assert.equal((output?.payload.params as { data: { content: string } }).data.content, 'Finished after the repeated plan.');
+    assertStreamSequence(harness, streamId);
+    assert.deepEqual(harness.protocolErrors, [], 'the Host accepts the final output and terminal after A-B-A');
+  } finally {
+    await harness.close();
+  }
+});
+
 test('native pagination fixture enforces exact 1..100 bounds and exclusive cursors', async () => {
   const harness = startHarness({ sessions: [{ info: { id: 'session_bounds', busy: false }, messages: HISTORY_MESSAGES }] });
   try {

@@ -38,6 +38,42 @@ function dataOf(event: OuterNotification): Record<string, unknown> {
   return event.params.data as Record<string, unknown>;
 }
 
+for (const kind of ['todo_list', 'plan_review'] as const) {
+  test(`${kind} A-B-A updates keep distinct native identities and idempotent redelivery`, () => {
+    const project = () => {
+      const { projector, events } = createProjector();
+      for (const [index, text] of ['A', 'A', 'B', 'A'].entries()) {
+        const update: KimiProjectedFrame = {
+          type: 'tool.call.started',
+          seq: index + 1,
+          payload: {
+            agentId: 'main',
+            toolCallId: `plan-call-${index}`,
+            name: kind === 'todo_list' ? 'TodoList' : 'PlanReview',
+            display: kind === 'todo_list'
+              ? { kind, items: [{ title: text, status: 'pending' }] }
+              : { kind, plan: text },
+          },
+        };
+        assert.equal(projector.handleFrame(update), true);
+        const eventCount = events.length;
+        assert.equal(projector.handleFrame(update), false, 'the same durable frame is not emitted twice');
+        assert.equal(events.length, eventCount);
+      }
+      const plans = events.filter((event) => event.method === 'plan.updated');
+      assert.equal(plans.length, 3, 'only adjacent identical plans are suppressed');
+      assert.deepEqual(plans.map((event) => dataOf(event).steps), ['A', 'B', 'A'].map((text) => [
+        { id: 'step-0', text, status: kind === 'todo_list' ? 'pending' : 'completed' },
+      ]));
+      assert.deepEqual(dataOf(plans[0]!), dataOf(plans[2]!), 'returning to A keeps the original plan content');
+      const ids = plans.map((event) => event.params.eventId);
+      assert.equal(new Set(ids).size, 3, 'a new tool call is a new plan update even when content returns to A');
+      return ids;
+    };
+    assert.deepEqual(project(), project(), 'native identities remain stable when the same frames are projected again');
+  });
+}
+
 test('volatile thinking and assistant deltas that reuse the durable seq are projected', async () => {
   const { projector, events } = createProjector();
   assert.equal(projector.handleFrame(frame({

@@ -299,9 +299,9 @@ export class KimiSessionProjector {
         const name = typeof payload.name === 'string' ? payload.name : 'tool';
         const display = (payload.display ?? undefined) as KimiToolDisplay | undefined;
         if (display?.kind === 'todo_list' && Array.isArray(display.items)) {
-          this.emitPlan(display.items);
+          this.emitPlan(toolCallId, display.items);
         } else if (display?.kind === 'plan_review' && typeof display.plan === 'string') {
-          this.emitPlanReview(display);
+          this.emitPlanReview(toolCallId, display);
         }
         const projected = projectToolCall(name, display, payload.args);
         this.openActivities.set(toolCallId, {
@@ -602,7 +602,7 @@ export class KimiSessionProjector {
     }, this.activeTurn);
   }
 
-  private emitPlan(items: Array<{ title: string; status: string }>): void {
+  private emitPlan(toolCallId: string, items: Array<{ title: string; status: string }>): void {
     if (this.activeTurn === null) return;
     const steps = items
       .filter((item) => typeof item.title === 'string' && item.title !== '')
@@ -614,20 +614,21 @@ export class KimiSessionProjector {
     const fingerprint = JSON.stringify(steps);
     if (fingerprint === this.lastPlanFingerprint) return;
     this.lastPlanFingerprint = fingerprint;
-    this.emitTurn('plan.updated', ['plan', fingerprint], {
+    // A plan can return to earlier content; the native call identifies the new update.
+    this.emitTurn('plan.updated', ['plan', toolCallId], {
       planId: `kimi:todos:${this.services.nativeSessionId}`,
       title: 'Plan',
       steps,
     }, this.activeTurn);
   }
 
-  private emitPlanReview(display: KimiToolDisplay): void {
+  private emitPlanReview(toolCallId: string, display: KimiToolDisplay): void {
     if (this.activeTurn === null) return;
     const steps = [{ id: 'step-0', text: display.plan ?? '', status: 'completed' }];
     const fingerprint = JSON.stringify(steps);
     if (fingerprint === this.lastPlanFingerprint) return;
     this.lastPlanFingerprint = fingerprint;
-    this.emitTurn('plan.updated', ['plan-review', fingerprint], {
+    this.emitTurn('plan.updated', ['plan-review', toolCallId], {
       planId: `kimi:plan:${this.services.nativeSessionId}`,
       title: 'Plan',
       steps,
