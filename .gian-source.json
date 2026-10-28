@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "513249253049267d524736c4d34a6640e6b64ace",
+  "sourceCommit": "eb55e863200707e6a8f9a02eba26e26e79761810",
   "workingTree": false,
   "externalPackages": [
     {
@@ -416,7 +416,7 @@
     {
       "source": "catalog/proxy-information/evidence/current-combinations.json",
       "path": "catalog/proxy-information/evidence/current-combinations.json",
-      "sha256": "822144d41bc75d4b59e7aea66ab48fc7981e17ae021d88c27300ab47762cdbf1"
+      "sha256": "fe64ec49bff79191f54b30e3e9f430d65cd13b0cfcf3c158c0db2f0b357b266e"
     },
     {
       "source": "catalog/proxy-information/evidence/dsh-bridge-versions.json",
@@ -506,7 +506,7 @@
     {
       "source": "catalog/proxy-information/project.test.mjs",
       "path": "catalog/proxy-information/project.test.mjs",
-      "sha256": "53e40461b22d04cb51d7ed5e3ee7f5ba917c1343c5344bb079224af42bd1851e"
+      "sha256": "12070e4b3817716bb4652ad5585fbbdc0865cb24455f529634d2c06b33f38dfc"
     },
     {
       "source": "catalog/proxy-information/validate.mjs",
@@ -3398,7 +3398,7 @@
     {
       "path": "catalog/proxy-information/evidence/current-combinations.json",
       "mode": 420,
-      "sha256": "822144d41bc75d4b59e7aea66ab48fc7981e17ae021d88c27300ab47762cdbf1"
+      "sha256": "fe64ec49bff79191f54b30e3e9f430d65cd13b0cfcf3c158c0db2f0b357b266e"
     },
     {
       "path": "catalog/proxy-information/evidence/dsh-bridge-versions.json",
@@ -3493,7 +3493,7 @@
     {
       "path": "catalog/proxy-information/project.test.mjs",
       "mode": 420,
-      "sha256": "53e40461b22d04cb51d7ed5e3ee7f5ba917c1343c5344bb079224af42bd1851e"
+      "sha256": "12070e4b3817716bb4652ad5585fbbdc0865cb24455f529634d2c06b33f38dfc"
     },
     {
       "path": "catalog/proxy-information/README.md",
