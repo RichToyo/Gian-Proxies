@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "codex",
-  "currentVersion": "0.3.10",
+  "currentVersion": "0.3.11",
   "entries": [
+    {
+      "version": "0.3.11",
+      "firstPublishedAt": "2026-10-28T18:54:09Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-codex-v0.3.11",
+          "publishedAt": "2026-10-28T18:54:09Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.11",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.11/gian-proxy-codex-0.3.11-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "aa9e7ff63cc1f0f00e39fff834fb8451fb22be7562a7417b60f98dce266f2745",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.11/gian-proxy-codex-0.3.11-darwin-arm64.tar.gz",
+            "sha256": "a3eb47e6a0a9193547037785db59da4408117710d72bab0c8e3e46031bcb256e",
+            "size": 244155
+          },
+          "runtimeDeclaration": {
+            "id": "codex",
+            "versions": [
+              "0.165.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Retain read-only ChatGPT subscription quota inspection through the bound Codex account, without sending a model prompt. Upgrade the managed Codex Runtime to official 0.165.0 with pinned archive bytes; the app-server schema delta is one additive modelNotFound error variant on existing surfaces. Use Proxy Protocol SDK 1.0.4. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.11",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.11/packages/proxies/codex-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.10",
       "firstPublishedAt": "2026-10-27T13:43:33Z",

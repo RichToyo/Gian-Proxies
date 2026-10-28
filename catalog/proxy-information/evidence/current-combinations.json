@@ -1,59 +1,59 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.45.0",
-  "sequence": 45,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.46.0",
+  "sequence": 46,
   "sourceId": "gian-official",
   "plugins": [
     {
       "id": "claude",
       "displayName": "Claude Code",
-      "version": "0.3.15",
+      "version": "0.3.16",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "session",
       "combination": {
         "certificate": {
-          "id": "proxies-713f1c1ada4f6dd11c7b43d6a098d5343865ef09-40512725671-1",
-          "sha256": "25103ceae48df6916971ccc59d6f3b4eb8f9a8f3cba82b554522e522fb336cdb"
+          "id": "proxies-f4c09ee78f88e79b7a02d5d75bede29fe500b0f7-40746237350-2",
+          "sha256": "baebcf45bc7a70cfc48f6523309d6e0bf773ab036a75901768a29389b8691a3c"
         },
         "companions": [],
-        "generationId": "claude-0.3.15-runtime-2.1.310",
+        "generationId": "claude-0.3.16-runtime-2.1.312",
         "runtime": {
-          "asset": {
-            "sha256": "ffb64331bc0ee1b69efb7c2c428bd3ab516bc31b75bf60886b356c97c1c25ffd",
-            "size": 274068224,
-            "url": "https://downloads.claude.ai/claude-code-releases/2.1.310/darwin-arm64/claude"
-          },
-          "entryRelativePath": "bin/claude",
-          "format": "raw",
           "kind": "native-binary",
           "runtimeId": "claude",
-          "version": "2.1.310"
+          "version": "2.1.312",
+          "asset": {
+            "url": "https://downloads.claude.ai/claude-code-releases/2.1.312/darwin-arm64/claude",
+            "sha256": "6b5ec691195e551b02c41df9f7d723f4ea61eaa03c2df90acefe3736f1aeb620",
+            "size": 275988512
+          },
+          "format": "raw",
+          "entryRelativePath": "bin/claude"
         }
       }
     },
     {
       "id": "codex",
       "displayName": "Codex",
-      "version": "0.3.10",
+      "version": "0.3.11",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "shared",
       "combination": {
         "certificate": {
-          "id": "proxies-713f1c1ada4f6dd11c7b43d6a098d5343865ef09-40512725671-1",
-          "sha256": "25103ceae48df6916971ccc59d6f3b4eb8f9a8f3cba82b554522e522fb336cdb"
+          "id": "proxies-f4c09ee78f88e79b7a02d5d75bede29fe500b0f7-40746237350-2",
+          "sha256": "baebcf45bc7a70cfc48f6523309d6e0bf773ab036a75901768a29389b8691a3c"
         },
         "companions": [],
-        "generationId": "codex-0.3.10-runtime-0.164.0",
+        "generationId": "codex-0.3.11-runtime-0.165.0",
         "runtime": {
-          "asset": {
-            "sha256": "dd99e9092270691a67bdde7be04ac283dea9da8e86cbde356c2cc851a79205fa",
-            "size": 136007998,
-            "url": "https://github.com/openai/codex/releases/download/rust-v0.164.0/codex-package-aarch64-apple-darwin.tar.gz"
-          },
-          "entryRelativePath": "bin/codex",
-          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "codex",
-          "version": "0.164.0"
+          "version": "0.165.0",
+          "asset": {
+            "url": "https://github.com/openai/codex/releases/download/rust-v0.165.0/codex-package-aarch64-apple-darwin.tar.gz",
+            "sha256": "34d12384d90f8e09b0b9abaabf2a0ac02a52093b131504aeaf282107f54a44b2",
+            "size": 136607094
+          },
+          "format": "tar.gz",
+          "entryRelativePath": "bin/codex"
         }
       }
     },
@@ -71,16 +71,16 @@
         "companions": [],
         "generationId": "kimi-0.4.14-runtime-2.3.3",
         "runtime": {
+          "asset": {
+            "sha256": "d097b397db785e9bde07e9d169870e315dd9a0d9d6542727ea4a50e4a630a280",
+            "size": 62587907,
+            "url": "https://github.com/MoonshotAI/kimi-code/releases/download/%40moonshot-ai/kimi-code%402.3.3/kimi-code-darwin-arm64.tar.gz"
+          },
+          "entryRelativePath": "kimi",
+          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "kimi",
-          "version": "2.3.3",
-          "asset": {
-            "url": "https://github.com/MoonshotAI/kimi-code/releases/download/%40moonshot-ai/kimi-code%402.3.3/kimi-code-darwin-arm64.tar.gz",
-            "sha256": "d097b397db785e9bde07e9d169870e315dd9a0d9d6542727ea4a50e4a630a280",
-            "size": 62587907
-          },
-          "format": "tar.gz",
-          "entryRelativePath": "kimi"
+          "version": "2.3.3"
         }
       }
     },
