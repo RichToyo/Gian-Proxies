@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.0.5**, Runtime **1.4.3**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.0.6**, Runtime **1.4.4**. These are distribution targets, not this machine's installed state.
+
+## 0.0.6
+
+First published: 2026-10-29T18:54:04Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.6): 2026-10-29T18:54:04Z.
+- CLI: 1.4.4 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Retain read-only quota inspection for the separate official Antigravity CLI account and normalize supported native quota groups. Upgrade the managed ACP Runtime to official registry 1.4.4 with pinned pair bytes; native ACP initialize shows agent identity unchanged and capabilities equal to 1.4.3 except one additive sessionCapabilities.additionalDirectories declaration, which this Proxy does not implement or advertise. Use Proxy Protocol SDK 1.0.4. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.6) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-antigravity-v0.0.6/packages/proxies/antigravity-proxy/README.md)
 
 ## 0.0.5
 
