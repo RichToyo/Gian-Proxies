@@ -5,9 +5,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { KimiSessionProjector, projectKimiCumulativeUsage, type KimiProjectedFrame, type OuterNotification } from '../src/core/projector.js';
+import { KimiSessionProjector, projectKimiCumulativeUsage, type KimiProjectedFrame, type OuterNotification, type ProjectorServices } from '../src/core/projector.js';
 
-function createProjector(): { projector: KimiSessionProjector; events: OuterNotification[] } {
+function createProjector(overrides: Partial<ProjectorServices> = {}): { projector: KimiSessionProjector; events: OuterNotification[] } {
   const events: OuterNotification[] = [];
   let sequence = 0;
   const projector = new KimiSessionProjector({
@@ -20,6 +20,7 @@ function createProjector(): { projector: KimiSessionProjector; events: OuterNoti
     emit: (notification) => events.push(notification),
     finalUsage: async () => null,
     fileDiff: async () => null,
+    ...overrides,
   });
   projector.setStreamId('stream-1');
   projector.bindTurn({ gianTurnId: 't', promptId: 'p' });
@@ -74,6 +75,444 @@ for (const kind of ['todo_list', 'plan_review'] as const) {
   });
 }
 
+test('owned background continuations and questions finish within the admitted Gian turn', async () => {
+  const finalized: string[] = [];
+  const diffs: number[] = [];
+  const { projector, events } = createProjector({
+    onFinalized: (turnId) => finalized.push(turnId),
+    fileDiff: async (turnId) => { diffs.push(turnId); return null; },
+  });
+  const feed = (type: string, seq: number, payload: Record<string, unknown>) =>
+    projector.handleFrame({ type, seq, payload });
+  feed('turn.started', 1, { agentId: 'main', turnId: 0, promptId: 'p', origin: { kind: 'user' } });
+  feed('event.session.work_changed', 2, { busy: true, main_turn_active: true, pending_interaction: 'none' });
+  feed('tool.call.started', 3, { agentId: 'main', turnId: 0, toolCallId: 'bash-call', name: 'Bash' });
+  feed('task.started', 4, { agentId: 'main', info: { taskId: 'bg', kind: 'process', parentToolCallId: 'bash-call' } });
+  feed('background.task.started', 5, { agentId: 'main', info: { taskId: 'bg', kind: 'process', parentToolCallId: 'bash-call' } });
+  feed('tool.result', 6, { agentId: 'main', turnId: 0, toolCallId: 'bash-call', output: 'started' });
+  feed('tool.call.started', 7, { agentId: 'main', turnId: 0, toolCallId: 'question-call', name: 'AskUserQuestion' });
+  feed('task.started', 8, { agentId: 'main', info: { taskId: 'question-task', kind: 'question', toolCallId: 'question-call' } });
+  feed('event.question.requested', 9, { agentId: 'main', turn_id: 0, question_id: 'q1', tool_call_id: 'question-call', questions: [{ id: 'q_0', question: 'Continue?', options: [{ id: 'yes', label: 'Yes' }] }] });
+  feed('tool.result', 10, { agentId: 'main', turnId: 0, toolCallId: 'question-call', output: 'waiting' });
+  feed('turn.ended', 11, { agentId: 'main', turnId: 0, reason: 'completed' });
+  feed('event.session.work_changed', 12, { busy: true, main_turn_active: false, pending_interaction: 'question' });
+  await flush();
+  assert.equal(projector.hasActiveTurn(), true);
+  assert.equal(projector.activePromptId(), null, 'an ended prompt is not an interrupt target');
+  assert.equal(projector.pendingInteractions.has('q:q1'), true);
+  assert.equal(events.some((event) => event.method === 'turn.completed' || event.method === 'turn.failed'), false);
+  assert.equal(events.some((event) => event.method === 'interaction.resolved'), false);
+  assert.equal(events.some((event) => dataOf(event).activityId === 'task:bg' && dataOf(event).status === 'failed'), false);
+
+  feed('task.terminated', 13, { agentId: 'main', info: { taskId: 'bg', kind: 'process', status: 'completed', parentToolCallId: 'bash-call' } });
+  feed('background.task.terminated', 14, { agentId: 'main', info: { taskId: 'bg', kind: 'process', status: 'completed', parentToolCallId: 'bash-call' } });
+  feed('turn.started', 15, { agentId: 'main', turnId: 1, origin: { kind: 'task', taskId: 'bg' } });
+  assert.equal(projector.activePromptId(), null, 'a continuation without a native prompt ID cannot be interrupted by guessing');
+  feed('turn.step.started', 16, { agentId: 'main', turnId: 1 });
+  feed('assistant.delta', 17, { agentId: 'main', promptId: 'p', delta: 'stale old prompt' });
+  feed('assistant.delta', 18, { agentId: 'main', turnId: 1, delta: 'continued output' });
+  feed('turn.ended', 19, { agentId: 'main', turnId: 1, reason: 'completed' });
+  feed('event.session.work_changed', 20, { busy: true, main_turn_active: false, pending_interaction: 'question' });
+  await flush();
+  assert.equal(projector.pendingInteractions.has('q:q1'), true);
+  assert.equal(events.some((event) => event.method === 'turn.completed'), false);
+  feed('event.question.answered', 21, { agentId: 'main', question_id: 'q1', turn_id: 0 });
+  feed('event.session.work_changed', 22, { busy: false, main_turn_active: false, pending_interaction: 'none' });
+  await flush();
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+  assert.equal(events.filter((event) => event.method === 'interaction.resolved').length, 1);
+  assert.equal(events.filter((event) => dataOf(event).activityId === 'task:bg' && dataOf(event).status === 'succeeded').length, 1);
+  assert.equal(events.filter((event) => dataOf(event).activityId === 'task:question-task' && dataOf(event).status === 'succeeded').length, 1);
+  assert.equal(events.some((event) => event.method === 'content.delta' && dataOf(event).delta === 'stale old prompt'), false);
+  assert.equal(events.find((event) => event.method === 'content.delta' && dataOf(event).delta === 'continued output')?.params.turnId, 't');
+  assert.deepEqual(diffs, [0, 1]);
+  assert.deepEqual(finalized, ['t']);
+  assert.equal(projector.hasActiveTurn(), false);
+});
+
+test('retired and foreign background events cannot contaminate a later turn', async () => {
+  const { projector, events } = createProjector();
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { agentId: 'main', turnId: 1, promptId: 'p' } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 2, payload: { agentId: 'main', turnId: 1, toolCallId: 'old-call', name: 'Bash' } });
+  projector.handleFrame({ type: 'task.started', seq: 3, payload: { agentId: 'main', info: { taskId: 'old-task', parentToolCallId: 'old-call' } } });
+  await projector.finalizeTurn('failed');
+  const retiredCount = events.length;
+  projector.handleFrame({ type: 'task.terminated', seq: 4, payload: { agentId: 'main', info: { taskId: 'old-task', status: 'completed' } } });
+  assert.equal(events.length, retiredCount);
+  projector.bindTurn({ gianTurnId: 'next', promptId: 'next-prompt' });
+  projector.handleFrame({ type: 'turn.started', seq: 5, payload: { agentId: 'main', turnId: 2, promptId: 'next-prompt', origin: { kind: 'user' } } });
+  const before = events.length;
+  projector.handleFrame({ type: 'background.task.terminated', seq: 6, payload: { agentId: 'main', info: { taskId: 'old-task', status: 'completed' } } });
+  projector.handleFrame({ type: 'turn.started', seq: 7, payload: { agentId: 'main', turnId: 3, origin: { kind: 'task', taskId: 'old-task' } } });
+  projector.handleFrame({ type: 'assistant.delta', seq: 8, payload: { agentId: 'main', delta: 'foreign continuation' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 9, payload: { agentId: 'main', turnId: 3, reason: 'completed' } });
+  projector.handleFrame({ type: 'turn.started', seq: 10, payload: { agentId: 'main', origin: { kind: 'user' } } });
+  projector.handleFrame({ type: 'assistant.delta', seq: 11, payload: { agentId: 'main', delta: 'unidentified continuation' } });
+  await flush();
+  assert.equal(events.length, before);
+  assert.equal(projector.activeGianTurnId(), 'next');
+  await projector.finalizeTurn('completed');
+});
+
+test('repeated native terminal events still finalize the admitted turn once', async () => {
+  const { projector, events } = createProjector();
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 1, promptId: 'p' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 2, payload: { turnId: 1, reason: 'completed' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 3, payload: { turnId: 1, reason: 'completed' } });
+  await flush();
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+  assert.equal(projector.hasActiveTurn(), false);
+});
+
+test('a delayed old finalization cannot complete or clear the next binding', async () => {
+  let resolveDiff!: (value: null) => void;
+  const finalized: string[] = [];
+  const { projector, events } = createProjector({
+    onFinalized: (turnId) => finalized.push(turnId),
+    fileDiff: () => new Promise((resolve) => { resolveDiff = resolve; }),
+  });
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { agentId: 'main', turnId: 1, promptId: 'p' } });
+  const previous = projector.finalizeTurn('completed');
+  projector.bindTurn({ gianTurnId: 'next', promptId: 'next-prompt' });
+  projector.handleFrame({ type: 'turn.started', seq: 2, payload: { agentId: 'main', turnId: 2, promptId: 'next-prompt' } });
+  resolveDiff(null);
+  await previous;
+  assert.deepEqual(finalized, []);
+  assert.equal(events.some((event) => event.method === 'turn.completed'), false);
+  assert.equal(projector.activeGianTurnId(), 'next');
+});
+
+test('a newer failure during a slow terminal facet is not reported as success', async () => {
+  let resolveDiff!: (value: null) => void;
+  const { projector, events } = createProjector({ fileDiff: () => new Promise((resolve) => { resolveDiff = resolve; }) });
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 2, payload: { turnId: 0, reason: 'completed' } });
+  await flush();
+  projector.handleFrame({ type: 'turn.ended', seq: 3, payload: { turnId: 0, reason: 'failed', error: { code: 'provider.rate_limit', message: 'later failure' } } });
+  resolveDiff(null);
+  await flush();
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 0);
+  assert.equal(events.filter((event) => event.method === 'turn.failed').length, 1);
+});
+
+test('new owned work during a slow terminal facet cancels the old finalization', async () => {
+  let resolveFirstDiff!: (value: null) => void;
+  let diffCalls = 0;
+  const { projector, events } = createProjector({
+    fileDiff: () => ++diffCalls === 1
+      ? new Promise((resolve) => { resolveFirstDiff = resolve; })
+      : Promise.resolve(null),
+  });
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 2, payload: { turnId: 0, toolCallId: 'bash-call', name: 'Bash' } });
+  projector.handleFrame({ type: 'tool.result', seq: 3, payload: { turnId: 0, toolCallId: 'bash-call', output: 'started' } });
+  projector.handleFrame({ type: 'assistant.delta', seq: 4, payload: { turnId: 0, delta: 'initial' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 5, payload: { turnId: 0, reason: 'completed' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 6, payload: { busy: false } });
+  await flush();
+  assert.equal(diffCalls, 1);
+  assert.equal(events.some((event) => event.method === 'content.completed' || event.method === 'turn.completed'), false);
+  projector.handleFrame({ type: 'task.started', seq: 7, payload: { info: { taskId: 'owned', parentToolCallId: 'bash-call' } } });
+  projector.handleFrame({ type: 'task.terminated', seq: 8, payload: { info: { taskId: 'owned', status: 'completed' } } });
+  projector.handleFrame({ type: 'turn.started', seq: 9, payload: { turnId: 1, origin: { kind: 'task', taskId: 'owned' } } });
+  projector.handleFrame({ type: 'assistant.delta', seq: 10, payload: { turnId: 1, delta: 'continued' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 11, payload: { turnId: 1, reason: 'completed' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 12, payload: { busy: false } });
+  await flush();
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+  assert.deepEqual(events.filter((event) => event.method === 'content.completed').map((event) => dataOf(event).content), ['initial', 'continued']);
+  resolveFirstDiff(null);
+  await flush();
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+});
+
+test('an interrupt acknowledgement for an old native turn cannot interrupt its continuation', async () => {
+  const { projector, events } = createProjector();
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 2, payload: { busy: true } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 3, payload: { turnId: 0, toolCallId: 'bash-call', name: 'Bash' } });
+  projector.handleFrame({ type: 'task.started', seq: 4, payload: { info: { taskId: 'owned', parentToolCallId: 'bash-call' } } });
+  projector.handleFrame({ type: 'tool.result', seq: 5, payload: { turnId: 0, toolCallId: 'bash-call', output: 'started' } });
+  const generation = projector.beginInterrupt('t');
+  assert.notEqual(generation, null);
+  projector.handleFrame({ type: 'turn.ended', seq: 6, payload: { turnId: 0, reason: 'cancelled' } });
+  projector.handleFrame({ type: 'task.terminated', seq: 7, payload: { info: { taskId: 'owned', status: 'completed' } } });
+  projector.handleFrame({ type: 'turn.started', seq: 8, payload: { turnId: 1, origin: { kind: 'task', taskId: 'owned' } } });
+  assert.equal(projector.finishInterrupt('t', generation!, true), false);
+  projector.handleFrame({ type: 'turn.ended', seq: 9, payload: { turnId: 1, reason: 'completed' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 10, payload: { busy: false } });
+  await flush();
+  const terminal = events.find((event) => event.method === 'turn.completed');
+  assert.equal(dataOf(terminal!).stopReason, 'completed');
+});
+
+test('a native terminal cannot report success while a failure fence is being resolved', async () => {
+  const { projector, events } = createProjector();
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  assert.equal(projector.beginFence('t'), true);
+  projector.handleFrame({ type: 'turn.ended', seq: 2, payload: { turnId: 0, reason: 'cancelled' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 3, payload: { busy: false } });
+  await flush();
+  assert.equal(events.some((event) => event.method === 'turn.completed' || event.method === 'turn.failed'), false);
+  projector.endFence('t', false);
+  await projector.failTurn('Native containment could not be confirmed.', true);
+  assert.equal(events.filter((event) => event.method === 'turn.failed').length, 1);
+  assert.equal(events.some((event) => event.method === 'turn.completed'), false);
+});
+
+test('a completed background task without an idle signal cannot prematurely finish the turn', async () => {
+  const { projector, events } = createProjector();
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 2, payload: { turnId: 0, toolCallId: 'bash-call', name: 'Bash' } });
+  projector.handleFrame({ type: 'task.started', seq: 3, payload: { info: { taskId: 'owned', parentToolCallId: 'bash-call' } } });
+  projector.handleFrame({ type: 'tool.result', seq: 4, payload: { turnId: 0, toolCallId: 'bash-call', output: 'started' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 5, payload: { turnId: 0, reason: 'completed' } });
+  projector.handleFrame({ type: 'task.terminated', seq: 6, payload: { info: { taskId: 'owned', status: 'completed' } } });
+  await flush();
+  assert.equal(events.some((event) => event.method === 'turn.completed'), false);
+  assert.equal(projector.hasActiveTurn(), true);
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 7, payload: { busy: false, main_turn_active: false } });
+  await flush();
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+});
+
+test('an idle signal cannot falsely fail an owned task whose terminal event is still in flight', async () => {
+  const { projector, events } = createProjector();
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 2, payload: { turnId: 0, toolCallId: 'bash-call', name: 'Bash' } });
+  projector.handleFrame({ type: 'task.started', seq: 3, payload: { info: { taskId: 'owned', parentToolCallId: 'bash-call' } } });
+  projector.handleFrame({ type: 'tool.result', seq: 4, payload: { turnId: 0, toolCallId: 'bash-call', output: 'started' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 5, payload: { turnId: 0, reason: 'completed' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 6, payload: { busy: false, main_turn_active: false } });
+  await flush();
+  assert.equal(events.some((event) => event.method === 'turn.completed'), false);
+  assert.equal(events.some((event) => dataOf(event).activityId === 'task:owned' && dataOf(event).status === 'failed'), false);
+  projector.handleFrame({ type: 'task.terminated', seq: 7, payload: { info: { taskId: 'owned', status: 'completed' } } });
+  await flush();
+  assert.equal(events.some((event) => event.method === 'turn.completed'), false);
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 8, payload: { busy: false, main_turn_active: false } });
+  await flush();
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+  assert.equal(events.filter((event) => dataOf(event).activityId === 'task:owned' && dataOf(event).status === 'succeeded').length, 1);
+});
+
+test('read-only task reconciliation recovers a missing terminal event without resending work', async () => {
+  let reads = 0;
+  const { projector, events } = createProjector({
+    reconcileIntervalMs: 10,
+    reconcileWork: async (needs) => {
+      reads += 1;
+      assert.equal(needs.tasks, true);
+      return { lastSeq: 6, busy: false, mainTurnActive: false, pendingInteraction: 'none',
+        tasks: [{ id: 'owned', status: 'completed' }], questions: [], approvals: [] };
+    },
+  });
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 2, payload: { turnId: 0, toolCallId: 'bash-call', name: 'Bash' } });
+  projector.handleFrame({ type: 'task.started', seq: 3, payload: { info: { taskId: 'owned', parentToolCallId: 'bash-call' } } });
+  projector.handleFrame({ type: 'tool.result', seq: 4, payload: { turnId: 0, toolCallId: 'bash-call', output: 'started' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 5, payload: { turnId: 0, reason: 'completed' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 6, payload: { busy: true, main_turn_active: false } });
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert.ok(reads >= 1);
+  assert.equal(events.filter((event) => dataOf(event).activityId === 'task:owned' && dataOf(event).status === 'succeeded').length, 1);
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+  assert.equal(projector.hasActiveTurn(), false);
+});
+
+test('a stale reconciliation snapshot cannot settle a newer native continuation', async () => {
+  let resolveSnapshot!: (value: { lastSeq: number; busy: boolean; mainTurnActive: boolean; pendingInteraction: 'none'; tasks: Array<{ id: string; status: 'completed' }>; questions: string[]; approvals: string[] }) => void;
+  let reading = false;
+  const { projector, events } = createProjector({
+    reconcileIntervalMs: 10,
+    reconcileWork: () => { reading = true; return new Promise((resolve) => { resolveSnapshot = resolve; }); },
+  });
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 2, payload: { turnId: 0, toolCallId: 'bash-call', name: 'Bash' } });
+  projector.handleFrame({ type: 'task.started', seq: 3, payload: { info: { taskId: 'owned', parentToolCallId: 'bash-call' } } });
+  projector.handleFrame({ type: 'tool.result', seq: 4, payload: { turnId: 0, toolCallId: 'bash-call', output: 'started' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 5, payload: { turnId: 0, reason: 'completed' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 6, payload: { busy: true } });
+  const deadline = Date.now() + 1_000;
+  while (!reading && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(reading, true);
+  projector.handleFrame({ type: 'task.terminated', seq: 7, payload: { info: { taskId: 'owned', status: 'completed' } } });
+  projector.handleFrame({ type: 'turn.started', seq: 8, payload: { turnId: 1, origin: { kind: 'task', taskId: 'owned' } } });
+  resolveSnapshot({ lastSeq: 6, busy: false, mainTurnActive: false, pendingInteraction: 'none',
+    tasks: [{ id: 'owned', status: 'completed' }], questions: [], approvals: [] });
+  await flush();
+  assert.equal(events.some((event) => event.method === 'turn.completed'), false);
+  assert.equal(projector.activeGianTurnId(), 't');
+  assert.equal(events.filter((event) => dataOf(event).activityId === 'task:owned' && dataOf(event).status === 'succeeded').length, 1);
+});
+
+test('a same-sequence volatile frame invalidates an in-flight work snapshot', async () => {
+  let resolveSnapshot!: (value: { lastSeq: number; busy: boolean; mainTurnActive: boolean; pendingInteraction: 'none'; tasks: Array<{ id: string; status: 'completed' }>; questions: string[]; approvals: string[] }) => void;
+  let reading = false;
+  const { projector, events } = createProjector({
+    reconcileIntervalMs: 10,
+    reconcileWork: () => { reading = true; return new Promise((resolve) => { resolveSnapshot = resolve; }); },
+  });
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 2, payload: { turnId: 0, toolCallId: 'bash-call', name: 'Bash' } });
+  projector.handleFrame({ type: 'task.started', seq: 3, payload: { info: { taskId: 'owned', parentToolCallId: 'bash-call' } } });
+  projector.handleFrame({ type: 'tool.result', seq: 4, payload: { turnId: 0, toolCallId: 'bash-call', output: 'started' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 5, payload: { turnId: 0, reason: 'completed' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 6, payload: { busy: true } });
+  const deadline = Date.now() + 1_000;
+  while (!reading && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(reading, true);
+  projector.handleFrame({ type: 'assistant.delta', seq: 6, volatile: true, payload: { delta: 'still active' } });
+  resolveSnapshot({ lastSeq: 6, busy: false, mainTurnActive: false, pendingInteraction: 'none',
+    tasks: [{ id: 'owned', status: 'completed' }], questions: [], approvals: [] });
+  await flush();
+  assert.equal(events.some((event) => event.method === 'turn.completed'), false);
+  assert.equal(events.some((event) => dataOf(event).activityId === 'task:owned' && dataOf(event).status === 'succeeded'), false);
+});
+
+test('unavailable reconciliation reports uncertainty and never guesses a terminal outcome', async () => {
+  let reads = 0;
+  const { projector, events } = createProjector({
+    reconcileIntervalMs: 10,
+    reconcileWork: async () => { reads += 1; return null; },
+  });
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 2, payload: { busy: true } });
+  projector.handleFrame({ type: 'turn.ended', seq: 3, payload: { turnId: 0, reason: 'completed' } });
+  await new Promise((resolve) => setTimeout(resolve, 180));
+  assert.equal(reads, 3);
+  assert.equal(events.filter((event) => dataOf(event).kind === 'kimi:work-reconciliation').length, 1);
+  assert.equal(events.some((event) => event.method === 'turn.completed' || event.method === 'turn.failed'), false);
+  assert.equal(projector.hasActiveTurn(), true);
+});
+
+test('an absent native question is reported as unknown, not auto-answered or dismissed', async () => {
+  const { projector, events } = createProjector({
+    reconcileIntervalMs: 10,
+    reconcileWork: async () => ({ lastSeq: 6, busy: false, mainTurnActive: false, pendingInteraction: 'none',
+      tasks: [], questions: [], approvals: [] }),
+  });
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 2, payload: { turnId: 0, toolCallId: 'q-call', name: 'AskUserQuestion' } });
+  projector.handleFrame({ type: 'event.question.requested', seq: 3, payload: { turn_id: 0, tool_call_id: 'q-call', question_id: 'q1', questions: [{ id: 'q_0', question: 'Continue?', options: [{ id: 'yes', label: 'Yes' }] }] } });
+  projector.handleFrame({ type: 'tool.result', seq: 4, payload: { turnId: 0, toolCallId: 'q-call', output: 'waiting' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 5, payload: { turnId: 0, reason: 'completed' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 6, payload: { busy: true, pending_interaction: 'question' } });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(projector.pendingInteractions.has('q:q1'), true);
+  assert.equal(events.filter((event) => dataOf(event).kind === 'kimi:work-reconciliation').length, 1);
+  assert.equal(events.some((event) => event.method === 'interaction.resolved' || event.method === 'turn.completed'), false);
+  projector.handleFrame({ type: 'event.question.answered', seq: 7, payload: { question_id: 'q1', turn_id: 0 } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 8, payload: { busy: false, pending_interaction: 'none' } });
+  await flush();
+  assert.equal(events.filter((event) => event.method === 'interaction.resolved').length, 1);
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+});
+
+test('an idle snapshot cannot silently resolve a still-pending question', async () => {
+  const { projector, events } = createProjector();
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 2, payload: { turnId: 0, toolCallId: 'q-call', name: 'AskUserQuestion' } });
+  projector.handleFrame({ type: 'event.question.requested', seq: 3, payload: { turn_id: 0, tool_call_id: 'q-call', question_id: 'q1', questions: [{ id: 'q_0', question: 'Continue?', options: [{ id: 'yes', label: 'Yes' }] }] } });
+  projector.handleFrame({ type: 'tool.result', seq: 4, payload: { turnId: 0, toolCallId: 'q-call', output: 'waiting' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 5, payload: { turnId: 0, reason: 'completed' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 6, payload: { busy: false, pending_interaction: 'none' } });
+  await flush();
+  assert.equal(projector.hasActiveTurn(), true);
+  assert.equal(events.some((event) => event.method === 'interaction.resolved' || event.method === 'turn.completed'), false);
+  projector.handleFrame({ type: 'event.question.dismissed', seq: 7, payload: { question_id: 'q1', turn_id: 0 } });
+  await flush();
+  assert.equal(events.filter((event) => event.method === 'interaction.resolved').length, 1);
+  assert.equal(events.some((event) => event.method === 'turn.completed'), false);
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 8, payload: { busy: false, pending_interaction: 'none' } });
+  await flush();
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+});
+
+test('continuations do not reuse native tool or plan identities', async () => {
+  const { projector, events } = createProjector();
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 2, payload: { busy: true } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 3, payload: { turnId: 0, toolCallId: 'reused', name: 'TodoList', display: { kind: 'todo_list', items: [{ title: 'A', status: 'pending' }] } } });
+  projector.handleFrame({ type: 'task.started', seq: 4, payload: { info: { taskId: 'owned', parentToolCallId: 'reused' } } });
+  projector.handleFrame({ type: 'tool.result', seq: 5, payload: { turnId: 0, toolCallId: 'reused', output: 'started' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 6, payload: { turnId: 0, reason: 'completed' } });
+  projector.handleFrame({ type: 'task.terminated', seq: 7, payload: { info: { taskId: 'owned', status: 'completed' } } });
+  projector.handleFrame({ type: 'turn.started', seq: 8, payload: { turnId: 1, origin: { kind: 'task', taskId: 'owned' }, promptId: 'task:continuation' } });
+  assert.equal(projector.activePromptId(), 'task:continuation');
+  projector.handleFrame({ type: 'tool.call.started', seq: 9, payload: { turnId: 1, toolCallId: 'reused', name: 'TodoList', display: { kind: 'todo_list', items: [{ title: 'B', status: 'pending' }] } } });
+  projector.handleFrame({ type: 'tool.result', seq: 10, payload: { toolCallId: 'reused', output: 'ambiguous old result' } });
+  projector.handleFrame({ type: 'tool.result', seq: 11, payload: { turnId: 1, toolCallId: 'reused', output: 'done' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 12, payload: { turnId: 1, reason: 'completed' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 13, payload: { busy: false } });
+  await flush();
+  const tools = events.filter((event) => event.method === 'activity.updated' && dataOf(event).kind === 'tool:TodoList');
+  assert.deepEqual(tools.map((event) => dataOf(event).activityId), ['reused', 'reused', 'native:1:reused', 'native:1:reused']);
+  assert.equal(new Set(tools.map((event) => event.params.eventId)).size, 4);
+  const plans = events.filter((event) => event.method === 'plan.updated');
+  assert.equal(new Set(plans.map((event) => event.params.eventId)).size, 2);
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+});
+
+test('a suspended owned subagent can resume without prematurely finalizing its turn', async () => {
+  const { projector, events } = createProjector();
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 2, payload: { busy: true } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 3, payload: { turnId: 0, toolCallId: 'agent-call', name: 'Agent' } });
+  projector.handleFrame({ type: 'subagent.spawned', seq: 4, payload: { turnId: 0, subagentId: 'owned-agent', parentToolCallId: 'agent-call' } });
+  projector.handleFrame({ type: 'tool.result', seq: 5, payload: { turnId: 0, toolCallId: 'agent-call', output: 'started' } });
+  projector.handleFrame({ type: 'subagent.suspended', seq: 6, payload: { subagentId: 'owned-agent' } });
+  projector.handleFrame({ type: 'subagent.started', seq: 7, payload: { subagentId: 'owned-agent' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 8, payload: { turnId: 0, reason: 'completed' } });
+  await flush();
+  assert.equal(events.some((event) => event.method === 'turn.completed'), false);
+  projector.handleFrame({ type: 'subagent.completed', seq: 9, payload: { subagentId: 'owned-agent' } });
+  projector.handleFrame({ type: 'subagent.started', seq: 10, payload: { subagentId: 'owned-agent' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 11, payload: { busy: false } });
+  await flush();
+  const statuses = events.filter((event) => dataOf(event).activityId === 'owned-agent').map((event) => dataOf(event).status);
+  assert.deepEqual(statuses, ['running', 'cancelled', 'running', 'succeeded']);
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+});
+
+test('a subagent retains its original parent when a later native turn reuses the tool ID', async () => {
+  const { projector, events } = createProjector();
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 2, payload: { busy: true } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 3, payload: { turnId: 0, toolCallId: 'reused', name: 'Agent' } });
+  projector.handleFrame({ type: 'subagent.spawned', seq: 4, payload: { turnId: 0, subagentId: 'owned-agent', parentToolCallId: 'reused' } });
+  projector.handleFrame({ type: 'task.started', seq: 5, payload: { info: { taskId: 'owned-task', parentToolCallId: 'reused' } } });
+  projector.handleFrame({ type: 'tool.result', seq: 6, payload: { turnId: 0, toolCallId: 'reused', output: 'started' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 7, payload: { turnId: 0, reason: 'completed' } });
+  projector.handleFrame({ type: 'task.terminated', seq: 8, payload: { info: { taskId: 'owned-task', status: 'completed' } } });
+  projector.handleFrame({ type: 'turn.started', seq: 9, payload: { turnId: 1, origin: { kind: 'task', taskId: 'owned-task' } } });
+  projector.handleFrame({ type: 'tool.call.started', seq: 10, payload: { turnId: 1, toolCallId: 'reused', name: 'Bash' } });
+  projector.handleFrame({ type: 'tool.result', seq: 11, payload: { turnId: 1, toolCallId: 'reused', output: 'done' } });
+  projector.handleFrame({ type: 'subagent.completed', seq: 12, payload: { subagentId: 'owned-agent', parentToolCallId: 'reused' } });
+  projector.handleFrame({ type: 'turn.ended', seq: 13, payload: { turnId: 1, reason: 'completed' } });
+  projector.handleFrame({ type: 'event.session.work_changed', seq: 14, payload: { busy: false } });
+  await flush();
+  const done = events.find((event) => dataOf(event).activityId === 'owned-agent' && dataOf(event).status === 'succeeded');
+  const presentation = dataOf(done!).presentation as { data: { parentToolCallId: string } };
+  assert.equal(presentation.data.parentToolCallId, 'reused');
+  assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+});
+
+test('usage after turn completion remains session-scoped without reviving the retired turn', async () => {
+  const { projector, events } = createProjector();
+  projector.handleFrame({ type: 'turn.started', seq: 1, payload: { turnId: 0, promptId: 'p' } });
+  await projector.finalizeTurn('completed');
+  projector.handleFrame({ type: 'agent.status.updated', seq: 2, payload: {
+    agentId: 'main', usage: { total: { inputOther: 4, output: 2, inputCacheRead: 0, inputCacheCreation: 0 } },
+  } });
+  const usage = events.filter((event) => event.method === 'usage.updated');
+  assert.equal(usage.length, 1);
+  assert.equal(usage[0]!.params.turnId, undefined);
+  assert.equal(usage[0]!.params.sourceTurnId, undefined);
+  assert.equal(projector.hasActiveTurn(), false);
+});
+
+>>>>>>> release/0.6.10
 test('volatile thinking and assistant deltas that reuse the durable seq are projected', async () => {
   const { projector, events } = createProjector();
   assert.equal(projector.handleFrame(frame({

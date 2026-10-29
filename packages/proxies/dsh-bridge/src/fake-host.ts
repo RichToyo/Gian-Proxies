@@ -1,7 +1,7 @@
 /**
  * Deterministic fake DSH runtime implementing the `BridgeHost` seam.
  *
- * It replays the exact event vocabulary the real `gian` profile emits from
+ * It replays the exact event vocabulary the real Gian DSH profile emits from
  * `ctx.agents` / `session/event` (turn/step boundaries, assistant chunks and
  * assembled messages with usage, tool calls/results with fs-diff meta, request
  * headers/context, approval asks and structured user questions, todo/plan

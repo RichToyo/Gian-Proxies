@@ -5,15 +5,15 @@
  * `spawn.ts` owns the process entrypoint.
  */
 
+import { gianProfileName } from '../runtime/profile.js';
+
 export interface BridgeLaunch {
   bridgeCommand: string;
   args: string[];
   /**
-   * True when the proxy owns the DSH boot (command from GIAN_RUNTIME_BIN /
-   * DSH_HOST_ENTRY with derived `--profile gian` args) and must ensure the
-   * `gian` profile exists before spawning. False when any override
-   * (--bridge=, GIAN_DSH_HOST_ENTRY, GIAN_DSH_HOST_ARGS) signals an
-   * externally managed bridge.
+   * True when the proxy owns the DSH boot and must ensure its binding-scoped
+   * profile exists before spawning. False when an explicit bridge or args
+   * override signals an externally managed bridge.
    */
   managedProfile: boolean;
 }
@@ -28,13 +28,9 @@ export function bridgeArgs(argv: string[], explicit: string | undefined): string
     return parsed;
   }
   const extraArgs = argv.filter((arg) => arg.startsWith('--') === false);
-  // The protocol client passes the DSH profile launcher via GIAN_RUNTIME_BIN.
-  // An explicit test bridge is already a bridge/1.0 stdio entry; the real DSH
-  // launcher always needs `--profile gian` so the bridge bundle mounts on
-  // stdout (plan §3.4: shared Host running profile "gian").
   return explicit !== undefined
     ? extraArgs
-    : ['--profile', 'gian', ...extraArgs];
+    : ['--profile', gianProfileName(), ...extraArgs];
 }
 
 /**

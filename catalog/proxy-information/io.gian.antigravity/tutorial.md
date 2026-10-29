@@ -2,7 +2,7 @@
 
 ## 1. What it does in Gian
 
-The Antigravity Integration connects Google's official Antigravity ACP Server to Gian: create and manage Antigravity sessions in Gian, send text tasks, and review tool activity and approval requests. Proxy 0.0.5 pairs with upstream ACP Runtime 1.4.3; the Proxy and upstream Runtime versions are independent. This is not a wrapper around the separate `agy --print` CLI.
+The Antigravity Integration connects Google's official Antigravity ACP Server to Gian: create and manage Antigravity sessions in Gian, send text tasks, and review tool activity and approval requests. Proxy 0.0.6 pairs with upstream ACP Runtime 1.4.4; the Proxy and upstream Runtime versions are independent. This is not a wrapper around the separate `agy --print` CLI.
 
 ## 2. Capabilities and limitations
 
@@ -20,7 +20,7 @@ The Proxy and the ACP Server speak ACP (Agent Client Protocol) over stdio. One c
 
 ## 4. Installation and dependencies
 
-Install the Antigravity Integration from Gian's official Catalog. Gian verifies and prepares the Proxy and its pinned Runtime; the Runtime must keep `agy_acp_server.par` and `localharness_external` together from the same pinned official 1.4.3 archive. Gian does not replace this server with a system `agy` executable. The cold Gemini model query needs the separate official `agy` CLI — a different component from the ACP Server; a missing helper means an unavailable catalog, not an empty model list. See the official ACP setup guide at https://antigravity.google/docs/ide/extensions/zed/ .
+Install the Antigravity Integration from Gian's official Catalog. Gian verifies and prepares the Proxy and its pinned Runtime; the Runtime must keep `agy_acp_server.par` and `localharness_external` together from the same pinned official 1.4.4 archive. Gian does not replace this server with a system `agy` executable. The cold Gemini model query needs the separate official `agy` CLI — a different component from the ACP Server; a missing helper means an unavailable catalog, not an empty model list. See the official ACP setup guide at https://antigravity.google/docs/ide/extensions/zed/ .
 
 ## 5. First use
 
@@ -49,7 +49,7 @@ Use only officially supported authentication and endpoint configuration. The Pro
 
 - Catalog unavailable or timed out: check the separate official `agy` helper installation and the default OS HOME/Gemini root, then retry manually; do not clear stored Agent defaults or copy credentials as a workaround.
 - Rejected Model/Thinking pair or stale catalog: refresh the current Proxy advertisement and review the retained explicit selection; do not replace it with a guessed native ID or a silent default.
-- Runtime not detected or probe rejected: confirm the server and harness from one verified 1.4.3 archive are executable siblings; another ACP agent reporting the same version is not this Runtime.
+- Runtime not detected or probe rejected: confirm the server and harness from one verified 1.4.4 archive are executable siblings; another ACP agent reporting the same version is not this Runtime.
 - Account setup required: use the official ACP sign-in action; a successful version probe does not prove account readiness or a successful model turn.
 - Approval no longer pending: reopen the current request; do not replay an option from an older turn.
 - Interrupted or crashed turn: inspect native/session state before resending; cancellation or transport uncertainty does not authorize automatic resubmission.

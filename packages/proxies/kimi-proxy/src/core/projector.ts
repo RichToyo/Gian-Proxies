@@ -57,13 +57,23 @@ export interface KimiErrorLike {
   retryable?: boolean | undefined;
 }
 
+export interface KimiWorkSnapshot {
+  lastSeq: number;
+  busy: boolean;
+  mainTurnActive: boolean;
+  pendingInteraction: 'none' | 'approval' | 'question';
+  tasks: Array<{ id: string; status: 'running' | 'completed' | 'failed' | 'cancelled' }>;
+  questions: string[];
+  approvals: string[];
+}
+
 export interface ProjectorServices {
   gianSessionId: string;
   nativeSessionId: string;
   nextSequence: () => number;
   emit: (notification: OuterNotification) => void;
   /** Called after every terminal finalization completes. */
-  onFinalized?: () => void;
+  onFinalized?: (gianTurnId: string) => void;
   /** Turn-start buffer overflowed: the service must fence the turn (stop the
    *  native prompt, then fail it); a bare local failure would leave native
    *  work running unattributed. */
@@ -73,6 +83,10 @@ export interface ProjectorServices {
    * returns placeholder zeros, not a second authoritative usage counter. */
   finalUsage?: () => Promise<Record<string, unknown> | null>;
   fileDiff: (nativeTurnId: number) => Promise<{ diff: string; truncated: boolean; files: Array<Record<string, unknown>> } | null>;
+  /** Read-only fallback when native work-state or task terminal events are missing. */
+  reconcileWork?: (needs: { tasks: boolean; questions: boolean; approvals: boolean }) => Promise<KimiWorkSnapshot | null>;
+  /** Deterministic fixture override; production uses the bounded default. */
+  reconcileIntervalMs?: number;
 }
 
 function sha16(value: unknown): string {
@@ -90,11 +104,17 @@ const PLAN_STATUS_MAP: Record<string, string> = {
 const FINAL_FACET_BUDGET_MS = 10_000;
 /** Frames buffered between prompt submission and turn binding. */
 const BINDING_BUFFER_LIMIT = 4_096;
+const RECONCILE_BASE_MS = 5_000;
+const RECONCILE_MAX_MS = 60_000;
+const RECONCILE_FAILURE_LIMIT = 3;
 
 interface ActiveTurn {
   gianTurnId: string;
   promptId: string;
+  nativePromptId: string | null;
   nativeTurnId: number | null;
+  nativeTurnIds: Set<number>;
+  nativePromptIds: Set<string>;
   interruptAccepted: boolean;
 }
 
@@ -117,6 +137,7 @@ export interface PendingInteractionState {
   kind: 'approval' | 'question';
   nativeId: string;
   turnId: string;
+  toolCallId?: string;
   /** Question input ids/types at projection time; respondInteraction needs
    *  them to wrap raw UI values into the native kind-discriminated answers. */
   inputs?: Array<{ id: string; type: string }>;
@@ -131,6 +152,34 @@ export class KimiSessionProjector {
   /** Identity for text deltas that arrive without an offset. */
   private unoffsetDelta = 0;
   private activeTurn: ActiveTurn | null = null;
+  private stateRevision = 0;
+  private nativeBusy: boolean | null = null;
+  private idleSignalRequired = false;
+  private acceptingNativeTurn = false;
+  private nativeTurnGeneration = 0;
+  private pendingEnd: { turn: ActiveTurn; reason: string } | null = null;
+  private finalization: { turn: ActiveTurn; reason: string; resumable: boolean } | null = null;
+  private endTimer: NodeJS.Timeout | null = null;
+  private reconcileTimer: NodeJS.Timeout | null = null;
+  private reconciling = false;
+  private reconcileFailures = 0;
+  private reconcilePaused = false;
+  private reconcileNoticeSent = false;
+  private readonly baseReconcileMs: number;
+  private reconcileDelayMs: number;
+  private readonly taskOwners = new Map<string, string>();
+  private readonly subagentOwners = new Map<string, string>();
+  private readonly toolOwners = new Map<string, string>();
+  private readonly ambiguousToolIds = new Set<string>();
+  private readonly taskStates = new Map<string, 'running' | 'ended'>();
+  private readonly taskInfo = new Map<string, Record<string, unknown>>();
+  private readonly subagentStates = new Map<string, 'running' | 'suspended' | 'ended'>();
+  private readonly ownedToolCalls = new Set<string>();
+  private readonly toolActivities = new Map<string, string>();
+  private readonly lastToolActivity = new Map<string, string>();
+  private readonly toolStates = new Map<string, 'running' | 'ended'>();
+  private readonly seenToolIds = new Set<string>();
+  private readonly subagentParents = new Map<string, string>();
   private readonly openContent = new Map<string, OpenContent>();
   private readonly openActivities = new Map<string, OpenActivity>();
   readonly pendingInteractions = new Map<string, PendingInteractionState>();
@@ -138,6 +187,8 @@ export class KimiSessionProjector {
   private lastUsageFingerprint: string | null = null;
   private lastError: KimiErrorLike | null = null;
   private terminalSent = false;
+  private interruptPending = false;
+  private fencePending = false;
   /** Set by failTurn while a finalization is already running: the optional
    *  REST facets are skipped so the terminal goes out immediately. */
   private facetsAborted = false;
@@ -147,7 +198,12 @@ export class KimiSessionProjector {
   private bufferedFrames: KimiProjectedFrame[] = [];
   private bindingOverflowed = false;
 
-  constructor(private readonly services: ProjectorServices) {}
+  constructor(private readonly services: ProjectorServices) {
+    const interval = services.reconcileIntervalMs;
+    this.baseReconcileMs = typeof interval === 'number' && Number.isFinite(interval) && interval > 0
+      ? interval : RECONCILE_BASE_MS;
+    this.reconcileDelayMs = this.baseReconcileMs;
+  }
 
   setStreamId(streamId: string): void {
     this.streamId = streamId;
@@ -169,8 +225,39 @@ export class KimiSessionProjector {
   }
 
   bindTurn(turn: { gianTurnId: string; promptId: string }): void {
-    this.activeTurn = { gianTurnId: turn.gianTurnId, promptId: turn.promptId, nativeTurnId: null, interruptAccepted: false };
+    this.stateRevision += 1;
+    this.clearEndTimer();
+    this.clearReconcileTimer();
+    this.pendingEnd = null;
+    this.finalization = null;
+    this.nativeBusy = null;
+    this.idleSignalRequired = false;
+    this.acceptingNativeTurn = true;
+    this.nativeTurnGeneration = 0;
+    this.taskStates.clear();
+    this.taskInfo.clear();
+    this.subagentStates.clear();
+    this.ownedToolCalls.clear();
+    this.toolActivities.clear();
+    this.lastToolActivity.clear();
+    this.toolStates.clear();
+    this.seenToolIds.clear();
+    this.subagentParents.clear();
+    this.openContent.clear();
+    this.openActivities.clear();
+    this.pendingInteractions.clear();
+    this.activeTurn = {
+      gianTurnId: turn.gianTurnId, promptId: turn.promptId, nativePromptId: turn.promptId,
+      nativeTurnId: null, nativeTurnIds: new Set(), nativePromptIds: new Set([turn.promptId]),
+      interruptAccepted: false,
+    };
     this.terminalSent = false;
+    this.interruptPending = false;
+    this.fencePending = false;
+    this.reconcileFailures = 0;
+    this.reconcilePaused = false;
+    this.reconcileNoticeSent = false;
+    this.reconcileDelayMs = this.baseReconcileMs;
     this.lastError = null;
     this.lastUsageFingerprint = null;
     this.lastPlanFingerprint = null;
@@ -191,15 +278,43 @@ export class KimiSessionProjector {
         onOverflow(turn.gianTurnId);
       } else {
         void this.failTurn(
-          'The Kimi event stream overflowed the turn-start buffer; the turn was fenced rather than projected incompletely.',
+          'The Kimi event stream overflowed the turn-start buffer; the turn could not be projected completely.',
           true,
         );
       }
     }
   }
 
-  markInterruptAccepted(): void {
-    if (this.activeTurn) this.activeTurn.interruptAccepted = true;
+  beginInterrupt(gianTurnId: string): number | null {
+    if (this.activeTurn?.gianTurnId !== gianTurnId || this.interruptPending) return null;
+    this.interruptPending = true;
+    this.stateRevision += 1;
+    return this.nativeTurnGeneration;
+  }
+
+  finishInterrupt(gianTurnId: string, generation: number, accepted: boolean): boolean {
+    if (this.activeTurn?.gianTurnId !== gianTurnId) return false;
+    const sameNativeTurn = generation === this.nativeTurnGeneration;
+    if (accepted && sameNativeTurn) this.activeTurn.interruptAccepted = true;
+    this.interruptPending = false;
+    this.stateRevision += 1;
+    this.scheduleEnd();
+    return sameNativeTurn;
+  }
+
+  beginFence(gianTurnId: string): boolean {
+    if (this.activeTurn?.gianTurnId !== gianTurnId || this.fencePending) return false;
+    this.resumeIdleFinalization();
+    this.fencePending = true;
+    this.stateRevision += 1;
+    return true;
+  }
+
+  endFence(gianTurnId: string, resume: boolean): void {
+    if (this.activeTurn?.gianTurnId !== gianTurnId) return;
+    this.fencePending = false;
+    this.stateRevision += 1;
+    if (resume) this.scheduleEnd();
   }
 
   hasActiveTurn(): boolean {
@@ -207,17 +322,65 @@ export class KimiSessionProjector {
   }
 
   activePromptId(): string | null {
-    return this.activeTurn?.promptId ?? null;
+    return this.activeTurn?.nativePromptId ?? null;
   }
 
   activeGianTurnId(): string | null {
     return this.activeTurn?.gianTurnId ?? null;
   }
 
+  activeNativeGeneration(): number | null {
+    return this.activeTurn === null ? null : this.nativeTurnGeneration;
+  }
+
   /** Claim resolution through REST. A native WS resolution may already
    *  have won; only the caller that removes pending emits a terminal fact. */
-  resolveInteraction(interactionId: string): boolean {
-    return this.pendingInteractions.delete(interactionId);
+  resolveInteraction(interactionId: string, questionOutcome: 'succeeded' | 'cancelled' = 'succeeded'): boolean {
+    const pending = this.pendingInteractions.get(interactionId);
+    const removed = this.pendingInteractions.delete(interactionId);
+    if (removed) {
+      this.stateRevision += 1;
+      this.resetReconciliation();
+      this.invalidateIdleSignal();
+      if (pending?.kind === 'question') this.settleQuestionTask(pending, questionOutcome);
+      this.scheduleEnd();
+    }
+    return removed;
+  }
+
+  private toolActivityId(toolCallId: string, turn: ActiveTurn): string {
+    const key = `${turn.nativeTurnId}\0${toolCallId}`;
+    const existing = this.toolActivities.get(key);
+    if (existing !== undefined) return existing;
+    const reused = this.seenToolIds.has(toolCallId);
+    if (reused) this.ambiguousToolIds.add(toolCallId);
+    const id = reused ? `native:${turn.nativeTurnId}:${toolCallId}` : toolCallId;
+    this.seenToolIds.add(toolCallId);
+    this.toolActivities.set(key, id);
+    return id;
+  }
+
+  private invalidateIdleSignal(): void {
+    if (this.nativeBusy === false) {
+      this.nativeBusy = null;
+      this.idleSignalRequired = true;
+    }
+  }
+
+  private resetReconciliation(): void {
+    this.reconcileFailures = 0;
+    this.reconcilePaused = false;
+    this.reconcileDelayMs = this.baseReconcileMs;
+  }
+
+  private resumeIdleFinalization(): void {
+    const attempt = this.finalization;
+    if (attempt === null || !attempt.resumable || this.activeTurn !== attempt.turn) return;
+    this.finalization = null;
+    this.pendingEnd = { turn: attempt.turn, reason: attempt.reason };
+    this.nativeBusy = true;
+    this.idleSignalRequired = false;
+    this.facetsAborted = false;
   }
 
   private frameParams(source: unknown, turn: ActiveTurn | null): Record<string, unknown> {
@@ -257,18 +420,94 @@ export class KimiSessionProjector {
       if (frame.seq <= this.lastSeq) return false;
       this.lastSeq = frame.seq;
     }
+    this.stateRevision += 1;
     const payload = frame.payload;
     const agentId = typeof payload.agentId === 'string' ? payload.agentId : 'main';
     const turn = this.activeTurn;
+    if (frame.type === 'event.session.work_changed') {
+      if (turn !== null && !this.terminalSent && typeof payload.busy === 'boolean') {
+        if (payload.busy || payload.main_turn_active === true
+          || payload.pending_interaction === 'approval' || payload.pending_interaction === 'question') {
+          this.resumeIdleFinalization();
+        }
+        this.nativeBusy = payload.busy || payload.main_turn_active === true
+          || payload.pending_interaction === 'approval' || payload.pending_interaction === 'question';
+        this.idleSignalRequired = false;
+        this.resetReconciliation();
+        this.scheduleEnd();
+      }
+      return true;
+    }
+    // Session usage remains meaningful without an active turn, but no other
+    // turn-scoped event may outlive the binding that owns it.
+    if ((turn === null || this.terminalSent) && frame.type !== 'agent.status.updated') return true;
+    const nativeTurnId = typeof payload.turnId === 'number' ? payload.turnId
+      : typeof payload.turn_id === 'number' ? payload.turn_id : null;
+    const nativePromptId = typeof payload.promptId === 'string' ? payload.promptId
+      : typeof payload.prompt_id === 'string' ? payload.prompt_id : null;
+    const lifecycle = /^(subagent\.|task\.|background\.task\.)/.test(frame.type);
+    const interaction = /^event\.(approval|question)\./.test(frame.type);
+    if (turn !== null && !this.terminalSent && frame.type !== 'turn.started') {
+      if (lifecycle) {
+        if (agentId !== 'main' && this.subagentOwners.get(agentId) !== turn.gianTurnId) return true;
+        if (nativeTurnId !== null && !turn.nativeTurnIds.has(nativeTurnId)) return true;
+      } else if (interaction) {
+        if (nativeTurnId !== null && !turn.nativeTurnIds.has(nativeTurnId)) return true;
+        const toolCallId = typeof payload.tool_call_id === 'string' ? payload.tool_call_id : null;
+        if (toolCallId !== null && toolCallId !== '' && !this.ownedToolCalls.has(toolCallId)
+          && nativeTurnId === null && (nativePromptId === null || !turn.nativePromptIds.has(nativePromptId))) return true;
+        const approvalId = typeof payload.approval_id === 'string' ? `apr:${payload.approval_id}` : '';
+        const questionId = typeof payload.question_id === 'string' ? `q:${payload.question_id}` : '';
+        if (!this.acceptingNativeTurn && !this.pendingInteractions.has(approvalId)
+          && !this.pendingInteractions.has(questionId)) return true;
+      } else if (frame.type !== 'agent.status.updated') {
+        if (!this.acceptingNativeTurn) return true;
+        if (nativeTurnId !== null && turn.nativeTurnId !== null && nativeTurnId !== turn.nativeTurnId) return true;
+        if (nativePromptId !== null && !turn.nativePromptIds.has(nativePromptId)) return true;
+        if (nativeTurnId === null && nativePromptId !== null && this.nativeTurnGeneration > 0
+          && nativePromptId !== turn.nativePromptId) return true;
+      }
+    }
 
     switch (frame.type) {
       case 'turn.started': {
         if (agentId !== 'main' || turn === null) return true;
-        if (typeof payload.turnId === 'number') turn.nativeTurnId = payload.turnId;
+        const origin = payload.origin as { kind?: unknown; taskId?: unknown } | undefined;
+        if (origin?.kind === 'task') {
+          const taskId = typeof origin.taskId === 'string' ? origin.taskId : '';
+          if (this.taskOwners.get(taskId) !== turn.gianTurnId && this.subagentOwners.get(taskId) !== turn.gianTurnId) {
+            this.acceptingNativeTurn = false;
+            return true;
+          }
+          this.resumeIdleFinalization();
+          this.clearEndTimer();
+          this.clearReconcileTimer();
+          this.pendingEnd = null;
+          this.nativeBusy = true;
+          this.idleSignalRequired = false;
+          this.nativeTurnGeneration += 1;
+          this.lastError = null;
+          this.contentStep += 1;
+          turn.nativePromptId = nativePromptId;
+          if (nativePromptId !== null) turn.nativePromptIds.add(nativePromptId);
+        } else if ((!this.acceptingNativeTurn && nativePromptId === null)
+          || (nativePromptId !== null && nativePromptId !== turn.promptId)
+          || (turn.nativeTurnId !== null && nativeTurnId !== null && nativeTurnId !== turn.nativeTurnId)) {
+          this.acceptingNativeTurn = false;
+          return true;
+        } else {
+          turn.nativePromptId = nativePromptId ?? turn.promptId;
+        }
+        this.acceptingNativeTurn = true;
+        if (nativeTurnId !== null) {
+          turn.nativeTurnId = nativeTurnId;
+          turn.nativeTurnIds.add(nativeTurnId);
+        }
         return true;
       }
       case 'turn.step.started': {
         if (agentId !== 'main') return true;
+        this.resumeIdleFinalization();
         this.contentStep += 1;
         return true;
       }
@@ -284,6 +523,7 @@ export class KimiSessionProjector {
           if (offset < open.stepLength) return true;
           if (offset > open.stepLength) open.stepLength = offset;
         }
+        if (delta !== '') this.resumeIdleFinalization();
         this.openContent.set(contentId, open);
         if (delta === '') return true;
         const position = offset ?? this.unoffsetDelta++;
@@ -296,22 +536,32 @@ export class KimiSessionProjector {
         if (agentId !== 'main' || turn === null) return true;
         const toolCallId = typeof payload.toolCallId === 'string' ? payload.toolCallId : '';
         if (toolCallId === '') return true;
+        const toolKey = `${turn.nativeTurnId}\0${toolCallId}`;
+        if (this.toolStates.has(toolKey)) return true;
+        this.resumeIdleFinalization();
+        this.toolStates.set(toolKey, 'running');
+        const previousOwner = this.toolOwners.get(toolCallId);
+        if (previousOwner !== undefined && previousOwner !== turn.gianTurnId) this.ambiguousToolIds.add(toolCallId);
+        this.toolOwners.set(toolCallId, turn.gianTurnId);
+        this.ownedToolCalls.add(toolCallId);
+        const activityId = this.toolActivityId(toolCallId, turn);
+        this.lastToolActivity.set(toolCallId, activityId);
         const name = typeof payload.name === 'string' ? payload.name : 'tool';
         const display = (payload.display ?? undefined) as KimiToolDisplay | undefined;
         if (display?.kind === 'todo_list' && Array.isArray(display.items)) {
-          this.emitPlan(toolCallId, display.items);
+          this.emitPlan(activityId, display.items);
         } else if (display?.kind === 'plan_review' && typeof display.plan === 'string') {
-          this.emitPlanReview(toolCallId, display);
+          this.emitPlanReview(activityId, display);
         }
         const projected = projectToolCall(name, display, payload.args);
-        this.openActivities.set(toolCallId, {
+        this.openActivities.set(activityId, {
           name,
           input: payload.args,
           title: projected.title,
           presentation: projected.presentation,
         });
-        this.emitTurn('activity.updated', [toolCallId, 'activity:running'], {
-          activityId: toolCallId,
+        this.emitTurn('activity.updated', [activityId, 'activity:running'], {
+          activityId,
           kind: `tool:${name}`,
           title: projected.title,
           status: 'running',
@@ -324,15 +574,23 @@ export class KimiSessionProjector {
         if (agentId !== 'main' || turn === null) return true;
         const toolCallId = typeof payload.toolCallId === 'string' ? payload.toolCallId : '';
         if (toolCallId === '') return true;
-        const open = this.openActivities.get(toolCallId);
-        const name = open?.name ?? 'tool';
-        this.openActivities.delete(toolCallId);
-        const presentation = open?.presentation ?? projectToolCall(name, undefined, open?.input).presentation;
+        if (nativeTurnId === null && nativePromptId === null && this.ambiguousToolIds.has(toolCallId)) return true;
+        const toolKey = `${turn.nativeTurnId}\0${toolCallId}`;
+        if (this.toolStates.get(toolKey) !== 'running') return true;
+        const activityId = this.toolActivities.get(toolKey);
+        if (activityId === undefined) return true;
+        const open = this.openActivities.get(activityId);
+        if (open === undefined) return true;
+        this.resumeIdleFinalization();
+        this.toolStates.set(toolKey, 'ended');
+        const name = open.name;
+        this.openActivities.delete(activityId);
+        const presentation = open.presentation ?? projectToolCall(name, undefined, open.input).presentation;
         const data: Record<string, unknown> = { ...presentation.data, output: payload.output ?? null };
-        this.emitTurn('activity.updated', [toolCallId, 'activity:terminal'], {
-          activityId: toolCallId,
+        this.emitTurn('activity.updated', [activityId, 'activity:terminal'], {
+          activityId,
           kind: `tool:${name}`,
-          title: open?.title ?? name,
+          title: open.title ?? name,
           status: payload.isError === true ? 'failed' : 'succeeded',
           ...(typeof payload.output === 'string' ? { summary: payload.output } : {}),
           presentation: { type: presentation.type, data },
@@ -349,9 +607,10 @@ export class KimiSessionProjector {
         this.lastUsageFingerprint = fingerprint;
         const conversation = projectKimiCumulativeUsage(rawTotal);
         if (conversation) {
-          this.emitTurn('usage.updated', ['usage', turn?.promptId ?? '', fingerprint], {
+          const usageTurn = this.terminalSent || !this.acceptingNativeTurn ? null : turn;
+          this.emitTurn('usage.updated', ['usage', usageTurn?.promptId ?? '', fingerprint], {
             conversation,
-          }, turn);
+          }, usageTurn);
         }
         return true;
       }
@@ -392,6 +651,7 @@ export class KimiSessionProjector {
         if (approvalId === '' || turn === null) return true;
         const interactionId = `apr:${approvalId}`;
         if (this.pendingInteractions.has(interactionId)) return true;
+        this.resumeIdleFinalization();
         this.pendingInteractions.set(interactionId, {
           interactionId,
           kind: 'approval',
@@ -421,11 +681,14 @@ export class KimiSessionProjector {
         const approvalId = typeof payload.approval_id === 'string' ? payload.approval_id : '';
         const interactionId = `apr:${approvalId}`;
         if (approvalId === '' || !this.pendingInteractions.delete(interactionId)) return true;
+        this.resetReconciliation();
+        this.invalidateIdleSignal();
         // Resolved elsewhere (expired/another client): report honestly.
         this.emitTurn('interaction.resolved', [approvalId, 'interaction.resolved:external'], {
           interactionId,
           outcome: 'cancelled',
         }, turn);
+        this.scheduleEnd();
         return true;
       }
       case 'event.question.requested': {
@@ -435,6 +698,7 @@ export class KimiSessionProjector {
         if (this.pendingInteractions.has(interactionId)) return true;
         const questions = Array.isArray(payload.questions) ? payload.questions as Array<Record<string, unknown>> : [];
         if (questions.length === 0) return true;
+        this.resumeIdleFinalization();
         const inputs = questions.map((question, index) => {
           const options = Array.isArray(question.options) ? question.options as Array<Record<string, unknown>> : [];
           // Interaction choices have only value/displayName in the shared
@@ -466,6 +730,8 @@ export class KimiSessionProjector {
           kind: 'question',
           nativeId: questionId,
           turnId: turn.gianTurnId,
+          ...(typeof payload.tool_call_id === 'string' && payload.tool_call_id !== ''
+            ? { toolCallId: payload.tool_call_id } : {}),
           inputs: inputs.map((input) => ({ id: input.id, type: input.type })),
         });
         this.emitTurn('interaction.requested', [questionId, 'interaction.requested'], {
@@ -485,11 +751,18 @@ export class KimiSessionProjector {
       case 'event.question.dismissed': {
         const questionId = typeof payload.question_id === 'string' ? payload.question_id : '';
         const interactionId = `q:${questionId}`;
+        const pending = this.pendingInteractions.get(interactionId);
         if (questionId === '' || !this.pendingInteractions.delete(interactionId)) return true;
+        this.resetReconciliation();
+        this.invalidateIdleSignal();
+        if (pending !== undefined) {
+          this.settleQuestionTask(pending, frame.type === 'event.question.answered' ? 'succeeded' : 'cancelled');
+        }
         this.emitTurn('interaction.resolved', [questionId, 'interaction.resolved:external'], {
           interactionId,
           outcome: 'cancelled',
         }, turn);
+        this.scheduleEnd();
         return true;
       }
       case 'prompt.steered': {
@@ -528,7 +801,11 @@ export class KimiSessionProjector {
       }
       case 'turn.ended': {
         if (agentId !== 'main' || turn === null) return true;
-        if (typeof payload.turnId === 'number') turn.nativeTurnId = payload.turnId;
+        if (turn.nativeTurnId === null && nativeTurnId !== null) {
+          turn.nativeTurnId = nativeTurnId;
+          turn.nativeTurnIds.add(nativeTurnId);
+        }
+        turn.nativePromptId = null;
         const reason = typeof payload.reason === 'string' ? payload.reason : 'completed';
         if (payload.error !== undefined && payload.error !== null) {
           const error = payload.error as KimiErrorLike;
@@ -538,12 +815,12 @@ export class KimiSessionProjector {
             retryable: error.retryable === true || this.lastError?.retryable === true,
           };
         }
-        // Defer the terminal finalization to a macrotask: the REST facets
-        // (final usage, file diff) must never interleave with the synchronous
-        // projection of frames that are still in flight on the wire.
-        setTimeout(() => {
-          void this.finalizeTurn(reason).catch(() => undefined);
-        }, 0);
+        if (this.finalization?.resumable && this.finalization.turn === turn) {
+          this.finalization.reason = reason;
+          return true;
+        }
+        this.pendingEnd = { turn, reason };
+        this.scheduleEnd();
         return true;
       }
       default:
@@ -551,10 +828,42 @@ export class KimiSessionProjector {
     }
   }
 
-  private emitSubagent(frame: { seq: number }, payload: Record<string, unknown>, state: 'running' | 'succeeded' | 'failed' | 'cancelled'): void {
+  private emitSubagent(frame: KimiProjectedFrame, payload: Record<string, unknown>, state: 'running' | 'succeeded' | 'failed' | 'cancelled'): void {
+    const turn = this.activeTurn;
+    if (turn === null || this.terminalSent) return;
     const subagentId = typeof payload.subagentId === 'string' ? payload.subagentId : '';
     if (subagentId === '') return;
-    if (state === 'running' && this.openActivities.has(`agent:${subagentId}`)) return;
+    const owner = this.subagentOwners.get(subagentId);
+    if (owner !== undefined && owner !== turn.gianTurnId) return;
+    if (state === 'running') {
+      const previous = this.subagentStates.get(subagentId);
+      if (previous !== undefined && (previous !== 'suspended' || frame.type !== 'subagent.started')) return;
+      const parent = typeof payload.parentToolCallId === 'string' ? payload.parentToolCallId : null;
+      const nativeTurnId = typeof payload.turnId === 'number' ? payload.turnId : null;
+      const agentId = typeof payload.agentId === 'string' ? payload.agentId : 'main';
+      const belongsToTurn = this.acceptingNativeTurn && (
+        (previous === 'suspended' && owner === turn.gianTurnId)
+        || (parent !== null && this.ownedToolCalls.has(parent)
+          && (nativeTurnId !== null || !this.ambiguousToolIds.has(parent)))
+        || (nativeTurnId !== null && nativeTurnId === turn.nativeTurnId)
+        || this.subagentOwners.get(agentId) === turn.gianTurnId
+      );
+      if (!belongsToTurn) return;
+      this.resumeIdleFinalization();
+      this.resetReconciliation();
+      this.subagentOwners.set(subagentId, turn.gianTurnId);
+      this.subagentStates.set(subagentId, 'running');
+      if (parent !== null) {
+        this.subagentParents.set(subagentId, this.lastToolActivity.get(parent) ?? parent);
+      }
+    } else {
+      const previous = this.subagentStates.get(subagentId);
+      if (owner !== turn.gianTurnId || previous === undefined || previous === 'ended') return;
+      if (frame.type === 'subagent.suspended' && previous !== 'running') return;
+      this.subagentStates.set(subagentId, frame.type === 'subagent.suspended' ? 'suspended' : 'ended');
+      this.resetReconciliation();
+      this.invalidateIdleSignal();
+    }
     if (state !== 'running') this.openActivities.delete(`agent:${subagentId}`);
     else this.openActivities.set(`agent:${subagentId}`, { name: 'subagent', input: undefined });
     const title = typeof payload.description === 'string' && payload.description !== ''
@@ -571,23 +880,60 @@ export class KimiSessionProjector {
         data: {
           agentId: subagentId,
           state: gianState,
-          ...(typeof payload.parentToolCallId === 'string' ? { parentToolCallId: payload.parentToolCallId } : {}),
+          ...(this.subagentParents.has(subagentId) ? { parentToolCallId: this.subagentParents.get(subagentId) } : {}),
           ...(typeof payload.subagentName === 'string' ? { subagentType: payload.subagentName } : {}),
           ...(state === 'succeeded' && typeof payload.resultSummary === 'string' ? { summary: payload.resultSummary } : {}),
           ...(state === 'failed' && typeof payload.error === 'string' ? { summary: payload.error } : {}),
         },
       },
-    }, this.activeTurn);
+    }, turn);
+    this.scheduleEnd();
   }
 
-  private emitTask(frame: { seq: number }, info: Record<string, unknown>, status: 'running' | 'succeeded' | 'failed' | 'cancelled'): void {
+  private settleQuestionTask(pending: PendingInteractionState, outcome: 'succeeded' | 'cancelled'): void {
+    if (pending.toolCallId === undefined) return;
+    for (const [taskId, info] of this.taskInfo) {
+      if (info.kind !== 'question' || info.toolCallId !== pending.toolCallId || this.taskStates.get(taskId) !== 'running') continue;
+      this.emitTask({ type: 'question.resolved', seq: this.lastSeq, payload: {} }, info, outcome,
+        ['question-task', pending.interactionId, taskId, outcome]);
+    }
+  }
+
+  private emitTask(frame: KimiProjectedFrame, info: Record<string, unknown>, status: 'running' | 'succeeded' | 'failed' | 'cancelled', source?: unknown): void {
+    const turn = this.activeTurn;
+    if (turn === null || this.terminalSent) return;
     const taskId = typeof info.taskId === 'string' ? info.taskId : '';
     if (taskId === '') return;
+    const owner = this.taskOwners.get(taskId);
+    if (owner !== undefined && owner !== turn.gianTurnId) return;
+    if (status === 'running') {
+      if (this.taskStates.has(taskId)) return;
+      const parent = typeof info.parentToolCallId === 'string' ? info.parentToolCallId
+        : typeof info.toolCallId === 'string' ? info.toolCallId : null;
+      const nativeTurnId = typeof frame.payload.turnId === 'number' ? frame.payload.turnId : null;
+      const agentId = typeof frame.payload.agentId === 'string' ? frame.payload.agentId : 'main';
+      const belongsToTurn = this.acceptingNativeTurn && (
+        (parent !== null && this.ownedToolCalls.has(parent)
+          && (nativeTurnId !== null || !this.ambiguousToolIds.has(parent)))
+        || (nativeTurnId !== null && nativeTurnId === turn.nativeTurnId)
+        || this.subagentOwners.get(agentId) === turn.gianTurnId
+      );
+      if (!belongsToTurn) return;
+      this.resumeIdleFinalization();
+      this.resetReconciliation();
+      this.taskOwners.set(taskId, turn.gianTurnId);
+      this.taskStates.set(taskId, 'running');
+      this.taskInfo.set(taskId, info);
+    } else {
+      if (owner !== turn.gianTurnId || this.taskStates.get(taskId) !== 'running') return;
+      this.taskStates.set(taskId, 'ended');
+      this.resetReconciliation();
+      this.invalidateIdleSignal();
+    }
     const activityId = `task:${taskId}`;
-    if (status === 'running' && this.openActivities.has(activityId)) return;
     if (status !== 'running') this.openActivities.delete(activityId);
     else this.openActivities.set(activityId, { name: 'task', input: undefined });
-    this.emitTurn('activity.updated', [frame.seq, 'task', taskId], {
+    this.emitTurn('activity.updated', source ?? [frame.seq, 'task', taskId], {
       activityId,
       kind: `task:${typeof info.kind === 'string' ? info.kind : 'process'}`,
       title: typeof info.description === 'string' && info.description !== '' ? info.description : taskId,
@@ -599,7 +945,140 @@ export class KimiSessionProjector {
           state: status === 'running' ? 'running' : status === 'succeeded' ? 'completed' : status === 'failed' ? 'failed' : 'interrupted',
         },
       },
-    }, this.activeTurn);
+    }, turn);
+    this.scheduleEnd();
+  }
+
+  private clearEndTimer(): void {
+    if (this.endTimer !== null) clearTimeout(this.endTimer);
+    this.endTimer = null;
+  }
+
+  private clearReconcileTimer(): void {
+    if (this.reconcileTimer !== null) clearTimeout(this.reconcileTimer);
+    this.reconcileTimer = null;
+  }
+
+  private emitReconcileNotice(turn: ActiveTurn, message: string): void {
+    if (this.reconcileNoticeSent || this.activeTurn !== turn || this.terminalSent) return;
+    this.reconcileNoticeSent = true;
+    this.emitTurn('activity.updated', ['work-reconciliation', turn.promptId], {
+      activityId: `work-reconciliation:${sha16(turn.promptId)}`,
+      kind: 'kimi:work-reconciliation',
+      title: 'Native work status requires attention',
+      status: 'failed',
+      summary: message,
+      presentation: { type: 'notice', data: { message } },
+    }, turn);
+  }
+
+  private scheduleReconciliation(): void {
+    const pending = this.pendingEnd;
+    if (pending === null || this.services.reconcileWork === undefined || this.reconcilePaused
+      || this.reconcileTimer !== null || this.reconciling || this.terminalSent
+      || this.interruptPending || this.fencePending) return;
+    const timer = setTimeout(() => {
+      if (this.reconcileTimer !== timer) return;
+      this.reconcileTimer = null;
+      void this.reconcilePendingWork(pending.turn, this.lastSeq, this.stateRevision);
+    }, this.reconcileDelayMs);
+    timer.unref();
+    this.reconcileTimer = timer;
+  }
+
+  private async reconcilePendingWork(turn: ActiveTurn, expectedSeq: number, expectedRevision: number): Promise<void> {
+    if (this.services.reconcileWork === undefined || this.activeTurn !== turn || this.pendingEnd?.turn !== turn) return;
+    this.reconciling = true;
+    try {
+      const snapshot = await this.services.reconcileWork({
+        tasks: [...this.taskStates.values()].includes('running'),
+        questions: [...this.pendingInteractions.values()].some((item) => item.kind === 'question'),
+        approvals: [...this.pendingInteractions.values()].some((item) => item.kind === 'approval'),
+      });
+      if (this.activeTurn !== turn || this.pendingEnd?.turn !== turn || this.terminalSent
+        || this.interruptPending || this.fencePending || this.lastSeq !== expectedSeq || this.stateRevision !== expectedRevision) return;
+      if (snapshot === null || snapshot.lastSeq !== expectedSeq) {
+        this.reconcileFailures += 1;
+        if (this.reconcileFailures >= RECONCILE_FAILURE_LIMIT) {
+          this.reconcilePaused = true;
+          this.emitReconcileNotice(turn, 'Native work status could not be confirmed. The turn remains open; no work was resent or cancelled.');
+        }
+        return;
+      }
+      this.reconcileFailures = 0;
+      for (const item of snapshot.tasks) {
+        if (this.taskStates.get(item.id) !== 'running' || item.status === 'running') continue;
+        const info = this.taskInfo.get(item.id);
+        if (info === undefined) continue;
+        const status = item.status === 'completed' ? 'succeeded' : item.status === 'failed' ? 'failed' : 'cancelled';
+        this.emitTask({ type: 'task.reconciled', seq: expectedSeq, payload: {} }, info, status,
+          ['task-reconciled', item.id, item.status]);
+      }
+      for (const pending of this.pendingInteractions.values()) {
+        const listed = pending.kind === 'question' ? snapshot.questions : snapshot.approvals;
+        if (!listed.includes(pending.nativeId)) {
+          this.emitReconcileNotice(turn, 'The native server no longer lists an interaction, but its outcome is unknown. No answer was sent.');
+          break;
+        }
+      }
+      this.nativeBusy = snapshot.busy || snapshot.mainTurnActive || snapshot.pendingInteraction !== 'none'
+        || snapshot.questions.length > 0 || snapshot.approvals.length > 0;
+      this.idleSignalRequired = false;
+      this.scheduleEnd();
+    } catch {
+      if (this.activeTurn === turn && this.pendingEnd?.turn === turn
+        && this.lastSeq === expectedSeq && this.stateRevision === expectedRevision) {
+        this.reconcileFailures += 1;
+        if (this.reconcileFailures >= RECONCILE_FAILURE_LIMIT) {
+          this.reconcilePaused = true;
+          this.emitReconcileNotice(turn, 'Native work status could not be confirmed. The turn remains open; no work was resent or cancelled.');
+        }
+      }
+    } finally {
+      this.reconciling = false;
+      if (this.activeTurn === turn) this.reconcileDelayMs = Math.min(RECONCILE_MAX_MS, this.reconcileDelayMs * 2);
+      this.scheduleReconciliation();
+    }
+  }
+
+  private scheduleEnd(): void {
+    const pending = this.pendingEnd;
+    if (pending === null || this.endTimer !== null || this.finalization !== null) return;
+    const timer = setTimeout(() => {
+      if (this.endTimer !== timer) return;
+      this.endTimer = null;
+      const latest = this.pendingEnd;
+      if (latest === null || latest.turn !== pending.turn || this.activeTurn !== pending.turn || this.terminalSent) return;
+      if (this.nativeBusy === true || this.interruptPending || this.fencePending || this.pendingInteractions.size > 0
+        || [...this.taskStates.values()].includes('running') || [...this.subagentStates.values()].some((state) => state !== 'ended')) {
+        this.scheduleReconciliation();
+        return;
+      }
+      // A task can schedule another native turn after its own terminal event.
+      // Without an authoritative idle signal, do not guess that the session
+      // is finished merely because all currently observed tasks have ended.
+      if (this.nativeBusy === null && (this.idleSignalRequired || this.taskStates.size > 0 || this.subagentStates.size > 0)) {
+        this.scheduleReconciliation();
+        return;
+      }
+      void this.finalizeTurn(latest.reason, true).catch(() => undefined);
+    }, 0);
+    this.endTimer = timer;
+  }
+
+  private finishFinalization(turn: ActiveTurn): void {
+    if (this.activeTurn !== turn) return;
+    this.clearEndTimer();
+    this.clearReconcileTimer();
+    this.pendingEnd = null;
+    this.finalization = null;
+    this.activeTurn = null;
+    this.nativeBusy = null;
+    this.idleSignalRequired = false;
+    this.acceptingNativeTurn = false;
+    this.interruptPending = false;
+    this.fencePending = false;
+    this.services.onFinalized?.(turn.gianTurnId);
   }
 
   private emitPlan(toolCallId: string, items: Array<{ title: string; status: string }>): void {
@@ -614,7 +1093,6 @@ export class KimiSessionProjector {
     const fingerprint = JSON.stringify(steps);
     if (fingerprint === this.lastPlanFingerprint) return;
     this.lastPlanFingerprint = fingerprint;
-    // A plan can return to earlier content; the native call identifies the new update.
     this.emitTurn('plan.updated', ['plan', toolCallId], {
       planId: `kimi:todos:${this.services.nativeSessionId}`,
       title: 'Plan',
@@ -640,7 +1118,7 @@ export class KimiSessionProjector {
    *  When a finalization is already in flight its outcome is known and
    *  stands; this only expedites its optional facets. */
   async failTurn(message: string, retryable: boolean): Promise<void> {
-    if (this.terminalSent) {
+    if (this.terminalSent || this.finalization !== null) {
       this.facetsAborted = true;
       return;
     }
@@ -650,10 +1128,29 @@ export class KimiSessionProjector {
 
   /** Deterministic terminal finalization. Async facets (final usage, file
    *  diff) are fetched best-effort; failures skip the facet. */
-  async finalizeTurn(reason: string): Promise<void> {
-    if (this.terminalSent || this.activeTurn === null) return;
-    this.terminalSent = true;
+  async finalizeTurn(reason: string, resumable = false): Promise<void> {
+    if (this.terminalSent || this.finalization !== null || this.activeTurn === null) return;
     const turn = this.activeTurn;
+    const attempt = { turn, reason, resumable };
+    this.finalization = attempt;
+    this.clearEndTimer();
+    this.pendingEnd = null;
+
+    const facetDeadline = Date.now() + FINAL_FACET_BUDGET_MS;
+    const diffs: Array<{ nativeTurnId: number; value: NonNullable<Awaited<ReturnType<ProjectorServices['fileDiff']>>> }> = [];
+
+    // Consumption comes only from the existing stream. Do not query session
+    // metadata at finalization: its rollup can be a placeholder zero snapshot.
+    for (const nativeTurnId of turn.nativeTurnIds) {
+      if (this.facetsAborted || Date.now() >= facetDeadline) break;
+      const diff = await this.withFacetDeadline(this.services.fileDiff(nativeTurnId), facetDeadline);
+      if (this.activeTurn !== turn || this.finalization !== attempt) return;
+      if (diff !== null && !this.facetsAborted && (diff.diff !== '' || diff.files.length > 0)) {
+        diffs.push({ nativeTurnId, value: diff });
+      }
+    }
+    if (this.activeTurn !== turn || this.finalization !== attempt) return;
+    this.terminalSent = true;
 
     for (const [interactionId] of this.pendingInteractions) {
       this.emitTurn('interaction.resolved', [interactionId, 'resolved:turn_ended'], {
@@ -673,42 +1170,38 @@ export class KimiSessionProjector {
     this.openContent.clear();
 
     for (const [activityId, activity] of this.openActivities) {
+      const projectedActivityId = activity.name === 'subagent' && activityId.startsWith('agent:')
+        ? activityId.slice('agent:'.length) : activityId;
       const presentation = activity.presentation ?? {
         type: 'tool',
         data: { name: activity.name },
       };
-      this.emitTurn('activity.updated', [activityId, 'activity:finalizer'], {
-        activityId,
+      this.emitTurn('activity.updated', [projectedActivityId, 'activity:finalizer'], {
+        activityId: projectedActivityId,
         kind: `tool:${activity.name}`,
         title: activity.title ?? activity.name,
         status: turn.interruptAccepted ? 'cancelled' : 'failed',
+        ...(!turn.interruptAccepted && (activity.name === 'task' || activity.name === 'subagent')
+          ? { summary: 'The native activity outcome was not observed before the turn ended.' } : {}),
         presentation,
       }, turn);
     }
     this.openActivities.clear();
 
-    const facetDeadline = Date.now() + FINAL_FACET_BUDGET_MS;
-
-    // Consumption comes only from the existing stream. Do not query session
-    // metadata at finalization: its rollup can be a placeholder zero snapshot.
-
-    if (!this.facetsAborted && turn.nativeTurnId !== null) {
-      const diff = await this.withFacetDeadline(this.services.fileDiff(turn.nativeTurnId), facetDeadline);
-      if (diff !== null && !this.facetsAborted && (diff.diff !== '' || diff.files.length > 0)) {
-        this.emitTurn('diff.updated', ['diff', turn.nativeTurnId, sha16(diff.diff).slice(0, 8)], {
-          diffId: `turn-${turn.nativeTurnId}`,
-          diff: diff.diff,
-          truncated: diff.truncated,
-          ...(diff.files.length > 0 ? { files: diff.files } : {}),
-        }, turn);
-      }
+    for (const { nativeTurnId, value: diff } of diffs) {
+      this.emitTurn('diff.updated', ['diff', nativeTurnId, sha16(diff.diff).slice(0, 8)], {
+        diffId: `turn-${nativeTurnId}`,
+        diff: diff.diff,
+        truncated: diff.truncated,
+        ...(diff.files.length > 0 ? { files: diff.files } : {}),
+      }, turn);
     }
 
     const error = this.lastError;
-    if (reason === 'failed') {
+    if (attempt.reason === 'failed') {
       if (error?.code === 'loop.max_steps_exceeded') {
         this.emitTerminal('turn.completed', 'limit_reached', turn);
-        this.services.onFinalized?.();
+        this.finishFinalization(turn);
         return;
       }
       const domain = mapKimiErrorCode(error?.code);
@@ -725,21 +1218,21 @@ export class KimiSessionProjector {
           data: {
             error: {
               domainCode: domain,
-              message: error?.message ?? `Kimi turn ended with reason "${reason}".`,
+              message: error?.message ?? `Kimi turn ended with reason "${attempt.reason}".`,
               retryable: error?.retryable === true || domain === 'RUNTIME_AUTH_REQUIRED',
               details: error?.code !== undefined ? { nativeCode: error.code } : {},
             },
           },
         },
       });
-      this.services.onFinalized?.();
+      this.finishFinalization(turn);
       return;
     }
-    const stopReason = reason === 'cancelled'
+    const stopReason = attempt.reason === 'cancelled'
       ? (turn.interruptAccepted ? 'interrupted' : 'cancelled')
-      : reason === 'blocked' ? 'other' : 'completed';
+      : attempt.reason === 'blocked' ? 'other' : 'completed';
     this.emitTerminal('turn.completed', stopReason, turn);
-    this.services.onFinalized?.();
+    this.finishFinalization(turn);
   }
 
   /** Optional terminal facets never delay the terminal itself: the shared

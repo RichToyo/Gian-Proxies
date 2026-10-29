@@ -78,6 +78,7 @@ const state = {
   sessions: new Map(), // id -> {info, messages, busy, activePrompt, turnCounter, childOf}
   approvals: new Map(), // id -> {record, decision}
   questions: new Map(),
+  tasks: new Map(), // session and task identity -> current native status
   models: scenario.models ?? [],
   defaultModel: scenario.default_model ?? null,
   wsClients: new Set(),
@@ -124,7 +125,7 @@ for (const seed of scenario.sessions ?? []) {
     info,
     messages: seed.messages ?? [],
     live: false,
-    busy: false,
+    busy: info.busy === true,
     activePrompt: null,
     turnCounter: 0,
     childOf: seed.childOf ?? null,
@@ -149,6 +150,13 @@ const promptTimers = new Map();
 function emitFrame(sessionId, type, payload, options = {}) {
   const session = state.sessions.get(sessionId);
   if (!session) return;
+  if (['task.started', 'background.task.started', 'task.terminated', 'background.task.terminated'].includes(type)
+    && typeof payload.info?.taskId === 'string') {
+    const info = payload.info;
+    const raw = info.status ?? (type.endsWith('.started') ? 'running' : 'completed');
+    const status = raw === 'timed_out' || raw === 'lost' ? 'failed' : raw === 'killed' ? 'cancelled' : raw;
+    state.tasks.set(`${sessionId}\0${info.taskId}`, { id: info.taskId, session_id: sessionId, status });
+  }
   // Kimi 2.1.1 volatile frames reuse the current durable seq instead of
   // calling nextSeq(). reuseSeq models that; the default still increments.
   if (options.reuseSeq !== true) session.info.last_seq += 1;
@@ -197,11 +205,37 @@ function scheduleScript(sessionId, script, promptId) {
         log({ kind: 'ws-disconnect', sessionId });
         return;
       }
+      if (step.op === 'set-work-state') {
+        if (typeof step.busy === 'boolean') session.busy = step.busy;
+        if (typeof step.mainTurnActive === 'boolean') session.info.main_turn_active = step.mainTurnActive;
+        if (typeof step.pendingInteraction === 'string') session.info.pending_interaction = step.pendingInteraction;
+        for (const [taskId, status] of Object.entries(step.taskStatuses ?? {})) {
+          const key = `${sessionId}\0${taskId}`;
+          const task = state.tasks.get(key);
+          if (task) state.tasks.set(key, { ...task, status });
+        }
+        log({ kind: 'work-state-set', sessionId });
+        return;
+      }
       if (step.type === 'turn.ended') {
         session.busy = false;
         session.activePrompt = null;
         session.info.main_turn_active = false;
         session.info.last_turn_reason = step.payload?.reason ?? 'completed';
+      }
+      if (step.type === 'turn.started' && step.payload?.origin?.kind === 'task') {
+        session.busy = true;
+        session.info.main_turn_active = true;
+        session.activePrompt = typeof step.payload.promptId === 'string' ? step.payload.promptId : null;
+        if (session.activePrompt !== null) {
+          session.turnIdByPrompt.set(session.activePrompt, step.payload.turnId ?? turnId);
+          promptTimers.set(`${sessionId}\0${session.activePrompt}`, ownedTimers);
+        }
+      }
+      if (step.type === 'event.session.work_changed') {
+        if (typeof step.payload?.busy === 'boolean') session.busy = step.payload.busy;
+        if (typeof step.payload?.main_turn_active === 'boolean') session.info.main_turn_active = step.payload.main_turn_active;
+        if (typeof step.payload?.pending_interaction === 'string') session.info.pending_interaction = step.payload.pending_interaction;
       }
       if (step.type === 'event.approval.requested') {
         state.approvals.set(step.payload.approval_id, {
@@ -217,7 +251,9 @@ function scheduleScript(sessionId, script, promptId) {
           note: null,
         });
       }
-      emitFrame(sessionId, step.type, { promptId, turnId, ...(step.payload ?? {}) }, {
+      const payload = { promptId, turnId, ...(step.payload ?? {}) };
+      if (step.omitPromptId === true) delete payload.promptId;
+      emitFrame(sessionId, step.type, payload, {
         volatile: step.volatile === true,
         reuseSeq: step.reuseSeq === true,
         offset: step.offset,
@@ -235,6 +271,7 @@ function abortScript(sessionId, promptId) {
   const session = state.sessions.get(sessionId);
   if (!session) return false;
   const turnId = session.turnIdByPrompt.get(promptId);
+  if (turnId === undefined) return false;
   for (const timer of promptTimers.get(`${sessionId}\0${promptId}`) ?? []) {
     clearTimeout(timer);
     timers.delete(timer);
@@ -243,11 +280,9 @@ function abortScript(sessionId, promptId) {
   session.busy = false;
   session.activePrompt = null;
   session.info.main_turn_active = false;
-  if (turnId !== undefined) {
-    emitFrame(sessionId, 'turn.ended', { promptId, turnId, reason: 'cancelled' });
-    return true;
-  }
-  return false;
+  emitFrame(sessionId, 'turn.ended', { promptId, turnId, reason: 'cancelled' });
+  emitFrame(sessionId, 'event.session.work_changed', { busy: false, main_turn_active: false });
+  return true;
 }
 
 // ---- WS (minimal RFC6455 server) ----
@@ -413,7 +448,7 @@ function readBody(req) {
 }
 
 function sessionView(session) {
-  return { ...session.info };
+  return { ...session.info, busy: session.busy };
 }
 
 const server = http.createServer(async (req, res) => {
@@ -508,6 +543,11 @@ const server = http.createServer(async (req, res) => {
     if (sid !== null && !session) return fail(res, 40401, 'session not found');
 
     if (req.method === 'GET' && path === `/api/v1/sessions/${sid}`) return ok(res, sessionView(session));
+    if (req.method === 'GET' && path === `/api/v1/sessions/${sid}/tasks`) {
+      const items = [...state.tasks.values()].filter((item) => item.session_id === sid);
+      return ok(res, { items: scenario.behavior?.reconcileTaskSessionMismatch
+        ? items.map((item) => ({ ...item, session_id: 'session_foreign' })) : items });
+    }
     if (req.method === 'POST' && path === `/api/v1/sessions/${sid}/profile`) {
       if (typeof body.title === 'string' && body.title !== '') session.info.title = body.title;
       return ok(res, sessionView(session));
@@ -573,8 +613,11 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && segments[4] === 'prompts' && segments[5] !== undefined && segments[6] === undefined) {
       if (segments[5].endsWith(':abort')) {
-        const bare = segments[5].replace(/:abort$/, '');
-        const aborted = abortScript(sid, bare);
+        const bare = decodeURIComponent(segments[5].replace(/:abort$/, ''));
+        const aborted = scenario.behavior?.abortDeclined === true ? false : abortScript(sid, bare);
+        if (scenario.behavior?.abortResponseDelayMs) {
+          await new Promise((resolve) => setTimeout(resolve, scenario.behavior.abortResponseDelayMs));
+        }
         return ok(res, { aborted, at_seq: session.info.last_seq });
       }
       return fail(res, 40402, 'unknown prompt action');

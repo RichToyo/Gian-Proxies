@@ -157,12 +157,12 @@ interface CordisAgentRegistry {
     inheritedEventCount?: number;
     seed?: readonly unknown[];
     agentOptions?: { provider?: string; model?: string };
-    setup?: (ctx: AnyContext) => void | Promise<void>;
+    setup?: (ctx: AnyContext, agent?: CordisAgent) => void | Promise<void>;
   }): Promise<CordisAgentHandle>;
   resume(options: {
     resumeSessionId: string;
     agentOptions?: { provider?: string; model?: string };
-    setup?: (ctx: AnyContext) => void | Promise<void>;
+    setup?: (ctx: AnyContext, agent?: CordisAgent) => void | Promise<void>;
   }): Promise<CordisAgentHandle>;
   isOwnedBy?(childId: string, owner: CordisAgent): boolean;
 }
@@ -566,7 +566,7 @@ export class CordisDshHost implements BridgeHost {
       };
       return typeof manifest.version === 'string' ? manifest.version : 'unknown';
     } catch {
-      // Profile bundles are symlinked into `$DSH_HOME/profiles/gian`. Node
+      // Profile bundles are symlinked into `$DSH_HOME/profiles/gian-<hash>`. Node
       // resolves this module from the bridge's real package path, so ordinary
       // package lookup cannot see the DSH launcher beside the profile. Recover
       // its version from the actual CLI entry instead.
@@ -1377,10 +1377,9 @@ export class CordisDshHost implements BridgeHost {
     }
     const presetId = freshResolvedPreset?.id;
     const selection: DshModelSelectionRef = { current: { provider, model } };
-    const setup = async (agentCtx: AnyContext) => {
+    const setup = async (agentCtx: AnyContext, scopedAgent?: CordisAgent) => {
       let setupPresetId = presetId;
       if (presets !== null && params.nativeSessionId !== undefined) {
-        const scopedAgent = agentCtx.agent;
         if (!scopedAgent) {
           throw new Error('RUNTIME_UNAVAILABLE: resumed DSH Agent is unavailable during setup');
         }
@@ -1484,9 +1483,8 @@ export class CordisDshHost implements BridgeHost {
       current: { provider: defaults.provider, model: defaults.model },
     };
     const presets = this.agentPresetsRuntime();
-    const setup = async (agentCtx: AnyContext) => {
+    const setup = async (agentCtx: AnyContext, scopedAgent?: CordisAgent) => {
       if (presets !== null) {
-        const scopedAgent = agentCtx.agent;
         if (!scopedAgent) {
           throw new Error('RUNTIME_UNAVAILABLE: resumed DSH Agent is unavailable during setup');
         }

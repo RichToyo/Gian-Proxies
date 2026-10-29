@@ -174,6 +174,37 @@ test('real Cordis host catalog projects registered providers, models, and DSH mo
   assert.deepEqual(mountedPresets, [], 'Catalog enumeration must not mount a preset');
 });
 
+test('a broken default preset fails with its native reason instead of falling back', async () => {
+  let createCalled = false;
+  const host = new CordisDshHost({
+    agents: {
+      create: async () => {
+        createCalled = true;
+        throw new Error('unreachable');
+      },
+    },
+    llm: {
+      listProviders: () => [{ id: 'deepseek-official' }],
+      listModels: async () => [{ id: 'deepseek-chat', provider: 'deepseek-official' }],
+    },
+    agentPresets: {
+      defaultId: 'standard',
+      list: async () => [{ id: 'standard', broken: 'missing native service' }, { id: 'minimal' }],
+      resolve: async (id?: string) => id === 'minimal'
+        ? { id: 'minimal' }
+        : { id: 'standard', broken: 'missing native service' },
+      mount: async () => ({ id: 'minimal' }),
+    },
+    on: () => () => true,
+  } as never, '0.1.9');
+
+  await assert.rejects(
+    () => host.sessionCreate({ sessionId: 'gian-broken-default', cwd: '/tmp', roots: ['/tmp'], config: {} }),
+    /DSH Agent preset standard is broken: missing native service/,
+  );
+  assert.equal(createCalled, false);
+});
+
 test('first Catalog waits for late latest-DSH Provider registration', async () => {
   const providers = [{ id: 'deepseek-official', name: 'DeepSeek' }];
   let catalogChanged: (() => void) | undefined;
@@ -209,7 +240,7 @@ test('real Cordis host resumes the exact authenticated Host-owned native session
   const mountedPresets: string[] = [];
   let createCalled = false;
   const nativeSessionId = 'session-owned-by-gian';
-  const agentContext = { on: () => () => true, agent: undefined as unknown };
+  const agentContext = { on: () => () => true };
   const agent = {
     id: nativeSessionId,
     status: 'idle' as const,
@@ -224,7 +255,6 @@ test('real Cordis host resumes the exact authenticated Host-owned native session
     followup: () => undefined,
     steer: () => undefined,
   };
-  agentContext.agent = agent;
   const host = new CordisDshHost({
     agents: {
       create: async () => {
@@ -233,7 +263,7 @@ test('real Cordis host resumes the exact authenticated Host-owned native session
       },
       resume: async (options: Record<string, unknown>) => {
         resumed.push(options);
-        (options.setup as ((ctx: unknown) => void) | undefined)?.(agentContext);
+        (options.setup as ((ctx: unknown, agent: unknown) => void) | undefined)?.(agentContext, agent);
         return { agent, dispose: async () => undefined };
       },
     },
@@ -286,7 +316,7 @@ test('Side Chat bridge resume reattaches an existing native child without creati
   const nativeSessionId = 'native-sidechat';
   const resumed: Array<Record<string, unknown>> = [];
   const mountedPresets: string[] = [];
-  const agentContext = { on: () => () => true, agent: undefined as unknown };
+  const agentContext = { on: () => () => true };
   const agent = {
     id: nativeSessionId,
     status: 'idle' as const,
@@ -301,13 +331,12 @@ test('Side Chat bridge resume reattaches an existing native child without creati
     followup: () => undefined,
     steer: () => undefined,
   };
-  agentContext.agent = agent;
   const host = new CordisDshHost({
     agents: {
       create: async () => assert.fail('Side Chat resume must not create a native session'),
       resume: async (options: Record<string, unknown>) => {
         resumed.push(options);
-        await (options.setup as ((ctx: unknown) => Promise<void>) | undefined)?.(agentContext);
+        await (options.setup as ((ctx: unknown, agent: unknown) => Promise<void>) | undefined)?.(agentContext, agent);
         return { agent, dispose: async () => undefined };
       },
     },

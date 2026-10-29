@@ -1,8 +1,8 @@
 /**
  * Bridge/1.0 JSON-RPC client + DSH child supervisor.
  *
- * The proxy spawns one shared DSH Host (a `gian` profile running
- * `@gian/dsh-bridge`) and speaks `gian.dsh.bridge/1.0` over its stdio.
+ * The proxy spawns one shared DSH Host per launch binding (a scoped Gian
+ * profile running `@gian/dsh-bridge`) and speaks `gian.dsh.bridge/1.0` over its stdio.
  *
  * The client does not interpret bridge payloads; the adapter owns projection.
  */

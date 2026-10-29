@@ -17,7 +17,7 @@ import { OpaqueSidechatResumeStore } from '@gian/proxy-protocol';
 import { KimiCustomizationScanner, ScanTimeoutError } from './customization.js';
 import { renderUnifiedDiff } from './diff.js';
 import { buildPromptInput, type OuterInputItem } from './input.js';
-import { KimiSessionProjector, type OuterNotification } from './projector.js';
+import { KimiSessionProjector, type KimiWorkSnapshot, type OuterNotification } from './projector.js';
 import { buildReplayEvents } from './replay.js';
 import type {
   KimiFileChange,
@@ -157,17 +157,18 @@ export class KimiProxyService {
       nativeSessionId: record.nativeSessionId,
       nextSequence: () => this.nextSequence(record.sessionId),
       emit: (notification) => this.emitSink(notification),
-      onFinalized: () => this.onTurnFinalizedById(record.sessionId),
+      onFinalized: (gianTurnId) => this.onTurnFinalizedById(record.sessionId, gianTurnId),
       onBindingOverflow: (gianTurnId) => {
         const current = this.records.get(record.sessionId);
         if (current === undefined) return;
         void this.fenceActiveTurn(
           current,
           gianTurnId,
-          'The Kimi event stream overflowed the turn-start buffer; the turn was fenced rather than projected incompletely.',
+          'The Kimi event stream overflowed the turn-start buffer; the turn could not be projected completely.',
         );
       },
       fileDiff: async (nativeTurnId: number) => this.fetchFileDiff(record.nativeSessionId, nativeTurnId),
+      reconcileWork: async (needs) => this.readWorkSnapshot(record.nativeSessionId, needs),
     });
     const full: SessionRecord = {
       ...record,
@@ -223,9 +224,9 @@ export class KimiProxyService {
     }
   }
 
-  private onTurnFinalizedById(sessionId: string): void {
+  private onTurnFinalizedById(sessionId: string, gianTurnId: string): void {
     const record = this.records.get(sessionId);
-    if (record === undefined) return;
+    if (record === undefined || record.activeTurn?.gianTurnId !== gianTurnId) return;
     if (record.activeTurn !== null) {
       record.lastCompleted = {
         gianTurnId: record.activeTurn.gianTurnId,
@@ -237,6 +238,60 @@ export class KimiProxyService {
     this.clearInterruptTimer(record.sessionId);
     this.reconcileState(record);
     this.emitSessionUpdated(record);
+  }
+
+  private async readWorkSnapshot(nativeSessionId: string, needs: {
+    tasks: boolean; questions: boolean; approvals: boolean;
+  }): Promise<KimiWorkSnapshot | null> {
+    try {
+      const rest = this.runtime.rest;
+      const root = `/api/v1/sessions/${encodeURIComponent(nativeSessionId)}`;
+      const readSession = () => rest.request<KimiSessionInfo>('GET', root, { timeoutMs: 5_000 });
+      const first = await readSession();
+      const [tasks, questions, approvals] = await Promise.all([
+        needs.tasks ? rest.request<{ items: unknown[] }>('GET', `${root}/tasks`, { timeoutMs: 5_000 }) : { items: [] },
+        needs.questions ? rest.request<{ items: unknown[] }>('GET', `${root}/questions`, { timeoutMs: 5_000 }) : { items: [] },
+        needs.approvals ? rest.request<{ items: unknown[] }>('GET', `${root}/approvals`, { timeoutMs: 5_000 }) : { items: [] },
+      ]);
+      const last = await readSession();
+      if (this.runtime.rest !== rest || first.id !== nativeSessionId || last.id !== nativeSessionId
+        || !Number.isSafeInteger(first.last_seq) || first.last_seq! < 0 || first.last_seq !== last.last_seq
+        || typeof first.busy !== 'boolean' || first.busy !== last.busy
+        || typeof first.main_turn_active !== 'boolean' || first.main_turn_active !== last.main_turn_active
+        || !['none', 'question', 'approval'].includes(first.pending_interaction ?? '')
+        || first.pending_interaction !== last.pending_interaction) return null;
+      if (!Array.isArray(tasks.items) || !Array.isArray(questions.items) || !Array.isArray(approvals.items)) return null;
+      const normalizedTasks: KimiWorkSnapshot['tasks'] = [];
+      const ids = new Set<string>();
+      for (const value of tasks.items) {
+        if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+        const item = value as Record<string, unknown>;
+        if (typeof item.id !== 'string' || item.id === '' || item.session_id !== nativeSessionId || ids.has(item.id)
+          || (item.status !== 'running' && item.status !== 'completed' && item.status !== 'failed' && item.status !== 'cancelled')) return null;
+        ids.add(item.id);
+        normalizedTasks.push({ id: item.id, status: item.status });
+      }
+      const interactionIds = (items: unknown[], field: 'question_id' | 'approval_id'): string[] | null => {
+        const result: string[] = [];
+        for (const value of items) {
+          if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+          const item = value as Record<string, unknown>;
+          if (typeof item[field] !== 'string' || item[field] === '' || item.session_id !== nativeSessionId) return null;
+          result.push(item[field] as string);
+        }
+        return result;
+      };
+      const questionIds = interactionIds(questions.items, 'question_id');
+      const approvalIds = interactionIds(approvals.items, 'approval_id');
+      if (questionIds === null || approvalIds === null) return null;
+      return {
+        lastSeq: first.last_seq!, busy: first.busy, mainTurnActive: first.main_turn_active,
+        pendingInteraction: first.pending_interaction!, tasks: normalizedTasks,
+        questions: questionIds, approvals: approvalIds,
+      };
+    } catch {
+      return null;
+    }
   }
 
   // ---- runtime events ----
@@ -706,21 +761,36 @@ export class KimiProxyService {
     if (turn === null || turn.gianTurnId !== params.turnId) {
       throw new KimiProtocolError('TURN_NOT_FOUND', `Turn ${params.turnId} is not active.`);
     }
-    const result = await this.runtime.rest.request<{ aborted: boolean }>(
-      'POST',
-      `/api/v1/sessions/${record.nativeSessionId}/prompts/${turn.promptId}:abort`,
-      { json: {} },
-    ).catch((error: unknown) => {
+    const nativePromptId = record.projector.activePromptId();
+    if (nativePromptId === null) {
+      throw new KimiProtocolError('CAPABILITY_NOT_SUPPORTED',
+        'Kimi did not expose an active background prompt identity; the work cannot be safely interrupted.');
+    }
+    const generation = record.projector.beginInterrupt(params.turnId);
+    if (generation === null) {
+      throw new KimiProtocolError('CONFLICT', 'A Kimi interrupt is already being resolved.', true);
+    }
+    let result: { aborted: boolean };
+    try {
+      result = await this.runtime.rest.request<{ aborted: boolean }>(
+        'POST',
+        `/api/v1/sessions/${record.nativeSessionId}/prompts/${encodeURIComponent(nativePromptId)}:abort`,
+        { json: {} },
+      );
+    } catch (error) {
+      record.projector.finishInterrupt(params.turnId, generation, false);
       if (error instanceof KimiApiError && error.code === 40402) {
-        return { aborted: false };
+        throw new KimiProtocolError('CONFLICT', 'Kimi did not confirm interruption; native work may still be running.', true);
       }
       throw error;
-    });
-    if (result.aborted) {
-      record.projector.markInterruptAccepted();
     }
-    // aborted=false means the prompt already finished and its terminal is in
-    // flight; either way the watchdog fences the turn if no terminal lands.
+    if (!result.aborted) {
+      record.projector.finishInterrupt(params.turnId, generation, false);
+      throw new KimiProtocolError('CONFLICT', 'Kimi did not confirm interruption; native work may still be running.', true);
+    }
+    if (!record.projector.finishInterrupt(params.turnId, generation, true)) {
+      throw new KimiProtocolError('CONFLICT', 'Kimi continued while interruption was being acknowledged; native work may still be running.', true);
+    }
     this.armInterruptWatchdog(record, params.turnId);
   }
 
@@ -732,7 +802,7 @@ export class KimiProxyService {
         void this.fenceActiveTurn(
           record,
           gianTurnId,
-          'The interrupted turn never received a terminal event from the Kimi server; the runtime was fenced.',
+          'The interrupted turn did not settle after the Kimi abort request.',
         );
       }
     }, INTERRUPT_SETTLE_MS);
@@ -740,16 +810,18 @@ export class KimiProxyService {
     this.interruptTimers.set(record.sessionId, timer);
   }
 
-  /** Best-effort native isolation: a fenced turn must not leave its native
-   *  prompt running unattributed. */
-  private async abortNativePrompt(record: SessionRecord, promptId: string): Promise<void> {
+  /** An abort request is only confirmed when the native response accepts it. */
+  private async abortNativePrompt(record: SessionRecord, promptId: string): Promise<boolean> {
     try {
-      await this.runtime.rest.request(
+      const result = await this.runtime.rest.request<{ aborted: boolean }>(
         'POST',
-        `/api/v1/sessions/${record.nativeSessionId}/prompts/${promptId}:abort`,
+        `/api/v1/sessions/${record.nativeSessionId}/prompts/${encodeURIComponent(promptId)}:abort`,
         { json: {}, timeoutMs: FENCE_ABORT_TIMEOUT_MS },
       );
-    } catch { /* the runtime may already be gone */ }
+      return result.aborted === true;
+    } catch {
+      return false;
+    }
   }
 
   /** Fence one specific turn. The bounded abort wait can let that turn
@@ -758,9 +830,19 @@ export class KimiProxyService {
    *  out to fence. */
   private async fenceActiveTurn(record: SessionRecord, gianTurnId: string, message: string): Promise<void> {
     if (record.activeTurn?.gianTurnId !== gianTurnId) return;
-    await this.abortNativePrompt(record, record.activeTurn.promptId);
-    if (record.activeTurn?.gianTurnId !== gianTurnId) return;
-    if (record.projector.activeGianTurnId() !== gianTurnId) return;
+    if (!record.projector.beginFence(gianTurnId)) return;
+    const nativeGeneration = record.projector.activeNativeGeneration();
+    const nativePromptId = record.projector.activePromptId();
+    const aborted = nativePromptId !== null && await this.abortNativePrompt(record, nativePromptId);
+    if (record.activeTurn?.gianTurnId !== gianTurnId || record.projector.activeGianTurnId() !== gianTurnId
+      || record.projector.activeNativeGeneration() !== nativeGeneration) {
+      record.projector.endFence(gianTurnId, true);
+      return;
+    }
+    this.setState(record, 'stale');
+    message = `${message} ${aborted ? 'The native abort was accepted, but containment was not confirmed.'
+      : 'The native abort was not confirmed; native work may still be running.'}`;
+    record.projector.endFence(gianTurnId, false);
     await record.projector.failTurn(message, true);
   }
 
@@ -845,7 +927,8 @@ export class KimiProxyService {
         });
       }
     }
-    const resolvedHere = record.projector.resolveInteraction(params.interactionId);
+    const resolvedHere = record.projector.resolveInteraction(params.interactionId,
+      pending.kind === 'question' && params.actionId === 'decline' ? 'cancelled' : 'succeeded');
     this.reconcileState(record);
     // WS may report the native resolution before REST answers. Its fact is
     // already projected; accepting this response must not resolve it twice.

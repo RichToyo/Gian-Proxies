@@ -71,6 +71,363 @@ function assertStreamSequence(harness: Harness, streamId: string): void {
   assert.deepEqual(sequences, Array.from({ length: sequences.length }, (_, index) => index + 1));
 }
 
+test('owned background continuation remains on the admitted turn and later sends stay usable', async () => {
+  const background = {
+    delayBefore: 20,
+    events: [
+      { type: 'turn.started', payload: { turnId: 1 } },
+      { type: 'event.session.work_changed', payload: { busy: true, main_turn_active: true } },
+      { type: 'tool.call.started', payload: { toolCallId: 'bash-call', name: 'Bash', args: {} } },
+      { type: 'task.started', payload: { info: { taskId: 'owned-bg', kind: 'process', parentToolCallId: 'bash-call' } } },
+      { type: 'background.task.started', payload: { info: { taskId: 'owned-bg', kind: 'process', parentToolCallId: 'bash-call' } } },
+      { type: 'tool.result', payload: { toolCallId: 'bash-call', output: 'started' } },
+      { type: 'assistant.delta', payload: { delta: 'main reply' } },
+      { type: 'turn.ended', payload: { turnId: 1, reason: 'completed' } },
+      { type: 'event.session.work_changed', payload: { busy: true, main_turn_active: false } },
+      { op: 'wait', ms: 600 },
+      { type: 'task.terminated', payload: { info: { taskId: 'owned-bg', status: 'completed', parentToolCallId: 'bash-call' } } },
+      { type: 'background.task.terminated', payload: { info: { taskId: 'owned-bg', status: 'completed', parentToolCallId: 'bash-call' } } },
+      { type: 'turn.started', omitPromptId: true, payload: { turnId: 2, origin: { kind: 'task', taskId: 'owned-bg' } } },
+      { type: 'event.session.work_changed', omitPromptId: true, payload: { busy: true, main_turn_active: true } },
+      { type: 'turn.step.started', omitPromptId: true, payload: { turnId: 2 } },
+      { type: 'assistant.delta', omitPromptId: true, payload: { turnId: 2, delta: 'background result' } },
+      { type: 'turn.ended', omitPromptId: true, payload: { turnId: 2, reason: 'completed' } },
+      { type: 'event.session.work_changed', omitPromptId: true, payload: { busy: false, main_turn_active: false } },
+      { op: 'wait', ms: 100 },
+      { type: 'background.task.terminated', omitPromptId: true, payload: { info: { taskId: 'owned-bg', status: 'completed', parentToolCallId: 'bash-call' } } },
+    ],
+  };
+  const harness = startHarness({
+    turnSequence: [background, { delayBefore: 20, events: [
+      { type: 'turn.started' },
+      { type: 'assistant.delta', payload: { delta: 'next reply' } },
+      { op: 'wait', ms: 200 },
+      { type: 'turn.ended', payload: { reason: 'completed' } },
+    ] }],
+  }, { validateProtocol: true });
+  try {
+    await initialize(harness);
+    await harness.request('catalog.list', {});
+    const streamId = await createSession(harness, 's_background');
+    const started = await harness.request('turn.start', {
+      sessionId: 's_background', streamId, turnId: 't_background',
+      input: [{ type: 'text', text: 'Start background work' }], config: {},
+    });
+    assert.equal(started.kind, 'result', JSON.stringify(started.payload));
+    await harness.waitNotificationFor((line) => line.method === 'content.delta');
+    const deadline = Date.now() + 2_000;
+    while (!harness.fakeLog().some((entry) => entry.kind === 'ws-frame' && entry.type === 'turn.ended') && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.ok(harness.fakeLog().some((entry) => entry.kind === 'ws-frame' && entry.type === 'turn.ended'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const working = await harness.request('session.get', { sessionId: 's_background' });
+    const live = (working.payload as { result: { session: { state: string; nativeSession: { id: string } } } }).result.session;
+    assert.equal(live.state, 'running');
+    assert.equal(harness.notifications.some((line) => line.method === 'turn.completed'), false);
+    await waitFor(harness, 'turn.completed');
+    const deltas = harness.notifications.filter((line) => line.method === 'content.delta')
+      .map((line) => line.payload.params as { turnId: string; data: { delta: string } });
+    assert.deepEqual(deltas.map((params) => params.data.delta), ['main reply', 'background result']);
+    assert.ok(deltas.every((params) => params.turnId === 't_background'));
+    const next = await harness.request('turn.start', {
+      sessionId: 's_background', streamId, turnId: 't_next',
+      input: [{ type: 'text', text: 'Continue' }], config: {},
+    });
+    assert.equal(next.kind, 'result', JSON.stringify(next.payload));
+    await harness.waitNotificationFor((line) => line.method === 'turn.completed'
+      && (line.payload.params as { turnId: string }).turnId === 't_next');
+    assert.equal(harness.notifications.filter((line) => line.method === 'turn.completed').length, 2);
+    assertStreamSequence(harness, streamId);
+    assert.deepEqual(harness.protocolErrors, []);
+    const closed = await harness.request('session.close', { sessionId: 's_background', streamId });
+    assert.equal(closed.kind, 'result', JSON.stringify(closed.payload));
+    const attached = await harness.request('session.create', {
+      sessionId: 's_background', workspace: { cwd: harness.workspace, roots: [harness.workspace] }, config: {},
+      nativeSession: { id: live.nativeSession.id, history: 'none' },
+    });
+    assert.equal(attached.kind, 'result', JSON.stringify(attached.payload));
+    assert.deepEqual(harness.protocolErrors, []);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('read-only native task reconciliation recovers missing terminal and idle events', async () => {
+  const harness = startHarness({ turn: { delayBefore: 20, events: [
+    { type: 'turn.started', payload: { turnId: 1 } },
+    { type: 'event.session.work_changed', payload: { busy: true, main_turn_active: true, pending_interaction: 'none' } },
+    { type: 'tool.call.started', payload: { toolCallId: 'bash-call', name: 'Bash', args: {} } },
+    { type: 'task.started', payload: { info: { taskId: 'owned-bg', kind: 'process', parentToolCallId: 'bash-call' } } },
+    { type: 'tool.result', payload: { toolCallId: 'bash-call', output: 'started' } },
+    { type: 'turn.ended', payload: { turnId: 1, reason: 'completed' } },
+    { type: 'event.session.work_changed', payload: { busy: true, main_turn_active: false, pending_interaction: 'none' } },
+    { op: 'wait', ms: 300 },
+    { op: 'set-work-state', busy: false, mainTurnActive: false, pendingInteraction: 'none', taskStatuses: { 'owned-bg': 'completed' } },
+  ] } }, { validateProtocol: true });
+  try {
+    await initialize(harness);
+    await harness.request('catalog.list', {});
+    const streamId = await createSession(harness, 's_reconcile_background');
+    const started = await harness.request('turn.start', {
+      sessionId: 's_reconcile_background', streamId, turnId: 't_background',
+      input: [{ type: 'text', text: 'Start work' }], config: {},
+    });
+    assert.equal(started.kind, 'result', JSON.stringify(started.payload));
+    await harness.waitNotificationFor((line) => line.method === 'turn.completed', 12_000);
+    assert.equal(harness.notifications.filter((line) => line.method === 'activity.updated'
+      && (line.payload.params as { data: { activityId: string; status: string } }).data.activityId === 'task:owned-bg'
+      && (line.payload.params as { data: { status: string } }).data.status === 'succeeded').length, 1);
+    const log = harness.fakeLog();
+    assert.ok(log.some((entry) => entry.method === 'GET' && String(entry.path).endsWith('/tasks')));
+    assert.equal(log.filter((entry) => entry.method === 'POST' && String(entry.path).endsWith('/prompts')).length, 1);
+    assert.equal(log.some((entry) => entry.method === 'POST' && String(entry.path).endsWith(':abort')), false);
+    assertStreamSequence(harness, streamId);
+    assert.deepEqual(harness.protocolErrors, []);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('a foreign-session task snapshot cannot complete the admitted turn', async () => {
+  const harness = startHarness({ behavior: { reconcileTaskSessionMismatch: true }, turn: { delayBefore: 20, events: [
+    { type: 'turn.started', payload: { turnId: 1 } },
+    { type: 'event.session.work_changed', payload: { busy: true, main_turn_active: true, pending_interaction: 'none' } },
+    { type: 'tool.call.started', payload: { toolCallId: 'bash-call', name: 'Bash', args: {} } },
+    { type: 'task.started', payload: { info: { taskId: 'owned-bg', kind: 'process', parentToolCallId: 'bash-call' } } },
+    { type: 'tool.result', payload: { toolCallId: 'bash-call', output: 'started' } },
+    { type: 'turn.ended', payload: { turnId: 1, reason: 'completed' } },
+    { type: 'event.session.work_changed', payload: { busy: true, main_turn_active: false, pending_interaction: 'none' } },
+    { op: 'wait', ms: 300 },
+    { op: 'set-work-state', busy: false, mainTurnActive: false, pendingInteraction: 'none', taskStatuses: { 'owned-bg': 'completed' } },
+  ] } }, { validateProtocol: true });
+  try {
+    await initialize(harness);
+    await harness.request('catalog.list', {});
+    const streamId = await createSession(harness, 's_foreign_snapshot');
+    const started = await harness.request('turn.start', {
+      sessionId: 's_foreign_snapshot', streamId, turnId: 't_foreign_snapshot',
+      input: [{ type: 'text', text: 'Start work' }], config: {},
+    });
+    assert.equal(started.kind, 'result', JSON.stringify(started.payload));
+    const deadline = Date.now() + 10_000;
+    while (!harness.fakeLog().some((entry) => entry.method === 'GET' && String(entry.path).endsWith('/tasks')) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.ok(harness.fakeLog().some((entry) => entry.method === 'GET' && String(entry.path).endsWith('/tasks')));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(harness.notifications.some((line) => line.method === 'turn.completed'), false);
+    assert.equal(harness.notifications.some((line) => line.method === 'activity.updated'
+      && (line.payload.params as { data: { activityId: string; status: string } }).data.activityId === 'task:owned-bg'
+      && (line.payload.params as { data: { status: string } }).data.status === 'succeeded'), false);
+    const state = await harness.request('session.get', { sessionId: 's_foreign_snapshot' });
+    assert.equal((state.payload as { result: { session: { state: string } } }).result.session.state, 'running');
+    assert.deepEqual(harness.protocolErrors, []);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('a native question remains answerable after the first native turn ends', async () => {
+  const harness = startHarness({ turn: { delayBefore: 20, events: [
+    { type: 'turn.started', payload: { turnId: 1 } },
+    { type: 'event.session.work_changed', payload: { busy: true, main_turn_active: true } },
+    { type: 'tool.call.started', payload: { toolCallId: 'question-call', name: 'AskUserQuestion' } },
+    { type: 'task.started', payload: { info: { taskId: 'question-task', kind: 'question', toolCallId: 'question-call' } } },
+    { type: 'event.question.requested', payload: { question_id: 'q_1', tool_call_id: 'question-call', questions: [{ id: 'q_0', question: 'Continue?', options: [{ id: 'yes', label: 'Yes' }] }] } },
+    { type: 'tool.result', payload: { toolCallId: 'question-call', output: 'waiting' } },
+    { type: 'turn.ended', payload: { turnId: 1, reason: 'completed' } },
+    { type: 'event.session.work_changed', payload: { busy: true, main_turn_active: false, pending_interaction: 'question' } },
+    { op: 'wait', ms: 600 },
+    { type: 'event.session.work_changed', payload: { busy: false, main_turn_active: false, pending_interaction: 'none' } },
+  ] } }, { validateProtocol: true });
+  try {
+    await initialize(harness);
+    await harness.request('catalog.list', {});
+    const streamId = await createSession(harness, 's_question_background');
+    const started = await harness.request('turn.start', {
+      sessionId: 's_question_background', streamId, turnId: 't_question',
+      input: [{ type: 'text', text: 'Ask a question' }], config: {},
+    });
+    assert.equal(started.kind, 'result', JSON.stringify(started.payload));
+    await harness.waitNotificationFor((line) => line.method === 'interaction.requested');
+    const deadline = Date.now() + 2_000;
+    while (!harness.fakeLog().some((entry) => entry.kind === 'ws-frame' && entry.type === 'turn.ended') && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.ok(harness.fakeLog().some((entry) => entry.kind === 'ws-frame' && entry.type === 'turn.ended'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(harness.notifications.some((line) => line.method === 'turn.completed' || line.method === 'interaction.resolved'), false);
+    const snapshot = await harness.request('session.get', { sessionId: 's_question_background' });
+    assert.equal((snapshot.payload as { result: { session: { state: string } } }).result.session.state, 'waiting_interaction');
+    const response = await harness.request('interaction.respond', {
+      sessionId: 's_question_background', streamId, turnId: 't_question', responseId: 'answer-1',
+      interactionId: 'q:q_1', actionId: 'accept', values: { q_0: 'yes' },
+    });
+    assert.equal(response.kind, 'result', JSON.stringify(response.payload));
+    await harness.waitNotificationFor((line) => line.method === 'interaction.resolved');
+    await harness.waitNotificationFor((line) => line.method === 'turn.completed');
+    assert.equal(harness.notifications.filter((line) => line.method === 'activity.updated'
+      && (line.payload.params as { data: { activityId: string; status: string } }).data.activityId === 'task:question-task'
+      && (line.payload.params as { data: { status: string } }).data.status === 'succeeded').length, 1);
+    assert.equal(harness.fakeLog().filter((entry) => entry.method === 'POST' && String(entry.path).endsWith('/questions/q_1')).length, 1);
+    assertStreamSequence(harness, streamId);
+    assert.deepEqual(harness.protocolErrors, []);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('interrupt does not guess a prompt ID for a native background continuation', async () => {
+  const harness = startHarness({
+    turn: { delayBefore: 20, events: [
+      { type: 'turn.started', payload: { turnId: 1 } },
+      { type: 'event.session.work_changed', payload: { busy: true, main_turn_active: true } },
+      { type: 'tool.call.started', payload: { toolCallId: 'bash-call', name: 'Bash', args: {} } },
+      { type: 'task.started', payload: { info: { taskId: 'owned-bg', parentToolCallId: 'bash-call' } } },
+      { type: 'tool.result', payload: { toolCallId: 'bash-call', output: 'started' } },
+      { type: 'turn.ended', payload: { turnId: 1, reason: 'completed' } },
+      { type: 'event.session.work_changed', payload: { busy: true, main_turn_active: false } },
+      { type: 'task.terminated', payload: { info: { taskId: 'owned-bg', status: 'completed', parentToolCallId: 'bash-call' } } },
+      { type: 'turn.started', omitPromptId: true, payload: { turnId: 2, origin: { kind: 'task', taskId: 'owned-bg' } } },
+      { type: 'assistant.delta', omitPromptId: true, payload: { turnId: 2, delta: 'working' } },
+      { op: 'wait', ms: 400 },
+      { type: 'turn.ended', omitPromptId: true, payload: { turnId: 2, reason: 'completed' } },
+      { type: 'event.session.work_changed', omitPromptId: true, payload: { busy: false, main_turn_active: false } },
+    ] },
+  }, { validateProtocol: true });
+  try {
+    await initialize(harness);
+    await harness.request('catalog.list', {});
+    const streamId = await createSession(harness, 's_interrupt_background');
+    const started = await harness.request('turn.start', {
+      sessionId: 's_interrupt_background', streamId, turnId: 't_background',
+      input: [{ type: 'text', text: 'Start work' }], config: {},
+    });
+    assert.equal(started.kind, 'result', JSON.stringify(started.payload));
+    await harness.waitNotificationFor((line) => line.method === 'content.delta');
+    const interrupted = await harness.request('turn.interrupt', {
+      sessionId: 's_interrupt_background', streamId, turnId: 't_background',
+    });
+    assert.equal(interrupted.kind, 'error');
+    assert.equal((interrupted.payload as { error: { data: { domainCode: string } } }).error.data.domainCode, 'CAPABILITY_NOT_SUPPORTED');
+    assert.equal(harness.fakeLog().some((entry) => entry.method === 'POST' && String(entry.path).endsWith(':abort')), false);
+    await waitFor(harness, 'turn.completed');
+    assert.deepEqual(harness.protocolErrors, []);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('an unconfirmed native abort is reported without claiming the turn stopped', async () => {
+  const harness = startHarness({ behavior: { abortDeclined: true }, turn: { delayBefore: 20, events: [
+    { type: 'turn.started', payload: { turnId: 1 } },
+    { op: 'wait', ms: 400 },
+    { type: 'turn.ended', payload: { turnId: 1, reason: 'completed' } },
+  ] } }, { validateProtocol: true });
+  try {
+    await initialize(harness);
+    await harness.request('catalog.list', {});
+    const streamId = await createSession(harness, 's_abort_declined');
+    const started = await harness.request('turn.start', {
+      sessionId: 's_abort_declined', streamId, turnId: 't_abort_declined',
+      input: [{ type: 'text', text: 'Start work' }], config: {},
+    });
+    assert.equal(started.kind, 'result', JSON.stringify(started.payload));
+    await harness.waitNotificationFor((line) => line.method === 'turn.started');
+    const interrupted = await harness.request('turn.interrupt', {
+      sessionId: 's_abort_declined', streamId, turnId: 't_abort_declined',
+    });
+    assert.equal(interrupted.kind, 'error');
+    assert.equal((interrupted.payload as { error: { data: { domainCode: string } } }).error.data.domainCode, 'CONFLICT');
+    const terminal = await harness.waitNotificationFor((line) => line.method === 'turn.completed' || line.method === 'turn.failed');
+    assert.equal(terminal.method, 'turn.completed');
+    assert.equal((terminal.payload.params as { data: { stopReason: string } }).data.stopReason, 'completed');
+    assert.equal(harness.fakeLog().filter((entry) => entry.method === 'POST' && String(entry.path).endsWith(':abort')).length, 1);
+    assert.deepEqual(harness.protocolErrors, []);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('an explicit continuation prompt ID is used for interrupt without touching a peer session', async () => {
+  const harness = startHarness({ behavior: { abortResponseDelayMs: 80 }, turn: { delayBefore: 20, events: [
+    { type: 'turn.started', payload: { turnId: 1 } },
+    { type: 'event.session.work_changed', payload: { busy: true, main_turn_active: true } },
+    { type: 'tool.call.started', payload: { toolCallId: 'bash-call', name: 'Bash', args: {} } },
+    { type: 'task.started', payload: { info: { taskId: 'owned-bg', parentToolCallId: 'bash-call' } } },
+    { type: 'tool.result', payload: { toolCallId: 'bash-call', output: 'started' } },
+    { type: 'turn.ended', payload: { turnId: 1, reason: 'completed' } },
+    { type: 'event.session.work_changed', payload: { busy: true, main_turn_active: false } },
+    { type: 'task.terminated', payload: { info: { taskId: 'owned-bg', status: 'completed' } } },
+    { type: 'turn.started', payload: { turnId: 2, promptId: 'task:notification', origin: { kind: 'task', taskId: 'owned-bg' } } },
+    { type: 'assistant.delta', payload: { turnId: 2, promptId: 'task:notification', delta: 'working' } },
+    { op: 'wait', ms: 900 },
+    { type: 'turn.ended', payload: { turnId: 2, promptId: 'task:notification', reason: 'completed' } },
+    { type: 'event.session.work_changed', payload: { busy: false, main_turn_active: false } },
+  ] } }, { validateProtocol: true });
+  try {
+    await initialize(harness);
+    await harness.request('catalog.list', {});
+    const streamId = await createSession(harness, 's_interrupt_owned');
+    const peer = await createSession(harness, 's_peer_owned');
+    const started = await harness.request('turn.start', {
+      sessionId: 's_interrupt_owned', streamId, turnId: 't_owned',
+      input: [{ type: 'text', text: 'Start work' }], config: {},
+    });
+    assert.equal(started.kind, 'result', JSON.stringify(started.payload));
+    await harness.waitNotificationFor((line) => line.method === 'content.delta');
+    const interrupted = await harness.request('turn.interrupt', {
+      sessionId: 's_interrupt_owned', streamId, turnId: 't_owned',
+    });
+    assert.equal(interrupted.kind, 'result', JSON.stringify(interrupted.payload));
+    assert.ok(harness.fakeLog().some((entry) => entry.method === 'POST'
+      && String(entry.path).endsWith('/prompts/task%3Anotification:abort')));
+    const terminal = await harness.waitNotificationFor((line) => line.method === 'turn.completed' || line.method === 'turn.failed');
+    assert.equal(terminal.method, 'turn.completed');
+    assert.equal((terminal.payload.params as { data: { stopReason: string } }).data.stopReason, 'interrupted');
+    const peerState = await harness.request('session.get', { sessionId: 's_peer_owned' });
+    assert.equal((peerState.payload as { result: { session: { state: string; streamId: string } } }).result.session.state, 'idle');
+    assert.equal((peerState.payload as { result: { session: { streamId: string } } }).result.session.streamId, peer);
+    assert.deepEqual(harness.protocolErrors, []);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('TodoList A-B-A keeps Host sequencing through final output and completion', async () => {
+  const plans = ['pending', 'in_progress', 'pending'].flatMap((status, index) => [
+    { type: 'tool.call.started', payload: { toolCallId: `todo-${index}`, name: 'TodoList', display: { kind: 'todo_list', items: [{ title: 'Verify recovery', status }] } } },
+    { type: 'tool.result', payload: { toolCallId: `todo-${index}`, output: 'updated' } },
+  ]);
+  const harness = startHarness({ turn: { delayBefore: 10, events: [
+    { type: 'turn.started' }, ...plans,
+    { type: 'assistant.delta', payload: { delta: 'Finished after the repeated plan.' } },
+    { type: 'turn.ended', payload: { reason: 'completed' } },
+  ] } }, { validateProtocol: true });
+  try {
+    await initialize(harness);
+    await harness.request('catalog.list', {});
+    const streamId = await createSession(harness, 's_plan_cycle');
+    const started = await harness.request('turn.start', {
+      sessionId: 's_plan_cycle', streamId, turnId: 't_plan_cycle',
+      input: [{ type: 'text', text: 'Update the plan A-B-A and finish.' }], config: {},
+    });
+    assert.equal(started.kind, 'result', JSON.stringify(started.payload));
+    await harness.waitNotificationFor((line) => line.method === 'session.updated'
+      && (line.payload.params as { data: { state: string } }).data.state === 'idle');
+    const updates = harness.notifications.filter((line) => line.method === 'plan.updated')
+      .map((line) => line.payload.params as { eventId: string; data: { steps: Array<{ status: string }> } });
+    assert.deepEqual(updates.map((update) => update.data.steps[0]!.status), ['pending', 'in_progress', 'pending']);
+    assert.equal(new Set(updates.map((update) => update.eventId)).size, 3);
+    assert.equal(harness.notifications.filter((line) => line.method === 'turn.completed').length, 1);
+    assertStreamSequence(harness, streamId);
+    assert.deepEqual(harness.protocolErrors, []);
+  } finally {
+    await harness.close();
+  }
+});
+
 test('rebind and close/re-adopt reset only the new stream sequence before the next turn', async () => {
   const harness = startHarness({
     models: [{ model: 'kimi', display_name: 'Kimi', max_context_size: 256000, support_efforts: ['high'], default_effort: 'high' }],
@@ -1168,6 +1525,7 @@ test('plan and subagent facts project from native displays and lifecycle events'
         },
         { type: 'subagent.completed', payload: { subagentId: 'sub_1', resultSummary: 'all good' } },
         { type: 'turn.ended', payload: { turnId: 1, reason: 'completed' } },
+        { type: 'event.session.work_changed', payload: { busy: false, main_turn_active: false } },
       ],
     },
   });
@@ -1188,8 +1546,7 @@ test('plan and subagent facts project from native displays and lifecycle events'
 
     // plan.waitNotificationFor already consumed turn.started, the running
     // session.updated, and plan.updated. The next 6 are todo running/terminal,
-    // subagent spawn/completed, finalize usage, and the terminal. The idle
-    // session.updated follows those and is not part of this count.
+    // subagent spawn/completed, the terminal and the idle session.updated.
     const agentActivities = (await harness.waitNotifications(6))
       .filter((line) => line.method === 'activity.updated')
       .map((line) => (line.payload.params as { data: Record<string, unknown> }).data)

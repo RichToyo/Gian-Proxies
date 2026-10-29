@@ -1,0 +1,3 @@
+- insert:
+    - id: gian-canary-preset-inspector
+      name: '@gian/dsh-canary-preset-inspector'

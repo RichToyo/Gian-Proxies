@@ -1,8 +1,10 @@
 # @gian/dsh-proxy
 
 `ai.deepseek.harness` — shared-scope Gian Proxy speaking `gian.proxy/2.1+`
-(JSON-RPC 2.0 / NDJSON / stdio) and supervising one shared DSH Host that runs
-the `gian` profile with `@gian/dsh-bridge`.
+(JSON-RPC 2.0 / NDJSON / stdio) and supervising one shared DSH Host per launch
+binding. Each binding owns a `gian-<hash>` profile below the shared `DSH_HOME`,
+so formal and development installations share credentials, history, and official
+settings without rewriting one another's Runtime or Bridge composition.
 
 ## Layout
 

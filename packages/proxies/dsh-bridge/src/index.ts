@@ -1,5 +1,5 @@
 /**
- * Cordis bundle entry for a DSH `gian` profile.
+ * Cordis bundle entry for a binding-scoped Gian DSH profile.
  *
  * The real cordis host (`cordis-host.ts`) binds the bridge server to
  * `ctx.agents` / `ctx.sessions` / `session/event` and the stdio transport. The

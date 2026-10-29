@@ -1,7 +1,7 @@
 /**
  * `gian.dsh.bridge/1.0` — the private JSON-RPC 2.0 contract spoken between the
- * Gian dsh-proxy and the @gian/dsh-bridge Cordis bundle running inside a DSH
- * `gian` profile.
+ * Gian dsh-proxy and the @gian/dsh-bridge Cordis bundle running inside a
+ * binding-scoped Gian DSH profile.
  *
  * This file is the frozen contract surface (DSH-WP0). It is deliberately
  * dependency-free: the bridge is installed into a DSH profile and cannot assume

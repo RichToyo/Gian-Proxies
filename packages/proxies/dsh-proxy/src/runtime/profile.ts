@@ -1,11 +1,10 @@
 /**
- * Gian `gian` DSH profile installer.
+ * Binding-scoped Gian DSH profile installer.
  *
- * The proxy boots the DSH Host with `--profile gian`; that profile must exist
- * at `<DSH_HOME>/profiles/gian` with the `@gian/dsh-bridge` bundle mounted.
- * `ensureGianProfile` creates or repairs it before the bridge child spawns so
- * a missing or broken profile can never crash the DSH boot with
- * `@gian/dsh-bridge` unresolvable.
+ * Profiles live below the shared DSH home, but each Gian/Runtime/Bridge binding
+ * owns a separate directory so formal and development processes cannot rewrite
+ * one another's composition. Credentials, sessions, and official settings stay
+ * in the shared home.
  *
  * DSH 0.2.0 imports `$DSH_HOME/settings.yaml` once and renames it
  * `settings.yaml.imported`. This installer writes only the profile package
@@ -14,6 +13,7 @@
  * directory.
  */
 
+import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
@@ -24,10 +24,29 @@ const PROFILE_MANIFEST_NAME = 'gian-dsh-profile';
 const PROFILE_BUNDLES = ['@deepseek-ai/dsh-base', '@gian/dsh-bridge'];
 
 export interface EnsureProfileResult {
+  profileName: string;
   profileDir: string;
   bridgePackageDir: string;
   /** Empty when the profile was already consistent (no writes performed). */
   actions: string[];
+}
+
+function identityPath(value: string | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? resolve(trimmed) : '';
+}
+
+export function gianProfileName(
+  env: NodeJS.ProcessEnv = process.env,
+  proxyEntry: string | undefined = process.argv[1],
+): string {
+  const identity = JSON.stringify([
+    identityPath(env.GIAN_DATA_DIR ?? env.GIAN_PLUGIN_DATA_DIR),
+    identityPath(env.GIAN_RUNTIME_BIN ?? env.DSH_HOST_ENTRY),
+    identityPath(proxyEntry),
+    identityPath(env.GIAN_DSH_BRIDGE_PACKAGE_DIR),
+  ]);
+  return `gian-${createHash('sha256').update(identity).digest('hex').slice(0, 16)}`;
 }
 
 export function dshHome(env: NodeJS.ProcessEnv = process.env): string {
@@ -126,7 +145,8 @@ export async function ensureGianProfile(
 ): Promise<EnsureProfileResult> {
   const home = dshHome(env);
   const bridgePackageDir = await resolveBridgePackageDir(env);
-  const profileDir = join(home, 'profiles', 'gian');
+  const profileName = gianProfileName(env);
+  const profileDir = join(home, 'profiles', profileName);
   const actions: string[] = [];
 
   await mkdirWithinHome(home, join(profileDir, 'node_modules', '@gian'));
@@ -160,5 +180,5 @@ export async function ensureGianProfile(
     );
   }
 
-  return { profileDir, bridgePackageDir, actions };
+  return { profileName, profileDir, bridgePackageDir, actions };
 }

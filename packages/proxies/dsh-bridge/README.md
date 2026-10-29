@@ -1,9 +1,11 @@
 # @gian/dsh-bridge
 
-Gian-managed Cordis bundle that speaks `gian.dsh.bridge/1.0` inside a DSH
-`gian` profile. The bundle is a patch layer applied **after**
+Gian-managed Cordis bundle that speaks `gian.dsh.bridge/1.0` inside a
+binding-scoped DSH profile. The bundle is a patch layer applied **after**
 `@deepseek-ai/dsh-base`; it does not mount DSH Web, Browser UI, or the headless
-one-shot runner, and it keeps stdout exclusively for bridge JSON-RPC.
+one-shot runner, and it keeps stdout exclusively for bridge JSON-RPC. It mounts
+the official `standard`, `ptc`, `minimal`, and `cordis` Agent presets, disables
+the base global tools, and preserves native preset activation diagnostics.
 
 ## Runtime baseline
 
@@ -14,7 +16,7 @@ upstream tag `dsh-v0.2.1-rc.2`, commit
 `687f282e8625c6b8d11ff58211a90524be2e4317`). The session format version the
 bridge reports and keys its identity with is DSH `SESSION_FORMAT_VERSION = 4`.
 The bridge `peerDependencies` range is `^0.2.0-rc.2 || 0.2.1-rc.2` — the 0.2.0 RC line stays admitted, and 0.2.1-rc.2 is admitted explicitly because npm semver treats prerelease tuples strictly. Handshake defaults read
-the bridge package version (`0.1.8`) instead of a second hardcoded value.
+the bridge package version (`0.1.9-Dev`) instead of a second hardcoded value.
 Every native surface below was originally checked against the shipped `.d.ts`
 contracts of 0.2.0-rc.2; the exact 0.2.1-rc.2 package diff leaves those
 surfaces unchanged (session format stays 4, event vocabulary additive-only).
@@ -96,6 +98,6 @@ steering, fork boundaries, native list, subagent lifecycle, and
 customization inventory — zero model calls.
 
 Real-runtime acceptance (booting the installed DSH package with an isolated
-`gian` profile for a stdout-purity and process-cleanup canary, and any real
-Provider Turn) is a separately authorized action outside `test:all`; no-cost
-protocol handshakes and metadata canaries are scheduled by the coordinator.
+Gian profile for preset, settings, stdout-purity, and process-cleanup canaries,
+and any real Provider Turn) is a separately authorized action outside `test:all`;
+no-cost protocol handshakes and metadata canaries are scheduled by the coordinator.

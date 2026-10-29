@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { parseArgs } from '../src/cli/bridge-launch.js';
+import { gianProfileName } from '../src/runtime/profile.js';
 
 const ENV_KEYS = [
   'GIAN_DSH_HOST_ARGS',
@@ -42,14 +43,14 @@ test('a non-.js bridge command keeps the direct spawn behavior', () => {
   withEnv({ GIAN_DSH_HOST_ENTRY: '/usr/local/bin/dsh-host' }, () => {
     const launch = parseArgs([]);
     assert.equal(launch.bridgeCommand, '/usr/local/bin/dsh-host');
-    assert.deepEqual(launch.args, ['--profile', 'gian']);
+    assert.deepEqual(launch.args, ['--profile', gianProfileName()]);
   });
 });
 
-test('--profile gian injection is unchanged for a .js bridge command', () => {
+test('a .js bridge command injects the same binding-scoped profile as the installer', () => {
   withEnv({ GIAN_RUNTIME_BIN: '/opt/dsh/lib/bin.js' }, () => {
     const launch = parseArgs([]);
-    assert.deepEqual(launch.args.slice(2), ['--profile', 'gian']);
+    assert.deepEqual(launch.args.slice(2), ['--profile', gianProfileName()]);
   });
 });
 
