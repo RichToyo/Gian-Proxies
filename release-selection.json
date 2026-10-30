@@ -2,8 +2,7 @@
   "schema": 1,
   "providers": [
     "claude",
-    "codex",
-    "antigravity"
+    "codex"
   ],
   "baseCatalogTag": "catalog-v1.48.0",
   "baseCatalogRepository": "RichToyo/Gian-Proxies"

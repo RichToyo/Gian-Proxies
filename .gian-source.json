@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "3d547ed4328da2fba6d9f5e88ec45b43dccd2b8c",
+  "sourceCommit": "66ed72a8996000a22130e33961e739613f7838d0",
   "workingTree": false,
   "externalPackages": [
     {
@@ -456,7 +456,7 @@
     {
       "source": "catalog/proxy-information/io.gian.antigravity/basic.md",
       "path": "catalog/proxy-information/io.gian.antigravity/basic.md",
-      "sha256": "d6e8962fa9913d54914739a30722a04cfae37ea6bf8ba6df511c19845ccc8d9f"
+      "sha256": "ff9491d84d31560b1c6a730bf4c3cefa8da0be91ca3ae66cdf717031cf20e069"
     },
     {
       "source": "catalog/proxy-information/io.gian.antigravity/changelog.json",
@@ -471,7 +471,7 @@
     {
       "source": "catalog/proxy-information/io.gian.antigravity/tutorial.md",
       "path": "catalog/proxy-information/io.gian.antigravity/tutorial.md",
-      "sha256": "0f76144b6facd3905c1395edc9ce40bb2f8320e58e59269053c979ae260e469c"
+      "sha256": "6a28e08b255d877834f2e3fbff26b084f44f52b1ce6fee3870f1dbd84a6d7f55"
     },
     {
       "source": "catalog/proxy-information/kimi/basic.md",
@@ -546,7 +546,7 @@
     {
       "source": "delivery/proxies/CHANGELOG.md",
       "path": "CHANGELOG.md",
-      "sha256": "a6be67732cb3450ddc6baed473f49c82ab21b5953c2b90d01903ff507f1da8a3"
+      "sha256": "0e6523fda7efcecbac50514e7c95a7729ab1cc32b57343dcc9efc2266cc7c8c4"
     },
     {
       "source": "delivery/proxies/README.md",
@@ -561,7 +561,7 @@
     {
       "source": "delivery/proxies/release-selection.json",
       "path": "release-selection.json",
-      "sha256": "58bb7d4c4433c4563956ab8d8528d1dfb6e19b883a7d7109c129e01b8d7552c0"
+      "sha256": "135278c9fbf7f63f42f62cd80e7212107fe071cd15f527940e769b8cdd95e9f6"
     },
     {
       "source": "delivery/proxies/scripts/catalog-docs-policy.mjs",
@@ -586,7 +586,7 @@
     {
       "source": "delivery/proxies/scripts/runtime-qualification.test.mjs",
       "path": "scripts/runtime-qualification.test.mjs",
-      "sha256": "7d44702959a2617bc5c6ed91c01b7e923f7c8d5f56af140edaf07c9d04960512"
+      "sha256": "a704293345e742bdff38daedca2cb0eaecd63fa1a4276c5e2359afee9a418650"
     },
     {
       "source": "delivery/proxies/scripts/verify-source.mjs",
@@ -3483,7 +3483,7 @@
     {
       "path": "catalog/proxy-information/io.gian.antigravity/basic.md",
       "mode": 420,
-      "sha256": "d6e8962fa9913d54914739a30722a04cfae37ea6bf8ba6df511c19845ccc8d9f"
+      "sha256": "ff9491d84d31560b1c6a730bf4c3cefa8da0be91ca3ae66cdf717031cf20e069"
     },
     {
       "path": "catalog/proxy-information/io.gian.antigravity/changelog.json",
@@ -3498,7 +3498,7 @@
     {
       "path": "catalog/proxy-information/io.gian.antigravity/tutorial.md",
       "mode": 420,
-      "sha256": "0f76144b6facd3905c1395edc9ce40bb2f8320e58e59269053c979ae260e469c"
+      "sha256": "6a28e08b255d877834f2e3fbff26b084f44f52b1ce6fee3870f1dbd84a6d7f55"
     },
     {
       "path": "catalog/proxy-information/kimi/basic.md",
@@ -3548,7 +3548,7 @@
     {
       "path": "CHANGELOG.md",
       "mode": 420,
-      "sha256": "a6be67732cb3450ddc6baed473f49c82ab21b5953c2b90d01903ff507f1da8a3"
+      "sha256": "0e6523fda7efcecbac50514e7c95a7729ab1cc32b57343dcc9efc2266cc7c8c4"
     },
     {
       "path": "LICENSE",
@@ -5893,7 +5893,7 @@
     {
       "path": "release-selection.json",
       "mode": 420,
-      "sha256": "58bb7d4c4433c4563956ab8d8528d1dfb6e19b883a7d7109c129e01b8d7552c0"
+      "sha256": "135278c9fbf7f63f42f62cd80e7212107fe071cd15f527940e769b8cdd95e9f6"
     },
     {
       "path": "runtimes/deepseek-harness/package-lock.json",
@@ -5988,7 +5988,7 @@
     {
       "path": "scripts/runtime-qualification.test.mjs",
       "mode": 420,
-      "sha256": "7d44702959a2617bc5c6ed91c01b7e923f7c8d5f56af140edaf07c9d04960512"
+      "sha256": "a704293345e742bdff38daedca2cb0eaecd63fa1a4276c5e2359afee9a418650"
     },
     {
       "path": "scripts/stage-official-catalog-release.mjs",
