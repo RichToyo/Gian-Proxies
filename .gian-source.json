@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "bb4359dabd9516984f2e01122a0742fea9672697",
+  "sourceCommit": "8af9b7679b01ee6cd63433d12a4d9c747d3267da",
   "workingTree": false,
   "externalPackages": [
     {
@@ -2336,7 +2336,7 @@
     {
       "source": "packages/proxies/kimi-proxy/test/projector.test.ts",
       "path": "packages/proxies/kimi-proxy/test/projector.test.ts",
-      "sha256": "329c6b24121683c94e7d3d6d7f1bab6c1cdd04c366bc12f6ceba470b4c8f336a"
+      "sha256": "62ecac9585aea6e00e7265e6fd539a0587c18400dc9d370f100b1bcac2067149"
     },
     {
       "source": "packages/proxies/kimi-proxy/test/session-store.test.ts",
@@ -5288,7 +5288,7 @@
     {
       "path": "packages/proxies/kimi-proxy/test/projector.test.ts",
       "mode": 420,
-      "sha256": "329c6b24121683c94e7d3d6d7f1bab6c1cdd04c366bc12f6ceba470b4c8f336a"
+      "sha256": "62ecac9585aea6e00e7265e6fd539a0587c18400dc9d370f100b1bcac2067149"
     },
     {
       "path": "packages/proxies/kimi-proxy/test/session-store.test.ts",

@@ -512,7 +512,6 @@ test('usage after turn completion remains session-scoped without reviving the re
   assert.equal(projector.hasActiveTurn(), false);
 });
 
->>>>>>> release/0.6.10
 test('volatile thinking and assistant deltas that reuse the durable seq are projected', async () => {
   const { projector, events } = createProjector();
   assert.equal(projector.handleFrame(frame({
