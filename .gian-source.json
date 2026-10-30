@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "829158205f210b6c6aaed27f3881fca11b97876c",
+  "sourceCommit": "bb4359dabd9516984f2e01122a0742fea9672697",
   "workingTree": false,
   "externalPackages": [
     {
@@ -561,7 +561,7 @@
     {
       "source": "delivery/proxies/release-selection.json",
       "path": "release-selection.json",
-      "sha256": "45a2508b46c13327d80b51143eac19d220e82d44634f0d8ca0b1ac0035f7cb86"
+      "sha256": "5c4afabbe808899495a5bb9ce1e2e8af714d9f45a1249c97433f8af90dccad70"
     },
     {
       "source": "delivery/proxies/scripts/catalog-docs-policy.mjs",
@@ -586,7 +586,7 @@
     {
       "source": "delivery/proxies/scripts/runtime-qualification.test.mjs",
       "path": "scripts/runtime-qualification.test.mjs",
-      "sha256": "7de97c56c447645cbbb8c0dc983b09ce97ea5c1807c2de5186eaef09f4dd672e"
+      "sha256": "1da19be77b470e9deefce88654ddd66394d628c85739357221f2e3a77110bb31"
     },
     {
       "source": "delivery/proxies/scripts/verify-source.mjs",
@@ -2921,7 +2921,7 @@
     {
       "source": "pnpm-lock.yaml",
       "path": "pnpm-lock.yaml",
-      "sha256": "f12a9bbd39e18afef379edff46a9715893b49fcebb76bdef7f5d6981ae154620"
+      "sha256": "e6363055261bc4c61ff4ee2945aceab60943eeb548549af7ac202dfa0ca95590"
     },
     {
       "source": "pnpm-workspace.yaml",
@@ -5893,7 +5893,7 @@
     {
       "path": "release-selection.json",
       "mode": 420,
-      "sha256": "45a2508b46c13327d80b51143eac19d220e82d44634f0d8ca0b1ac0035f7cb86"
+      "sha256": "5c4afabbe808899495a5bb9ce1e2e8af714d9f45a1249c97433f8af90dccad70"
     },
     {
       "path": "runtimes/deepseek-harness/package-lock.json",
@@ -5988,7 +5988,7 @@
     {
       "path": "scripts/runtime-qualification.test.mjs",
       "mode": 420,
-      "sha256": "7de97c56c447645cbbb8c0dc983b09ce97ea5c1807c2de5186eaef09f4dd672e"
+      "sha256": "1da19be77b470e9deefce88654ddd66394d628c85739357221f2e3a77110bb31"
     },
     {
       "path": "scripts/stage-official-catalog-release.mjs",
