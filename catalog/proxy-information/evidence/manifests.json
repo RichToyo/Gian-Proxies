@@ -2918,5 +2918,55 @@
     "process": {
       "scope": "shared"
     }
+  },
+  {
+    "tag": "proxy-dsh-v0.3.10",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.10",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.10/gian-proxy-dsh-0.3.10-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:3a3b51cf83c86b89e73f9984b326c5e7cfc68b8c3333f4cc9f8199c21c5b140d",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "ai.deepseek.harness",
+    "pluginVersion": "0.3.10",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "deepseek-harness",
+      "displayName": "DeepSeek Harness",
+      "verifiedVersions": [
+        "0.2.1-rc.2"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
+  },
+  {
+    "tag": "proxy-kimi-v0.4.15",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.15",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.15/gian-proxy-kimi-0.4.15-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:097e2556cae7c3a81a41b3707b688f3f1bfa959942f9ea2bace6ddedf9541bae",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "kimi",
+    "pluginVersion": "0.4.15",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "kimi",
+      "displayName": "Kimi Code",
+      "verifiedVersions": [
+        "2.3.3"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
   }
 ]

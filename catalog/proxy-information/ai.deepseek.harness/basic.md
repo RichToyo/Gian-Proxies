@@ -14,12 +14,12 @@ The name and icon stay in the title. Install and update actions and progress com
 
 ## Current release-target snapshot
 
-This is the 2026-09-20 Catalog 1.7.0 target, not this machine's install state: Proxy **0.3.1**, Runtime **0.1.1-rc.2**. That distribution from the newer repository bundles Bridge 0.1.3. The Bridge is covered by the whole Proxy archive digest. The dependency is explained in the tutorial. It does not add a fourth Basic line.
+The certified release target is Proxy **0.3.10**, Runtime **0.2.1-rc.2**, not this machine's install state. It bundles Bridge 0.1.9-Dev, covered by the whole Proxy archive digest. The dependency is explained in the tutorial. It does not add a fourth Basic line.
 
 Example path shape (Runtime 0.2.1-rc.2 as pinned by current source; `<artifact-sha256>` comes from that version's signed artifact):
 
 ```text
-<dataDir>/runtimes/deepseek-harness/0.2.0-rc.2/<artifact-sha256>/node_modules/@deepseek-ai/dsh/lib/bin.js
+<dataDir>/runtimes/deepseek-harness/0.2.1-rc.2/<artifact-sha256>/node_modules/@deepseek-ai/dsh/lib/bin.js
 ```
 
 `<dataDir>` comes from the running environment. `<artifact-sha256>` comes from the current signed combination. The UI should consume the Host install plan. The Web does not assemble the path itself. Full coordinates are in ../evidence/current-combinations.json.
