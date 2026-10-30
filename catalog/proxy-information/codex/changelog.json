@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "codex",
-  "currentVersion": "0.3.11",
+  "currentVersion": "0.3.12",
   "entries": [
+    {
+      "version": "0.3.12",
+      "firstPublishedAt": "2026-10-30T18:40:07Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-codex-v0.3.12",
+          "publishedAt": "2026-10-30T18:40:07Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.12",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.12/gian-proxy-codex-0.3.12-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "d204f6b31bc4beca5fe33a01b2708407e0833aed5ec29090e7081a3a288ee8c4",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.12/gian-proxy-codex-0.3.12-darwin-arm64.tar.gz",
+            "sha256": "026e704066daf1f2f3660f35bda6283081378cbbcadc16f4eb1354c12ab9d88c",
+            "size": 244157
+          },
+          "runtimeDeclaration": {
+            "id": "codex",
+            "versions": [
+              "0.166.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Retain read-only ChatGPT subscription quota inspection through the bound Codex account, without sending a model prompt. Upgrade the managed Codex Runtime to official 0.166.0 with pinned archive bytes; the app-server schema delta is additive (item lifecycle timestamps, imageGeneration generationId, policyCapacityUnavailable error, optional hooks threadId and untrusted-context name); the removed review detached delivery mode is unused by this Proxy. Use Proxy Protocol SDK 1.0.4. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.12",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.12/packages/proxies/codex-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.11",
       "firstPublishedAt": "2026-10-28T18:54:09Z",

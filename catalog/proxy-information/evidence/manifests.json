@@ -2968,5 +2968,55 @@
     "process": {
       "scope": "shared"
     }
+  },
+  {
+    "tag": "proxy-claude-v0.3.17",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.17",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.17/gian-proxy-claude-0.3.17-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:28b149d6b568813d84eaece039f205f79745b9c0615ba2d34c24142202b7f7a5",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "claude",
+    "pluginVersion": "0.3.17",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "claude",
+      "displayName": "Claude Code",
+      "verifiedVersions": [
+        "2.1.314"
+      ]
+    },
+    "process": {
+      "scope": "session"
+    }
+  },
+  {
+    "tag": "proxy-codex-v0.3.12",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.12",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.12/gian-proxy-codex-0.3.12-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:d204f6b31bc4beca5fe33a01b2708407e0833aed5ec29090e7081a3a288ee8c4",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "codex",
+    "pluginVersion": "0.3.12",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "codex",
+      "displayName": "Codex CLI",
+      "verifiedVersions": [
+        "0.166.0"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
   }
 ]

@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "claude",
-  "currentVersion": "0.3.16",
+  "currentVersion": "0.3.17",
   "entries": [
+    {
+      "version": "0.3.17",
+      "firstPublishedAt": "2026-10-30T18:40:04Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-claude-v0.3.17",
+          "publishedAt": "2026-10-30T18:40:04Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.17",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.17/gian-proxy-claude-0.3.17-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "28b149d6b568813d84eaece039f205f79745b9c0615ba2d34c24142202b7f7a5",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.17/gian-proxy-claude-0.3.17-darwin-arm64.tar.gz",
+            "sha256": "b6aa76d14e4b06044cf3885ff9ceb66e5b319c673bd88f3ec3bd3bc3770d732e",
+            "size": 629715
+          },
+          "runtimeDeclaration": {
+            "id": "claude",
+            "versions": [
+              "2.1.314"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Retain first-party account quota inspection for the Gian menu bar and cumulative usage identity. Upgrade the managed Claude Code Runtime to official 2.1.314 with pinned binary bytes; the official changelog from 2.1.312 through 2.1.314 was reviewed. The 2.1.314 changelog adds an opt-in permissions.blockWritesOutsideWorkingDirectories toggle and fixes claude -p to exit non-zero on startup failure; no proxy spawn flag or permission-mode surface changed. Use Proxy Protocol SDK 1.0.4. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.17",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-claude-v0.3.17/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.16",
       "firstPublishedAt": "2026-10-28T18:54:05Z",
