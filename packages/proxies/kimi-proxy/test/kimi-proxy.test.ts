@@ -24,7 +24,7 @@ import {
 const SHORT_TURN = {
   delayBefore: 10,
   events: [
-    { type: 'turn.started', payload: { turnId: 1 } },
+    { type: 'turn.started' },
     { type: 'assistant.delta', payload: { agentId: 'main', delta: 'Hello' } },
     { type: 'assistant.delta', payload: { agentId: 'main', delta: ' world' } },
     {
@@ -41,7 +41,7 @@ const SHORT_TURN = {
         usage: { total: { inputOther: 90, output: 10, inputCacheRead: 20, inputCacheCreation: 0 } },
       },
     },
-    { type: 'turn.ended', payload: { turnId: 1, reason: 'completed' } },
+    { type: 'turn.ended', payload: { reason: 'completed' } },
     { type: 'prompt.completed', payload: { reason: 'completed' } },
   ],
 };
@@ -111,7 +111,7 @@ test('owned background continuation remains on the admitted turn and later sends
     const streamId = await createSession(harness, 's_background');
     const started = await harness.request('turn.start', {
       sessionId: 's_background', streamId, turnId: 't_background',
-      input: [{ type: 'text', text: 'Start background work' }], config: {},
+      input: [{ type: 'text', text: 'Start background work' }], config: { approval_mode: 'manual' },
     });
     assert.equal(started.kind, 'result', JSON.stringify(started.payload));
     await harness.waitNotificationFor((line) => line.method === 'content.delta');
@@ -132,7 +132,7 @@ test('owned background continuation remains on the admitted turn and later sends
     assert.ok(deltas.every((params) => params.turnId === 't_background'));
     const next = await harness.request('turn.start', {
       sessionId: 's_background', streamId, turnId: 't_next',
-      input: [{ type: 'text', text: 'Continue' }], config: {},
+      input: [{ type: 'text', text: 'Continue' }], config: { approval_mode: 'manual' },
     });
     assert.equal(next.kind, 'result', JSON.stringify(next.payload));
     await harness.waitNotificationFor((line) => line.method === 'turn.completed'
@@ -171,7 +171,7 @@ test('read-only native task reconciliation recovers missing terminal and idle ev
     const streamId = await createSession(harness, 's_reconcile_background');
     const started = await harness.request('turn.start', {
       sessionId: 's_reconcile_background', streamId, turnId: 't_background',
-      input: [{ type: 'text', text: 'Start work' }], config: {},
+      input: [{ type: 'text', text: 'Start work' }], config: { approval_mode: 'manual' },
     });
     assert.equal(started.kind, 'result', JSON.stringify(started.payload));
     await harness.waitNotificationFor((line) => line.method === 'turn.completed', 12_000);
@@ -207,7 +207,7 @@ test('a foreign-session task snapshot cannot complete the admitted turn', async 
     const streamId = await createSession(harness, 's_foreign_snapshot');
     const started = await harness.request('turn.start', {
       sessionId: 's_foreign_snapshot', streamId, turnId: 't_foreign_snapshot',
-      input: [{ type: 'text', text: 'Start work' }], config: {},
+      input: [{ type: 'text', text: 'Start work' }], config: { approval_mode: 'manual' },
     });
     assert.equal(started.kind, 'result', JSON.stringify(started.payload));
     const deadline = Date.now() + 10_000;
@@ -247,7 +247,7 @@ test('a native question remains answerable after the first native turn ends', as
     const streamId = await createSession(harness, 's_question_background');
     const started = await harness.request('turn.start', {
       sessionId: 's_question_background', streamId, turnId: 't_question',
-      input: [{ type: 'text', text: 'Ask a question' }], config: {},
+      input: [{ type: 'text', text: 'Ask a question' }], config: { approval_mode: 'manual' },
     });
     assert.equal(started.kind, 'result', JSON.stringify(started.payload));
     await harness.waitNotificationFor((line) => line.method === 'interaction.requested');
@@ -302,7 +302,7 @@ test('interrupt does not guess a prompt ID for a native background continuation'
     const streamId = await createSession(harness, 's_interrupt_background');
     const started = await harness.request('turn.start', {
       sessionId: 's_interrupt_background', streamId, turnId: 't_background',
-      input: [{ type: 'text', text: 'Start work' }], config: {},
+      input: [{ type: 'text', text: 'Start work' }], config: { approval_mode: 'manual' },
     });
     assert.equal(started.kind, 'result', JSON.stringify(started.payload));
     await harness.waitNotificationFor((line) => line.method === 'content.delta');
@@ -331,7 +331,7 @@ test('an unconfirmed native abort is reported without claiming the turn stopped'
     const streamId = await createSession(harness, 's_abort_declined');
     const started = await harness.request('turn.start', {
       sessionId: 's_abort_declined', streamId, turnId: 't_abort_declined',
-      input: [{ type: 'text', text: 'Start work' }], config: {},
+      input: [{ type: 'text', text: 'Start work' }], config: { approval_mode: 'manual' },
     });
     assert.equal(started.kind, 'result', JSON.stringify(started.payload));
     await harness.waitNotificationFor((line) => line.method === 'turn.started');
@@ -373,7 +373,7 @@ test('an explicit continuation prompt ID is used for interrupt without touching 
     const peer = await createSession(harness, 's_peer_owned');
     const started = await harness.request('turn.start', {
       sessionId: 's_interrupt_owned', streamId, turnId: 't_owned',
-      input: [{ type: 'text', text: 'Start work' }], config: {},
+      input: [{ type: 'text', text: 'Start work' }], config: { approval_mode: 'manual' },
     });
     assert.equal(started.kind, 'result', JSON.stringify(started.payload));
     await harness.waitNotificationFor((line) => line.method === 'content.delta');
@@ -411,7 +411,7 @@ test('TodoList A-B-A keeps Host sequencing through final output and completion',
     const streamId = await createSession(harness, 's_plan_cycle');
     const started = await harness.request('turn.start', {
       sessionId: 's_plan_cycle', streamId, turnId: 't_plan_cycle',
-      input: [{ type: 'text', text: 'Update the plan A-B-A and finish.' }], config: {},
+      input: [{ type: 'text', text: 'Update the plan A-B-A and finish.' }], config: { approval_mode: 'manual' },
     });
     assert.equal(started.kind, 'result', JSON.stringify(started.payload));
     await harness.waitNotificationFor((line) => line.method === 'session.updated'
