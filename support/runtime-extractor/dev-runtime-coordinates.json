@@ -2,25 +2,25 @@
   {
     "pluginId": "claude",
     "runtimeId": "claude",
-    "version": "2.1.312",
+    "version": "2.1.314",
     "format": "raw",
     "entryRelativePath": "bin/claude",
     "asset": {
-      "sha256": "6b5ec691195e551b02c41df9f7d723f4ea61eaa03c2df90acefe3736f1aeb620",
-      "size": 275988512,
-      "url": "https://downloads.claude.ai/claude-code-releases/2.1.312/darwin-arm64/claude"
+      "sha256": "21d6e7b9a6f07b4cfcb7df13760b3b72aa25e084e13a5354413382987ba832ed",
+      "size": 278848096,
+      "url": "https://downloads.claude.ai/claude-code-releases/2.1.314/darwin-arm64/claude"
     }
   },
   {
     "pluginId": "codex",
     "runtimeId": "codex",
-    "version": "0.165.0",
+    "version": "0.166.0",
     "format": "tar.gz",
     "entryRelativePath": "bin/codex",
     "asset": {
-      "sha256": "34d12384d90f8e09b0b9abaabf2a0ac02a52093b131504aeaf282107f54a44b2",
-      "size": 136607094,
-      "url": "https://github.com/openai/codex/releases/download/rust-v0.165.0/codex-package-aarch64-apple-darwin.tar.gz"
+      "sha256": "55a440cb579f970abe7c79ab181e54b0ea4c419be99f333bbd868eebac9c21f0",
+      "size": 165951869,
+      "url": "https://github.com/openai/codex/releases/download/rust-v0.166.0/codex-package-aarch64-apple-darwin.tar.gz"
     }
   },
   {
@@ -78,7 +78,7 @@
   {
     "pluginId": "io.gian.antigravity",
     "runtimeId": "antigravity-acp",
-    "version": "1.4.4",
+    "version": "1.4.5",
     "format": "tar.gz",
     "entryRelativePath": "agy_acp_server.par",
     "probe": {
@@ -86,11 +86,11 @@
     },
     "build": {
       "kind": "antigravity-pair",
-      "sourceSha256": "a3cf324046396380fcd8c055a4a4c83ac4ea74a38ea883ccbfce5ca1e9927ae9"
+      "sourceSha256": "886fff7767d08994ca39eb02c3d01a7532c7325a94aa33aaf52d52068733284f"
     },
     "asset": {
-      "sha256": "dc6c9f744d054bed90fe5d8f5d7d1d12162d17216e2a680e209121e683a545fb",
-      "size": 113998513
+      "sha256": "c2623c4c56201e5c29061090ae34609f1757875ed350725ef3a15d8c1b4644b0",
+      "size": 97756458
     }
   }
 ]

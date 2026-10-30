@@ -32,20 +32,20 @@ export const ZCODE_RUNTIME_ASSET_NAME = 'zcode.tar.gz';
 
 export const upstreamRuntimeCandidates = Object.freeze({
   claude: Object.freeze({
-    version: '2.1.312',
+    version: '2.1.314',
     format: 'raw',
     entryRelativePath: 'bin/claude',
-    url: 'https://downloads.claude.ai/claude-code-releases/2.1.312/darwin-arm64/claude',
-    sha256: '6b5ec691195e551b02c41df9f7d723f4ea61eaa03c2df90acefe3736f1aeb620',
-    size: 275988512,
+    url: 'https://downloads.claude.ai/claude-code-releases/2.1.314/darwin-arm64/claude',
+    sha256: '21d6e7b9a6f07b4cfcb7df13760b3b72aa25e084e13a5354413382987ba832ed',
+    size: 278848096,
   }),
   codex: Object.freeze({
-    version: '0.165.0',
+    version: '0.166.0',
     format: 'tar.gz',
     entryRelativePath: 'bin/codex',
-    url: 'https://github.com/openai/codex/releases/download/rust-v0.165.0/codex-package-aarch64-apple-darwin.tar.gz',
-    sha256: '34d12384d90f8e09b0b9abaabf2a0ac02a52093b131504aeaf282107f54a44b2',
-    size: 136607094,
+    url: 'https://github.com/openai/codex/releases/download/rust-v0.166.0/codex-package-aarch64-apple-darwin.tar.gz',
+    sha256: '55a440cb579f970abe7c79ab181e54b0ea4c419be99f333bbd868eebac9c21f0',
+    size: 165951869,
   }),
   kimi: Object.freeze({
     version: '2.3.3',

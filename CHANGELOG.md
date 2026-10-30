@@ -1,5 +1,22 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidates - 2026-10-31
+
+- Select Claude 0.3.17, Codex 0.3.12 and Antigravity 0.0.7 against signed
+  Catalog 48. Preserve the complete excluded Kimi, DeepSeek Harness, Grok and
+  ZCode tuples and all their Runtime pins.
+- Upgrade the managed Claude Code Runtime from 2.1.312 to official 2.1.314
+  with exact pinned binary bytes; the official changelog from 2.1.312 through
+  2.1.314 was reviewed.
+- Upgrade the managed Codex Runtime from 0.165.0 to official 0.166.0 with
+  exact pinned archive bytes; the app-server schema delta is additive and the
+  removed review `detached` delivery mode is unused by this Proxy.
+- Upgrade the managed Antigravity ACP Runtime from 1.4.4 to official registry
+  1.4.5 with the pinned official pair archive.
+- These are release candidates until the hosted artifact qualification and
+  immutable publication steps succeed. Real Provider and Desktop acceptance
+  remain separate from artifact qualification.
+
 ## Runtime maintenance candidates - 2026-10-30
 
 - Select Antigravity 0.0.6 against signed Catalog 46. Preserve the complete
