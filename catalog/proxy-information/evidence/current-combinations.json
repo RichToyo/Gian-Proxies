@@ -1,21 +1,21 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.49.0",
-  "sequence": 49,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.50.0",
+  "sequence": 50,
   "sourceId": "gian-official",
   "plugins": [
     {
       "id": "claude",
       "displayName": "Claude Code",
-      "version": "0.3.17",
+      "version": "0.3.18",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "session",
       "combination": {
         "certificate": {
-          "id": "proxies-4947f3bb07a89fc203cf95ef056d6f9e1261f37d-41108121323-1",
-          "sha256": "7006a941839afe820c36c2bab36ef9928797ce0ca39e2151baade2bab4fe425a"
+          "id": "proxies-31a04f4132467be75392acddeb798b6e10f0e8aa-41188227363-1",
+          "sha256": "84bfe6ad6b2d7d83b80473898ea4aa72e891e10fd5c7b6305468611cef0e3803"
         },
         "companions": [],
-        "generationId": "claude-0.3.17-runtime-2.1.314",
+        "generationId": "claude-0.3.18-runtime-2.1.314",
         "runtime": {
           "kind": "native-binary",
           "runtimeId": "claude",
@@ -44,16 +44,16 @@
         "companions": [],
         "generationId": "codex-0.3.12-runtime-0.166.0",
         "runtime": {
+          "asset": {
+            "sha256": "55a440cb579f970abe7c79ab181e54b0ea4c419be99f333bbd868eebac9c21f0",
+            "size": 165951869,
+            "url": "https://github.com/openai/codex/releases/download/rust-v0.166.0/codex-package-aarch64-apple-darwin.tar.gz"
+          },
+          "entryRelativePath": "bin/codex",
+          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "codex",
-          "version": "0.166.0",
-          "asset": {
-            "url": "https://github.com/openai/codex/releases/download/rust-v0.166.0/codex-package-aarch64-apple-darwin.tar.gz",
-            "sha256": "55a440cb579f970abe7c79ab181e54b0ea4c419be99f333bbd868eebac9c21f0",
-            "size": 165951869
-          },
-          "format": "tar.gz",
-          "entryRelativePath": "bin/codex"
+          "version": "0.166.0"
         }
       }
     },
