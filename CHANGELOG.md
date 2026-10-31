@@ -1,5 +1,19 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidates - 2026-11-01
+
+- Select Claude 0.3.19 against signed Catalog 50. Preserve the complete
+  excluded Codex, Kimi, DeepSeek Harness, Grok, Antigravity and ZCode tuples
+  and all their Runtime pins.
+- Upgrade the managed Claude Code Runtime from 2.1.314 to official 2.1.316
+  with exact pinned binary bytes; the official 2.1.314 through 2.1.316
+  changelog review found no proxy spawn-flag or permission-mode surface
+  change, while upstream fixed orphaned shell commands on exit and
+  `claude -p` auto-mode stop explanations.
+- These are release candidates until the hosted artifact qualification and
+  immutable publication steps succeed. Real Provider and Desktop acceptance
+  remain separate from artifact qualification.
+
 ## Claude Proxy 0.3.18 - 2026-10-31
 
 - Prevent repeated Claude conversation usage updates from causing a session
