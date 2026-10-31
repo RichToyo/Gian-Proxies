@@ -40,6 +40,7 @@ export type WireRequest = {
 };
 
 type V2EventSink = (method: string, params: Record<string, unknown>) => void;
+type V2DiagnosticSink = (message: string) => void;
 
 type CatalogRole = 'model' | 'effort' | 'approval_mode';
 
@@ -579,6 +580,8 @@ export class ClaudeProtocolV2Adapter {
   private readonly activeTurnStateBySession = new Map<string, ActiveTurnState>();
   private readonly startedTurns = new Set<string>();
   private readonly pendingUsageByTurn = new Map<string, Record<string, unknown>>();
+  /** Host turn keys that already contributed their one conversation delta. */
+  private readonly conversationDeltaTurns = new Set<string>();
   private readonly closedTurnKeys = new Set<string>();
   private readonly acceptedInterruptTurns = new Set<string>();
   private readonly interactions = new Map<string, InteractionRef>();
@@ -612,6 +615,7 @@ export class ClaudeProtocolV2Adapter {
     private readonly service: CcProxyService,
     private readonly pluginVersion: string,
     private readonly emitEvent: V2EventSink,
+    private readonly diagnostic: V2DiagnosticSink = (message) => console.error(message),
   ) {
     service.setEventSink((method, params) => this.translateEvent(method, params));
   }
@@ -1927,7 +1931,8 @@ export class ClaudeProtocolV2Adapter {
           const pendingUsage = this.pendingUsageByTurn.get(key);
           if (pendingUsage) {
             this.pendingUsageByTurn.delete(key);
-            this.emitTurnEvent('usage.updated', session, turnId, pendingUsage);
+            const usage = this.applyConversationDeltaOnce(session.id, turnId, pendingUsage);
+            if (usage) this.emitTurnEvent('usage.updated', session, turnId, usage);
           }
         }
         return;
@@ -2039,8 +2044,15 @@ export class ClaudeProtocolV2Adapter {
         if (turnId) {
           const key = this.turnKey(session.id, turnId);
           if (this.closedTurnKeys.has(key)) return;
-          if (!this.startedTurns.has(key)) this.pendingUsageByTurn.set(key, usage);
-          else this.emitTurnEvent('usage.updated', session, turnId, usage);
+          if (!this.startedTurns.has(key)) {
+            this.pendingUsageByTurn.set(
+              key,
+              this.mergePendingUsage(session.id, turnId, this.pendingUsageByTurn.get(key), usage),
+            );
+          } else {
+            const deduped = this.applyConversationDeltaOnce(session.id, turnId, usage);
+            if (deduped) this.emitTurnEvent('usage.updated', session, turnId, deduped);
+          }
         }
         return;
       }
@@ -2382,6 +2394,72 @@ export class ClaudeProtocolV2Adapter {
     this.emitEvent(method, params);
   }
 
+  /**
+   * Usage can arrive before `turn.started` is flushed. The single pending slot
+   * must not let a later context-only sample erase the only conversation
+   * delta, or keep the last of two pre-start deltas. Keep the first delta and
+   * the latest context; reset/absolute snapshots replace the buffered
+   * conversation.
+   */
+  private mergePendingUsage(
+    sessionId: string,
+    turnId: string,
+    previous: Record<string, unknown> | undefined,
+    incoming: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (!previous) return incoming;
+    const merged = { ...previous };
+    if (Object.hasOwn(incoming, 'context')) merged.context = incoming.context;
+    const incomingConversation = record(incoming.conversation);
+    const previousConversation = record(previous.conversation);
+    if (incomingConversation.mode === 'delta') {
+      if (previousConversation.mode === 'delta') {
+        this.diagnostic(
+          `[cc-proxy:v2] suppressed pre-start duplicate conversation delta for session ${sessionId} turn ${turnId}.`,
+        );
+      } else {
+        merged.conversation = incoming.conversation;
+      }
+    } else if (
+      incomingConversation.mode === 'reset'
+      || incomingConversation.mode === 'absolute'
+    ) {
+      merged.conversation = incoming.conversation;
+    }
+    return merged;
+  }
+
+  /**
+   * The Host applies `conversation.mode === 'delta'` at most once per
+   * `(turnId, stepId?)`; a second sample is a session-fatal protocol fault.
+   * Claude can surface more than one result-derived sample for one turn (for
+   * example after a process boundary), and those counters are not known to be
+   * additive. Keep the first delta, drop only the conversation part of later
+   * duplicates, and still forward their context sample. A duplicate carrying
+   * no context is not worth emitting at all.
+   */
+  private applyConversationDeltaOnce(
+    sessionId: string,
+    turnId: string,
+    usage: Record<string, unknown>,
+  ): Record<string, unknown> | null {
+    if (record(usage.conversation).mode !== 'delta') return usage;
+    const key = this.turnKey(sessionId, turnId);
+    if (this.conversationDeltaTurns.has(key)) {
+      const contextOnly = { ...usage };
+      delete contextOnly.conversation;
+      const hasContext = Object.hasOwn(contextOnly, 'context');
+      // Keep this diagnostic payload-free: no conversation content or counts.
+      this.diagnostic(
+        `[cc-proxy:v2] suppressed duplicate conversation delta for session ${sessionId} turn ${turnId}`
+        + (hasContext ? '; context forwarded.' : '; no context to forward.'),
+      );
+      return hasContext ? contextOnly : null;
+    }
+    this.conversationDeltaTurns.add(key);
+    return usage;
+  }
+
   private markTurnClosed(sessionId: string, turnId: string): void {
     this.closedTurnKeys.add(this.turnKey(sessionId, turnId));
   }
@@ -2399,6 +2477,7 @@ export class ClaudeProtocolV2Adapter {
     this.activeTurnStateBySession.delete(sessionId);
     this.startedTurns.delete(key);
     this.pendingUsageByTurn.delete(key);
+    this.conversationDeltaTurns.delete(key);
     this.acceptedInterruptTurns.delete(key);
     this.openActivitiesByTurn.delete(key);
     this.openContentByTurn.delete(key);

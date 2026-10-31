@@ -31,6 +31,7 @@ class FakeRuntime extends EventEmitter<ClaudeRuntimeEvents> implements ClaudeRun
   readonly spawns: Array<Parameters<ClaudeRuntime['spawnSession']>[0]> = [];
   readonly modelUpdates: Array<{ sessionId: string; model: string | null }> = [];
   failInterrupt = false;
+  onSendMessage?: (sessionId: string) => void;
   private readonly alive = new Set<string>();
   private readonly modelBySession = new Map<string, string | null>();
 
@@ -73,6 +74,7 @@ class FakeRuntime extends EventEmitter<ClaudeRuntimeEvents> implements ClaudeRun
       ...(options?.effort !== undefined ? { effort: options.effort } : {}),
       ...(options?.displayName !== undefined ? { displayName: options.displayName } : {}),
     });
+    this.onSendMessage?.(sessionId);
   }
   resetClaudeSessionId(): void {}
   async respondPermission(
@@ -132,9 +134,10 @@ async function setup(permissionModes?: string[], extraModels: ModelCapabilities[
   const service = new CcProxyService({ runtime });
   await service.initialize();
   const notifications: Emitted[] = [];
+  const diagnostics: string[] = [];
   const adapter = new ClaudeProtocolV2Adapter(service, '0.2.0', (method, params) => {
     notifications.push({ method, params });
-  });
+  }, (message) => diagnostics.push(message));
   await adapter.handle(request('1', 'initialize', {
     protocol: { name: 'gian.proxy', versions: ['2.1'] },
     host: { name: 'test', version: '9.9.9' },
@@ -154,6 +157,7 @@ async function setup(permissionModes?: string[], extraModels: ModelCapabilities[
     service,
     adapter,
     notifications,
+    diagnostics,
     streamId: created.session.streamId,
     nativeSessionId: created.session.nativeSession.id,
   };
@@ -413,6 +417,147 @@ test('Claude gian.proxy/2 keeps usage behind an unflushed turn.started and drops
     assert.equal(notifications.filter(item => item.method === 'usage.updated').length, 1);
     const sequences = notifications.map(item => item.params.sequence);
     assert.deepEqual(sequences, sequences.map((_, index) => index + 1));
+  } finally {
+    await service.close();
+  }
+});
+
+test('Claude gian.proxy/2 emits one conversation delta per turn and keeps later context', async () => {
+  const { runtime, service, adapter, notifications, diagnostics, streamId } = await setup();
+  try {
+    await adapter.handle(request('3', 'turn.start', {
+      sessionId: 'host-session',
+      streamId,
+      turnId: 'host-delta-turn',
+      input: [{ type: 'text', text: 'hello' }],
+      config: {},
+    }));
+    adapter.flushDeferredNotifications();
+    const serviceSessionId = runtime.messages[0]!.sessionId;
+
+    runtime.emit('tokenUsage', serviceSessionId, {
+      context: { used: 100, window: 200_000 },
+      conversation: {
+        mode: 'delta',
+        inputTokens: 70,
+        outputTokens: 30,
+        cachedInputTokens: 10,
+        totalTokens: 100,
+      },
+    });
+    // A second result-derived sample is not known to be additive. It must not
+    // become a second Host delta, but its context sample is still useful.
+    runtime.emit('tokenUsage', serviceSessionId, {
+      context: { used: 120, window: 200_000 },
+      conversation: {
+        mode: 'delta',
+        inputTokens: 80,
+        outputTokens: 40,
+        cachedInputTokens: 20,
+        totalTokens: 120,
+      },
+    });
+    // A duplicate with no context carries nothing the Host can safely apply.
+    runtime.emit('tokenUsage', serviceSessionId, {
+      conversation: { mode: 'delta', totalTokens: 999 },
+    });
+    runtime.emit('channelReply', serviceSessionId, '');
+    adapter.flushDeferredNotifications();
+
+    const usage = notifications.filter(item => item.method === 'usage.updated');
+    assert.deepEqual(usage.map(item => item.params.data), [
+      {
+        context: { used: 100, window: 200_000 },
+        conversation: {
+          mode: 'delta',
+          inputTokens: 70,
+          outputTokens: 30,
+          cachedInputTokens: 10,
+          totalTokens: 100,
+        },
+      },
+      { context: { used: 120, window: 200_000 } },
+    ]);
+    assert.equal(
+      usage.filter(item => (
+        item.params.data as { conversation?: { mode?: string } }
+      ).conversation?.mode === 'delta').length,
+      1,
+    );
+    assert.equal(notifications.filter(item => item.method === 'turn.completed').length, 1);
+    assert.equal(diagnostics.length, 2);
+    assert.match(diagnostics[0]!, /context forwarded/);
+    assert.match(diagnostics[1]!, /no context to forward/);
+    assert.ok(diagnostics.every(line => !line.includes('120') && !line.includes('999')));
+    for (const item of notifications) {
+      proxyNotificationSchema.parse({ jsonrpc: '2.0', method: item.method, params: item.params });
+    }
+  } finally {
+    await service.close();
+  }
+});
+
+test('Claude gian.proxy/2 keeps the first pre-start delta and the latest context', async () => {
+  const { runtime, service, adapter, notifications, diagnostics, streamId } = await setup();
+  try {
+    runtime.onSendMessage = (serviceSessionId) => {
+      runtime.emit('tokenUsage', serviceSessionId, {
+        context: { used: 10, window: 100 },
+        conversation: {
+          mode: 'delta',
+          inputTokens: 5,
+          outputTokens: 1,
+          cachedInputTokens: 0,
+          totalTokens: 6,
+        },
+      });
+      runtime.emit('tokenUsage', serviceSessionId, {
+        context: { used: 20, window: 100 },
+        conversation: {
+          mode: 'delta',
+          inputTokens: 9,
+          outputTokens: 2,
+          cachedInputTokens: 0,
+          totalTokens: 11,
+        },
+      });
+      runtime.emit('tokenUsage', serviceSessionId, {
+        context: { used: 30, window: 100 },
+      });
+    };
+
+    await adapter.handle(request('3', 'turn.start', {
+      sessionId: 'host-session',
+      streamId,
+      turnId: 'host-pending-delta-turn',
+      input: [{ type: 'text', text: 'hello' }],
+      config: {},
+    }));
+    adapter.flushDeferredNotifications();
+
+    const usage = notifications.filter(item => item.method === 'usage.updated');
+    assert.deepEqual(usage.map(item => item.params.data), [{
+      context: { used: 30, window: 100 },
+      conversation: {
+        mode: 'delta',
+        inputTokens: 5,
+        outputTokens: 1,
+        cachedInputTokens: 0,
+        totalTokens: 6,
+      },
+    }]);
+    assert.equal(
+      usage.filter(item => (
+        item.params.data as { conversation?: { mode?: string } }
+      ).conversation?.mode === 'delta').length,
+      1,
+    );
+    assert.equal(diagnostics.length, 1);
+    assert.match(diagnostics[0]!, /pre-start duplicate conversation delta/);
+
+    runtime.emit('channelReply', runtime.messages[0]!.sessionId, '');
+    adapter.flushDeferredNotifications();
+    assert.equal(notifications.filter(item => item.method === 'turn.completed').length, 1);
   } finally {
     await service.close();
   }

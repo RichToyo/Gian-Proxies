@@ -1,5 +1,12 @@
 # Gian Proxies Changelog
 
+## Claude Proxy 0.3.18 - 2026-10-31
+
+- Prevent repeated Claude conversation usage updates from causing a session
+  protocol failure, while retaining context updates and diagnostic signals.
+- Select only Claude against signed Catalog 49. Other Proxy and Runtime
+  coordinates are retained; real Provider and Desktop acceptance are separate.
+
 ## Runtime maintenance candidates - 2026-10-31
 
 - Select Claude 0.3.17 and Codex 0.3.12 against signed Catalog 48. Preserve
