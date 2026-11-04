@@ -3,6 +3,6 @@
   "providers": [
     "claude"
   ],
-  "baseCatalogTag": "catalog-v1.51.0",
+  "baseCatalogTag": "catalog-v1.52.0",
   "baseCatalogRepository": "RichToyo/Gian-Proxies"
 }
