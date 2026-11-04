@@ -1,5 +1,14 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidates - 2026-11-04
+
+- Select Claude 0.3.20 against signed Catalog 51 and preserve excluded tuples.
+- Upgrade the managed Claude Code Runtime from 2.1.316 to official 2.1.317
+  using the pinned official binary. The upstream notes include SDK hook failure,
+  network disclosure confirmation and MCP session stability changes.
+- Qualification and immutable publication remain required; real Provider and
+  Desktop acceptance are separate.
+
 ## Runtime maintenance candidates - 2026-11-01
 
 - Select Claude 0.3.19 against signed Catalog 50. Preserve the complete

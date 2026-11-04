@@ -32,12 +32,12 @@ export const ZCODE_RUNTIME_ASSET_NAME = 'zcode.tar.gz';
 
 export const upstreamRuntimeCandidates = Object.freeze({
   claude: Object.freeze({
-    version: '2.1.316',
+    version: '2.1.317',
     format: 'raw',
     entryRelativePath: 'bin/claude',
-    url: 'https://downloads.claude.ai/claude-code-releases/2.1.316/darwin-arm64/claude',
-    sha256: '64c327e92b2c5e0f78c0a980c5a518121e1f0d140ca771ca5dd4488d1a2dcb3f',
-    size: 310114176,
+    url: 'https://downloads.claude.ai/claude-code-releases/2.1.317/darwin-arm64/claude',
+    sha256: '09f153b46b5df9e8b3454716d682a91901de020cbca630f61dec1a015b32b5e9',
+    size: 312806400,
   }),
   codex: Object.freeze({
     version: '0.166.0',
