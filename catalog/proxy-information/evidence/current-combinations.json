@@ -1,29 +1,29 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.52.0",
-  "sequence": 52,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.53.0",
+  "sequence": 53,
   "sourceId": "gian-official",
   "plugins": [
     {
       "id": "claude",
       "displayName": "Claude Code",
-      "version": "0.3.20",
+      "version": "0.3.21",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "session",
       "combination": {
         "certificate": {
-          "id": "proxies-766c0620fc91d27abd771a9d48f525dd4a8cd76d-41849205952-1",
-          "sha256": "ce41bdc8d6b0deb984117f57f6a79edebac869e27e300073160909d01e724b46"
+          "id": "proxies-865b2f9936b8333140d127657de117d220c3c2df-41883463134-2",
+          "sha256": "c301b335c601f4a59f1ef4f07b8c2119e28c7f3be6a9ecc3d3dc73c9a5ae3058"
         },
         "companions": [],
-        "generationId": "claude-0.3.20-runtime-2.1.317",
+        "generationId": "claude-0.3.21-runtime-2.1.318",
         "runtime": {
           "kind": "native-binary",
           "runtimeId": "claude",
-          "version": "2.1.317",
+          "version": "2.1.318",
           "asset": {
-            "url": "https://downloads.claude.ai/claude-code-releases/2.1.317/darwin-arm64/claude",
-            "sha256": "09f153b46b5df9e8b3454716d682a91901de020cbca630f61dec1a015b32b5e9",
-            "size": 312806400
+            "url": "https://downloads.claude.ai/claude-code-releases/2.1.318/darwin-arm64/claude",
+            "sha256": "677a2ea7bf576cedd20e191d973914ed8a41796f53a63b1923381ddc4d5b5e7d",
+            "size": 319598464
           },
           "format": "raw",
           "entryRelativePath": "bin/claude"
