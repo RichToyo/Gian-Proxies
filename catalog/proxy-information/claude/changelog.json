@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "claude",
-  "currentVersion": "0.3.19",
+  "currentVersion": "0.3.20",
   "entries": [
+    {
+      "version": "0.3.20",
+      "firstPublishedAt": "2026-11-04T14:44:40Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-claude-v0.3.20",
+          "publishedAt": "2026-11-04T14:44:40Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.20",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.20/gian-proxy-claude-0.3.20-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "2d4fac43edfdd7d5c7b1cb2420b2ecd26178ad734abf6da35c5c0500b0258ff7",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.20/gian-proxy-claude-0.3.20-darwin-arm64.tar.gz",
+            "sha256": "e31d30116bf1a63be73a37ee3e4fd8df934e38591a27fce5c00833a5fc1a42c5",
+            "size": 630610
+          },
+          "runtimeDeclaration": {
+            "id": "claude",
+            "versions": [
+              "2.1.317"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Retain first-party account quota inspection for the Gian menu bar and cumulative usage identity. Upgrade the managed Claude Code Runtime to official 2.1.317 with pinned binary bytes. Upstream notes include SDK hook failure behavior, network disclosure confirmation and MCP session stability fixes. Use Proxy Protocol SDK 1.0.4. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.20",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-claude-v0.3.20/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.19",
       "firstPublishedAt": "2026-10-31T18:15:44Z",

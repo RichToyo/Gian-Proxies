@@ -30,7 +30,7 @@ test('history evidence accepts only the exact new and retained public repositori
 });
 
 test('authored histories remain complete and their Markdown projection matches', () => {
-  assert.deepEqual(validateReview(), { proxies: 7, versions: 122, distributions: 125, metadataOnly: 28 });
+  assert.deepEqual(validateReview(), { proxies: 7, versions: 123, distributions: 126, metadataOnly: 28 });
 });
 
 test('v1 tutorial concatenation preserves all nine chapters byte for byte', () => {
