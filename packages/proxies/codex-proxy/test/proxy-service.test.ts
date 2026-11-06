@@ -3750,13 +3750,23 @@ test('gian.proxy/2 cancels an interaction when Codex resolves its native request
     }));
     harness.runtime.emitServerRequest({ id: 71, method: 'item/commandExecution/requestApproval',
       params: { threadId: 'thread-1', command: 'example' } });
-    await waitFor(() => notifications.some(event => event.method === 'interaction.requested'));
+    harness.runtime.emitServerRequest({ id: 72, method: 'item/commandExecution/requestApproval',
+      params: { threadId: 'thread-1', command: 'another' } });
+    await waitFor(() => notifications.filter(event => event.method === 'interaction.requested').length === 2);
     const requested = notifications.find(event => event.method === 'interaction.requested');
     const interactionId = (requested?.params.data as { interactionId: string }).interactionId;
     harness.runtime.emitNotification({ method: 'serverRequest/resolved', params: { threadId: 'thread-1', requestId: 71 } });
     await waitFor(() => notifications.some(event => event.method === 'interaction.resolved'));
     const resolved = notifications.find(event => event.method === 'interaction.resolved');
     assert.deepEqual(resolved?.params.data, { interactionId, outcome: 'cancelled' });
+    assert.equal(resultSchemas['session.get'].parse(await adapter.handle(v2Request('get', 'session.get', {
+      sessionId: 'native-resolution',
+    }))).session.state, 'waiting_interaction');
+    harness.runtime.emitNotification({ method: 'serverRequest/resolved', params: { threadId: 'thread-1', requestId: 72 } });
+    await waitFor(() => notifications.filter(event => event.method === 'interaction.resolved').length === 2);
+    assert.equal(resultSchemas['session.get'].parse(await adapter.handle(v2Request('get2', 'session.get', {
+      sessionId: 'native-resolution',
+    }))).session.state, 'running');
     assert.equal(harness.runtime.responses.length, 0);
   } finally {
     await harness.cleanup();

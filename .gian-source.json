@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "06b16e6b3d4c16246fef114eaf484ee6169c8a2e",
+  "sourceCommit": "0c7cb271379d968528ac370d6384990523c2070c",
   "workingTree": false,
   "externalPackages": [
     {
@@ -1296,7 +1296,7 @@
     {
       "source": "packages/proxies/codex-proxy/src/protocol/v2-adapter.ts",
       "path": "packages/proxies/codex-proxy/src/protocol/v2-adapter.ts",
-      "sha256": "479a73eb69324aac5c321c6960370108a2dc8c31d8cd0654f0edb9329063ff0a"
+      "sha256": "4e960f4fc259d81177696293227dbbbbc3ca17e84b27b93779ddb400031e02b2"
     },
     {
       "source": "packages/proxies/codex-proxy/src/runtime/codex-app-server-client.ts",
@@ -1471,7 +1471,7 @@
     {
       "source": "packages/proxies/codex-proxy/test/proxy-service.test.ts",
       "path": "packages/proxies/codex-proxy/test/proxy-service.test.ts",
-      "sha256": "e6ea472e462a912199d83e11fac2830ee595f56584d7f230fcf6c60ba3b76a55"
+      "sha256": "fd549b6e99ead3ead3262bef18a64a908c92f6435f05b3c5079f99573c12633d"
     },
     {
       "source": "packages/proxies/codex-proxy/test/slash.test.ts",
@@ -4248,7 +4248,7 @@
     {
       "path": "packages/proxies/codex-proxy/src/protocol/v2-adapter.ts",
       "mode": 420,
-      "sha256": "479a73eb69324aac5c321c6960370108a2dc8c31d8cd0654f0edb9329063ff0a"
+      "sha256": "4e960f4fc259d81177696293227dbbbbc3ca17e84b27b93779ddb400031e02b2"
     },
     {
       "path": "packages/proxies/codex-proxy/src/runtime/codex-app-server-client.ts",
@@ -4423,7 +4423,7 @@
     {
       "path": "packages/proxies/codex-proxy/test/proxy-service.test.ts",
       "mode": 420,
-      "sha256": "e6ea472e462a912199d83e11fac2830ee595f56584d7f230fcf6c60ba3b76a55"
+      "sha256": "fd549b6e99ead3ead3262bef18a64a908c92f6435f05b3c5079f99573c12633d"
     },
     {
       "path": "packages/proxies/codex-proxy/test/slash.test.ts",

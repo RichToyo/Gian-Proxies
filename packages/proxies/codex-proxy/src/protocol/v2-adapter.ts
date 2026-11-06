@@ -2352,7 +2352,10 @@ export class CodexProtocolV2Adapter {
         this.interactions.delete(String(data.approvalId ?? ''));
         const submitted = interactionRef.responses.size > 0;
         const last = [...interactionRef.responses.values()].at(-1);
-        this.updateSession(session, { state: 'running' });
+        const stillWaiting = [...this.interactions.values()].some(
+          interaction => interaction.sessionId === session.id && interaction.turnId === turnId,
+        );
+        this.updateSession(session, { state: stillWaiting ? 'waiting_interaction' : 'running' });
         this.emitTurnEvent('interaction.resolved', session, turnId, submitted && last
           ? {
             interactionId: String(data.approvalId ?? ''),
