@@ -1,6 +1,6 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.54.0",
-  "sequence": 54,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.55.0",
+  "sequence": 55,
   "sourceId": "gian-official",
   "plugins": [
     {
@@ -17,16 +17,16 @@
         "companions": [],
         "generationId": "claude-0.3.22-runtime-2.1.319",
         "runtime": {
+          "asset": {
+            "sha256": "1f53587e92dee8e089fa349188a4cda64fa34ace6e7b0ca2ee278ddaa3cc2ebd",
+            "size": 321995200,
+            "url": "https://downloads.claude.ai/claude-code-releases/2.1.319/darwin-arm64/claude"
+          },
+          "entryRelativePath": "bin/claude",
+          "format": "raw",
           "kind": "native-binary",
           "runtimeId": "claude",
-          "version": "2.1.319",
-          "asset": {
-            "url": "https://downloads.claude.ai/claude-code-releases/2.1.319/darwin-arm64/claude",
-            "sha256": "1f53587e92dee8e089fa349188a4cda64fa34ace6e7b0ca2ee278ddaa3cc2ebd",
-            "size": 321995200
-          },
-          "format": "raw",
-          "entryRelativePath": "bin/claude"
+          "version": "2.1.319"
         }
       }
     },
@@ -141,27 +141,27 @@
     {
       "id": "grok",
       "displayName": "Grok Build",
-      "version": "0.3.15",
+      "version": "0.3.16",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "session",
       "combination": {
         "certificate": {
-          "id": "proxies-713f1c1ada4f6dd11c7b43d6a098d5343865ef09-40512725671-1",
-          "sha256": "25103ceae48df6916971ccc59d6f3b4eb8f9a8f3cba82b554522e522fb336cdb"
+          "id": "proxies-7db35f401618d278671a6a91c6f326e71429eac6-42270858909-1",
+          "sha256": "897367674530b3bc50bf467dd2eecd600ec3321e6d9add3defe2352f849dc185"
         },
         "companions": [],
-        "generationId": "grok-0.3.15-runtime-1.0.70",
+        "generationId": "grok-0.3.16-runtime-1.0.77",
         "runtime": {
-          "asset": {
-            "sha256": "5c8a688251bf61e35370b828b6a353b0a20fcc3f64000de8a91d426039f29cec",
-            "size": 179063008,
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.15/grok-1.0.70-darwin-arm64"
-          },
-          "entryRelativePath": "bin/grok",
-          "format": "raw",
           "kind": "native-binary",
           "runtimeId": "grok",
-          "version": "1.0.70"
+          "version": "1.0.77",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.16/grok-1.0.77-darwin-arm64",
+            "sha256": "197c66a63e5ac46e07450b0ca21d141ce665050a412180f185dadfae1c7a5b2a",
+            "size": 184995488
+          },
+          "format": "raw",
+          "entryRelativePath": "bin/grok"
         }
       }
     },

@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "grok",
-  "currentVersion": "0.3.15",
+  "currentVersion": "0.3.16",
   "entries": [
+    {
+      "version": "0.3.16",
+      "firstPublishedAt": "2026-11-06T18:31:49Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-grok-v0.3.16",
+          "publishedAt": "2026-11-06T18:31:49Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.16",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.16/gian-proxy-grok-0.3.16-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "6bde8aea6076c87d24d5ab92a54382ec325f5d571e6a92c216d4b3665efb87af",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.16/gian-proxy-grok-0.3.16-darwin-arm64.tar.gz",
+            "sha256": "66fbef0c604c1d963505835cda3127a74892601b3ebe9126447581e1f8177704",
+            "size": 218576
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.77"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Add first-party Grok account and billing inspection through prefixed native ACP extension methods, without creating a session or sending a prompt. Use Proxy Protocol SDK 1.0.4 and upgrade the managed Grok CLI to 1.0.77 with independently matched official distribution bytes. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.16",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-grok-v0.3.16/packages/proxies/grok-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.15",
       "firstPublishedAt": "2026-10-27T13:43:48Z",
