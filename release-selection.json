@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "providers": [
-    "grok"
+    "codex"
   ],
-  "baseCatalogTag": "catalog-v1.54.0",
+  "baseCatalogTag": "catalog-v1.55.0",
   "baseCatalogRepository": "RichToyo/Gian-Proxies"
 }

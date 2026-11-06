@@ -1100,6 +1100,10 @@ export class CodexProxyService {
       });
     }
 
+    // The native runtime may have resolved the request while respond was in flight.
+    if (!this.approvalsById.has(approval.approvalId)) {
+      return { ok: true, session: this.serializeSession(session) };
+    }
     this.removeApproval(approval);
     const updatedSession = this.updateSession(session, {
       status: session.activeTurnId ? 'running' : 'idle',
@@ -1540,6 +1544,16 @@ export class CodexProxyService {
     const context = this.activeTurnsByThreadId.get(threadId);
     const pending = this.pendingTurnsByThreadId.get(threadId);
     if (!context && pending) {
+      // A request can expire before turn/start returns. Remove its queued
+      // request before buffered notifications and requests are replayed.
+      if (message.method === 'serverRequest/resolved') {
+        const nativeId = (message.params as { requestId?: unknown } | undefined)?.requestId;
+        const index = pending.serverRequests.findIndex(item => item.id === nativeId);
+        if (index !== -1) {
+          pending.serverRequests.splice(index, 1);
+          return;
+        }
+      }
       pending.notifications.push(message);
       return;
     }
@@ -1550,6 +1564,30 @@ export class CodexProxyService {
     const requestId = context?.requestId;
     const turnId = runtimeTurnId ?? context?.turnId;
     if (context?.isCompact && runtimeTurnId) context.runtimeTurnId = runtimeTurnId;
+
+    if (message.method === 'serverRequest/resolved') {
+      // Codex can close an expired network approval without a user decision.
+      // Native request ids are process-local; match within this thread's session.
+      const nativeId = (message.params as { requestId?: unknown } | undefined)?.requestId;
+      if (typeof nativeId !== 'string' && typeof nativeId !== 'number') return;
+      const approval = [...(this.approvalsBySessionId.get(session.id)?.values() ?? [])]
+        .find(item => item.rpcRequestId === nativeId);
+      if (!approval) return;
+      this.removeApproval(approval);
+      this.updateSession(session, {
+        status: this.approvalsBySessionId.has(session.id)
+          ? 'needs-approval'
+          : session.activeTurnId ? 'running' : 'idle',
+      });
+      this.emitEvent('approval.resolved', {
+        requestId,
+        sessionId: session.id,
+        turnId,
+        data: { approvalId: approval.approvalId },
+        rawRuntimeEvent: message,
+      });
+      return;
+    }
 
     if (message.method === 'item/agentMessage/delta' && context) {
       const delta = typeof (message.params as { delta?: unknown } | undefined)?.delta === 'string'

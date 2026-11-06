@@ -1,5 +1,11 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidate - Codex 2026-11-07
+
+- Select Codex 0.3.13 against signed Catalog 55, preserving excluded tuples.
+- Pin official Codex 0.167.0 and close expired native approval interactions.
+- Required-human approval stays disabled until human origin can be verified.
+
 ## Runtime maintenance candidate - Grok 2026-11-07
 
 - Select Grok 0.3.16 against signed Catalog 54, preserving excluded tuples.

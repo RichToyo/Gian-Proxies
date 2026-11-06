@@ -3700,3 +3700,85 @@ test('gian.proxy/2 adapter returns native MCP tool elicitation decisions to Code
     await harness.cleanup();
   }
 });
+
+test('native serverRequest/resolved cancels only the matching pending interaction', async () => {
+  const harness = await createHarness();
+  try {
+    const created = await harness.service.createSession({ cwd: '/tmp/work' });
+    await harness.service.startTurn({ sessionId: created.session.id, input: [{ type: 'text', text: 'work' }] }, 10);
+    for (const id of [41, 42]) {
+      harness.runtime.emitServerRequest({ id, method: 'item/commandExecution/requestApproval', params: {
+        threadId: created.session.threadId, command: `command-${id}`,
+      } });
+    }
+    await waitFor(() => harness.events.filter(event => event.method === 'approval.requested').length === 2);
+    const requested = harness.events.filter(event => event.method === 'approval.requested');
+    const first = (requested[0]!.params.data as { approvalId: string }).approvalId;
+    const second = (requested[1]!.params.data as { approvalId: string }).approvalId;
+    // Native fixture: ServerRequestResolvedNotification { threadId, requestId }.
+    harness.runtime.emitNotification({ method: 'serverRequest/resolved', params: {
+      threadId: created.session.threadId, requestId: 41,
+    } });
+    await waitFor(() => harness.events.some(event => event.method === 'approval.resolved'));
+    const resolved = harness.events.filter(event => event.method === 'approval.resolved');
+    assert.equal(resolved.length, 1);
+    assert.deepEqual(resolved[0]!.params.data, { approvalId: first });
+    assert.equal(harness.runtime.responses.length, 0);
+    await assert.rejects(harness.service.respondApproval({ sessionId: created.session.id, approvalId: first, decision: 'accept' }), /not found/i);
+    await harness.service.respondApproval({ sessionId: created.session.id, approvalId: second, decision: 'decline' });
+    assert.deepEqual(harness.runtime.responses.at(-1), { id: 42, payload: { decision: 'decline' } });
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('gian.proxy/2 cancels an interaction when Codex resolves its native request', async () => {
+  const harness = await createHarness();
+  const notifications: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const adapter = new CodexProtocolV2Adapter(harness.service, '0.2.1',
+    (method, params) => notifications.push({ method, params }));
+  try {
+    await adapter.handle(v2Request('1', 'initialize', {
+      protocol: { name: 'gian.proxy', versions: ['2.1'] }, host: { name: 'Gian', version: '9.9.9' },
+    }));
+    const created = resultSchemas['session.create'].parse(await adapter.handle(v2Request('2', 'session.create', {
+      sessionId: 'native-resolution', workspace: { cwd: '/tmp/work', roots: ['/tmp/work'] }, config: {},
+    })));
+    await adapter.handle(v2Request('3', 'turn.start', {
+      sessionId: 'native-resolution', streamId: created.session.streamId, turnId: 'host-turn',
+      input: [{ type: 'text', text: 'work' }], config: {},
+    }));
+    harness.runtime.emitServerRequest({ id: 71, method: 'item/commandExecution/requestApproval',
+      params: { threadId: 'thread-1', command: 'example' } });
+    await waitFor(() => notifications.some(event => event.method === 'interaction.requested'));
+    const requested = notifications.find(event => event.method === 'interaction.requested');
+    const interactionId = (requested?.params.data as { interactionId: string }).interactionId;
+    harness.runtime.emitNotification({ method: 'serverRequest/resolved', params: { threadId: 'thread-1', requestId: 71 } });
+    await waitFor(() => notifications.some(event => event.method === 'interaction.resolved'));
+    const resolved = notifications.find(event => event.method === 'interaction.resolved');
+    assert.deepEqual(resolved?.params.data, { interactionId, outcome: 'cancelled' });
+    assert.equal(harness.runtime.responses.length, 0);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('a native request resolved before turn startup is never displayed', async () => {
+  const harness = await createHarness();
+  try {
+    const created = await harness.service.createSession({ cwd: '/tmp/work' });
+    const original = harness.runtime.startTurn.bind(harness.runtime);
+    harness.runtime.startTurn = async (...args) => {
+      harness.runtime.emitServerRequest({ id: 81, method: 'item/commandExecution/requestApproval',
+        params: { threadId: created.session.threadId, command: 'example' } });
+      harness.runtime.emitNotification({ method: 'serverRequest/resolved',
+        params: { threadId: created.session.threadId, requestId: 81 } });
+      return original(...args);
+    };
+    await harness.service.startTurn({ sessionId: created.session.id, input: [{ type: 'text', text: 'work' }] }, 10);
+    assert.equal(harness.events.filter(event => event.method === 'approval.requested').length, 0);
+    assert.equal(harness.runtime.responses.length, 0);
+  } finally {
+    await harness.cleanup();
+  }
+});
