@@ -1,5 +1,11 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidate - 2026-11-07
+
+- Select Claude 0.3.22 against signed Catalog 53, preserving excluded tuples.
+- Pin the official Claude Code 2.1.319 binary, including upstream permission,
+  MCP task and session resume fixes. Hosted qualification remains required.
+
 ## Runtime maintenance candidates - 2026-11-05
 
 - Select Claude 0.3.21 against signed Catalog 52 and preserve excluded tuples.

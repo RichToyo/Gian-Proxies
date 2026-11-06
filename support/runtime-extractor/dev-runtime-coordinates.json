@@ -2,13 +2,13 @@
   {
     "pluginId": "claude",
     "runtimeId": "claude",
-    "version": "2.1.318",
+    "version": "2.1.319",
     "format": "raw",
     "entryRelativePath": "bin/claude",
     "asset": {
-      "sha256": "677a2ea7bf576cedd20e191d973914ed8a41796f53a63b1923381ddc4d5b5e7d",
-      "size": 319598464,
-      "url": "https://downloads.claude.ai/claude-code-releases/2.1.318/darwin-arm64/claude"
+      "sha256": "1f53587e92dee8e089fa349188a4cda64fa34ace6e7b0ca2ee278ddaa3cc2ebd",
+      "size": 321995200,
+      "url": "https://downloads.claude.ai/claude-code-releases/2.1.319/darwin-arm64/claude"
     }
   },
   {
