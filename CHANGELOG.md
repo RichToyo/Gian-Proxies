@@ -1,5 +1,11 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidate - Grok 2026-11-07
+
+- Select Grok 0.3.16 against signed Catalog 54, preserving excluded tuples.
+- Pin official Grok CLI 1.0.77, with matching official xAI and npm bytes.
+- Require hosted qualification and native ACP initialization before publication.
+
 ## Runtime maintenance candidate - 2026-11-07
 
 - Select Claude 0.3.22 against signed Catalog 53, preserving excluded tuples.

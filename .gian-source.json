@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "432af4cfed394046fc1240e92d1911be30bd214f",
+  "sourceCommit": "38f45538f8c4bb3eac945b1c14efcec6ce0c95ea",
   "workingTree": false,
   "externalPackages": [
     {
@@ -436,7 +436,7 @@
     {
       "source": "catalog/proxy-information/grok/basic.md",
       "path": "catalog/proxy-information/grok/basic.md",
-      "sha256": "d95b643a7f5f56ab439c55ced6254c49c4c46cb2b557ba6c6c615fcacded2556"
+      "sha256": "fc481bfa307e6a6bcb1f2b03d23d51051aa7fda3ffb868d5761197d13c8d4c97"
     },
     {
       "source": "catalog/proxy-information/grok/changelog.json",
@@ -531,7 +531,7 @@
     {
       "source": "delivery/proxies/.github/workflows/qualify.yml",
       "path": ".github/workflows/qualify.yml",
-      "sha256": "de3ad04e17704128c849838052dbab1d43cb6f9357877c78e942a2b896a4c428"
+      "sha256": "8679d837b4d8799d90284179f68dbeb2c5579bcba3e263b4924a89247cdbcff9"
     },
     {
       "source": "delivery/proxies/.github/workflows/release.yml",
@@ -546,7 +546,7 @@
     {
       "source": "delivery/proxies/CHANGELOG.md",
       "path": "CHANGELOG.md",
-      "sha256": "68d159cba15334af5e8e16c14311ed2ac77c254c97c392d564fdcc232aad2aee"
+      "sha256": "3ae0e075852d5a2849f7adbb0bfe76ccf4d38b776717f0b4e15e3baf768207fa"
     },
     {
       "source": "delivery/proxies/README.md",
@@ -561,7 +561,7 @@
     {
       "source": "delivery/proxies/release-selection.json",
       "path": "release-selection.json",
-      "sha256": "df7208bf3539006d495a4551be30324094e2da1f44b8d663c48ea763300cf7b8"
+      "sha256": "e3e773e1668125fdcafda9d966dde37ef55afd1440bcdf9b2875880734635d28"
     },
     {
       "source": "delivery/proxies/scripts/catalog-docs-policy.mjs",
@@ -571,7 +571,12 @@
     {
       "source": "delivery/proxies/scripts/catalog-docs-policy.test.mjs",
       "path": "scripts/catalog-docs-policy.test.mjs",
-      "sha256": "13ecd57ce17bacc28bc1e5dd4ba538ee0230bd6e201590cfb1adf55e3f496872"
+      "sha256": "64ae0e8d39408331d88761d5cc0d9b0cf59267db68d705fa2529265b6d841daa"
+    },
+    {
+      "source": "delivery/proxies/scripts/grok-native-comparison.mjs",
+      "path": "scripts/grok-native-comparison.mjs",
+      "sha256": "955700a7ca35bbd31687cbf611066210d945a86c3cac89f3dc3a041f69fb52ae"
     },
     {
       "source": "delivery/proxies/scripts/protocol-dependency.mjs",
@@ -586,7 +591,7 @@
     {
       "source": "delivery/proxies/scripts/runtime-qualification.test.mjs",
       "path": "scripts/runtime-qualification.test.mjs",
-      "sha256": "75c5d6001ba156b1a6200a203442235cf8b0a19bd253a97ee3ddf71e1846119f"
+      "sha256": "75fc9814f57e6045a2382ff7039e71573da03b619de800b01e22c3b0c82db21e"
     },
     {
       "source": "delivery/proxies/scripts/verify-source.mjs",
@@ -596,7 +601,7 @@
     {
       "source": "packages/host/src/runtime/dev-runtime-coordinates.json",
       "path": "support/runtime-extractor/dev-runtime-coordinates.json",
-      "sha256": "950e26941d2153125f92393b00fe6d1b8d4e1e8ae67c863259d613d50a023143"
+      "sha256": "7df904f7c01f3590890556988afe71b1cc113e3c3c0140aea371786a31cdfd32"
     },
     {
       "source": "packages/host/src/runtime/errors.ts",
@@ -1846,12 +1851,12 @@
     {
       "source": "packages/proxies/grok-proxy/manifest.json",
       "path": "packages/proxies/grok-proxy/manifest.json",
-      "sha256": "5ce0cb620a3fe0957b13e321d9814cf1def76d4236f6db6587c056afadc78caf"
+      "sha256": "6bde8aea6076c87d24d5ab92a54382ec325f5d571e6a92c216d4b3665efb87af"
     },
     {
       "source": "packages/proxies/grok-proxy/package.json",
       "path": "packages/proxies/grok-proxy/package.json",
-      "sha256": "5688bee36b9f059ac4cc28e02cfc21fe9e834e8d60cf3d18d6ff0c0360f04c6f"
+      "sha256": "9eb5e1e913410b3c6e77bbe6a6f154fefac3ebaf43ff19151eed3a5ef85eb8d7"
     },
     {
       "source": "packages/proxies/grok-proxy/scripts/fake-catalog-ui-proxy.mjs",
@@ -1861,7 +1866,7 @@
     {
       "source": "packages/proxies/grok-proxy/src/cli/spawn.ts",
       "path": "packages/proxies/grok-proxy/src/cli/spawn.ts",
-      "sha256": "480714a9c2137c73f08c4ebfd53cde18b0f9a78223e73b9a91ba72aed369e7e4"
+      "sha256": "e8025d67e7e70d3721880c949133f87740b687fb4c16ff735c80a9f5d0a8f724"
     },
     {
       "source": "packages/proxies/grok-proxy/src/core/catalog.ts",
@@ -2951,7 +2956,7 @@
     {
       "source": "scripts/build-managed-runtime-candidates.mjs",
       "path": "scripts/build-managed-runtime-candidates.mjs",
-      "sha256": "c726ad5a87e81eb655c7dd62694f27e00eaa5f64f87ef20e62fd64eb19d5177f"
+      "sha256": "6bebf87897df2ddb316477a09a4968de11b5f57da192ec8fc3846c501c3404af"
     },
     {
       "source": "scripts/build-managed-runtime-candidates.test.mjs",
@@ -3048,7 +3053,7 @@
     {
       "path": ".github/workflows/qualify.yml",
       "mode": 420,
-      "sha256": "de3ad04e17704128c849838052dbab1d43cb6f9357877c78e942a2b896a4c428"
+      "sha256": "8679d837b4d8799d90284179f68dbeb2c5579bcba3e263b4924a89247cdbcff9"
     },
     {
       "path": ".github/workflows/release.yml",
@@ -3238,7 +3243,7 @@
     {
       "path": "catalog/official-source/plugins/grok/entry.json",
       "mode": 420,
-      "sha256": "ffaed5b211b122351455825ff75930fd23508d49888131ce38d9950b67c890a3"
+      "sha256": "7003d42268f743b764196f76bfd3f79fcba9720d43291e36baee7e73226a8f3b"
     },
     {
       "path": "catalog/official-source/plugins/grok/overview.md",
@@ -3253,7 +3258,7 @@
     {
       "path": "catalog/official-source/plugins/grok/sidecar.json",
       "mode": 420,
-      "sha256": "5ce0cb620a3fe0957b13e321d9814cf1def76d4236f6db6587c056afadc78caf"
+      "sha256": "6bde8aea6076c87d24d5ab92a54382ec325f5d571e6a92c216d4b3665efb87af"
     },
     {
       "path": "catalog/official-source/plugins/grok/troubleshooting.md",
@@ -3463,7 +3468,7 @@
     {
       "path": "catalog/proxy-information/grok/basic.md",
       "mode": 420,
-      "sha256": "d95b643a7f5f56ab439c55ced6254c49c4c46cb2b557ba6c6c615fcacded2556"
+      "sha256": "fc481bfa307e6a6bcb1f2b03d23d51051aa7fda3ffb868d5761197d13c8d4c97"
     },
     {
       "path": "catalog/proxy-information/grok/changelog.json",
@@ -3548,7 +3553,7 @@
     {
       "path": "CHANGELOG.md",
       "mode": 420,
-      "sha256": "68d159cba15334af5e8e16c14311ed2ac77c254c97c392d564fdcc232aad2aee"
+      "sha256": "3ae0e075852d5a2849f7adbb0bfe76ccf4d38b776717f0b4e15e3baf768207fa"
     },
     {
       "path": "LICENSE",
@@ -4793,12 +4798,12 @@
     {
       "path": "packages/proxies/grok-proxy/manifest.json",
       "mode": 420,
-      "sha256": "5ce0cb620a3fe0957b13e321d9814cf1def76d4236f6db6587c056afadc78caf"
+      "sha256": "6bde8aea6076c87d24d5ab92a54382ec325f5d571e6a92c216d4b3665efb87af"
     },
     {
       "path": "packages/proxies/grok-proxy/package.json",
       "mode": 420,
-      "sha256": "35b3c71ea4cfe63f0a9fb6f0dc3541b566b114080b0f0cac5c23a208c968566a"
+      "sha256": "f6eeb089cd18dfac6b3b39bcbdc06654b0fb504b0d10f1fa67a61ef050d14fc0"
     },
     {
       "path": "packages/proxies/grok-proxy/README.md",
@@ -4813,7 +4818,7 @@
     {
       "path": "packages/proxies/grok-proxy/src/cli/spawn.ts",
       "mode": 420,
-      "sha256": "480714a9c2137c73f08c4ebfd53cde18b0f9a78223e73b9a91ba72aed369e7e4"
+      "sha256": "e8025d67e7e70d3721880c949133f87740b687fb4c16ff735c80a9f5d0a8f724"
     },
     {
       "path": "packages/proxies/grok-proxy/src/core/catalog.ts",
@@ -5893,7 +5898,7 @@
     {
       "path": "release-selection.json",
       "mode": 420,
-      "sha256": "df7208bf3539006d495a4551be30324094e2da1f44b8d663c48ea763300cf7b8"
+      "sha256": "e3e773e1668125fdcafda9d966dde37ef55afd1440bcdf9b2875880734635d28"
     },
     {
       "path": "runtimes/deepseek-harness/package-lock.json",
@@ -5918,7 +5923,7 @@
     {
       "path": "scripts/build-managed-runtime-candidates.mjs",
       "mode": 420,
-      "sha256": "ba8f88360aee9c55a02141fdb2838d59a9528504f856ff346a9844ac1799a36d"
+      "sha256": "3bc8764d210f58f5a80870845519c653ebbb2611395d2c6841be234bcad9485f"
     },
     {
       "path": "scripts/build-managed-runtime-candidates.test.mjs",
@@ -5943,7 +5948,7 @@
     {
       "path": "scripts/catalog-docs-policy.test.mjs",
       "mode": 420,
-      "sha256": "13ecd57ce17bacc28bc1e5dd4ba538ee0230bd6e201590cfb1adf55e3f496872"
+      "sha256": "64ae0e8d39408331d88761d5cc0d9b0cf59267db68d705fa2529265b6d841daa"
     },
     {
       "path": "scripts/check-node.cjs",
@@ -5954,6 +5959,11 @@
       "path": "scripts/check-public-english.mjs",
       "mode": 420,
       "sha256": "85a8cb5cbb8a05d85157d49e6f1530d9681d1c21041ff6d944bc73de6398b8fa"
+    },
+    {
+      "path": "scripts/grok-native-comparison.mjs",
+      "mode": 420,
+      "sha256": "955700a7ca35bbd31687cbf611066210d945a86c3cac89f3dc3a041f69fb52ae"
     },
     {
       "path": "scripts/media-review.json",
@@ -5988,7 +5998,7 @@
     {
       "path": "scripts/runtime-qualification.test.mjs",
       "mode": 420,
-      "sha256": "75c5d6001ba156b1a6200a203442235cf8b0a19bd253a97ee3ddf71e1846119f"
+      "sha256": "75fc9814f57e6045a2382ff7039e71573da03b619de800b01e22c3b0c82db21e"
     },
     {
       "path": "scripts/stage-official-catalog-release.mjs",
@@ -6023,7 +6033,7 @@
     {
       "path": "support/runtime-extractor/dev-runtime-coordinates.json",
       "mode": 420,
-      "sha256": "950e26941d2153125f92393b00fe6d1b8d4e1e8ae67c863259d613d50a023143"
+      "sha256": "7df904f7c01f3590890556988afe71b1cc113e3c3c0140aea371786a31cdfd32"
     },
     {
       "path": "support/runtime-extractor/src/errors.ts",

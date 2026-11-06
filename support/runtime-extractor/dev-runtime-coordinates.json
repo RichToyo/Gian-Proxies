@@ -42,13 +42,13 @@
   {
     "pluginId": "grok",
     "runtimeId": "grok",
-    "version": "1.0.70",
+    "version": "1.0.77",
     "format": "raw",
     "entryRelativePath": "bin/grok",
     "asset": {
-      "sha256": "5c8a688251bf61e35370b828b6a353b0a20fcc3f64000de8a91d426039f29cec",
-      "size": 179063008,
-      "url": "https://x.ai/cli/grok-1.0.70-macos-aarch64"
+      "sha256": "197c66a63e5ac46e07450b0ca21d141ce665050a412180f185dadfae1c7a5b2a",
+      "size": 184995488,
+      "url": "https://x.ai/cli/grok-1.0.77-macos-aarch64"
     }
   },
   {

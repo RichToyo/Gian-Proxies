@@ -38,6 +38,12 @@ jobs:
           GIAN_RUNNER_ENVIRONMENT: ${{ runner.environment }}
           GIAN_PROXY_OWNER_NO_TESTS: ${{ inputs.owner_no_tests }}
         run: pnpm qualify
+      - name: Compare Grok native ACP startup and capabilities
+        if: ${{ !inputs.owner_no_tests }}
+        run: |
+          if node -e "process.exit(require('./release-selection.json').providers.includes('grok') ? 0 : 1)"; then
+            node scripts/grok-native-comparison.mjs
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: proxy-artifacts-${{ github.sha }}-${{ github.run_attempt }}
