@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-11-04T19:06:14.646Z",
+  "capturedAt": "2026-11-06T18:11:59.736Z",
   "repositories": [
     "RichLogic/Gian",
     "RichLogic/Gian-Proxies"
@@ -4013,6 +4013,38 @@
           "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.21/gian-proxy-claude-0.3.21-darwin-arm64.tar.gz.sha256",
           "size": 111,
           "digest": "sha256:d6035aa3f3aba3d73b9c16e1451469e3abb0c1db0291368592f34f6608d4b96d"
+        }
+      ]
+    },
+    {
+      "tag": "proxy-claude-v0.3.22",
+      "date": "2026-11-06T18:10:17Z",
+      "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.22",
+      "body": "Independent Proxy 0.3.22. Exact hosted artifacts from proxies-c365b000020f385245e893b561ba80871c59d04e-42267702912-1. DSH includes its Bridge. ZCode includes a managed CLI Runtime built from its pinned upstream Git commit. No App or real-provider acceptance is claimed.",
+      "assets": [
+        {
+          "name": "certificate.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.22/certificate.json",
+          "size": 4107,
+          "digest": "sha256:93ef04749ae0bb4a7a0e749bf8569bb186ecbface4d834b1c9728320890cc936"
+        },
+        {
+          "name": "gian-proxy-claude-0.3.22-darwin-arm64.tar.gz",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.22/gian-proxy-claude-0.3.22-darwin-arm64.tar.gz",
+          "size": 630608,
+          "digest": "sha256:0c0ecaaf4360cc668e6d96860c33d3cc966cfde461e6fd3b81805a44b417fd58"
+        },
+        {
+          "name": "gian-proxy-claude-0.3.22-darwin-arm64.tar.gz.manifest.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.22/gian-proxy-claude-0.3.22-darwin-arm64.tar.gz.manifest.json",
+          "size": 800,
+          "digest": "sha256:825f7788e16de5323c76a4a67c9589bc2c89349c61a6a794cdd0eb3de42e4417"
+        },
+        {
+          "name": "gian-proxy-claude-0.3.22-darwin-arm64.tar.gz.sha256",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.22/gian-proxy-claude-0.3.22-darwin-arm64.tar.gz.sha256",
+          "size": 111,
+          "digest": "sha256:71061ed25128810fcc8bc515576ecdd5a460de266081464d8c229c7c196a3fae"
         }
       ]
     }
