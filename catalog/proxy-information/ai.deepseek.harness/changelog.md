@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.10**, Runtime **0.2.1-rc.2**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.11**, Runtime **0.2.2-rc.1**. These are distribution targets, not this machine's installed state.
+
+## 0.3.11
+
+First published: 2026-11-09T18:58:24Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.11): 2026-11-09T18:58:24Z.
+- CLI: 0.2.2-rc.1 (Manifest compatibility declaration, not local installation state). Bridge: 0.1.10 (source package corresponding to this archive).
+
+### Changed
+
+- Retain isolated DSH profiles and Agent presets. Use Proxy Protocol SDK 1.0.4 and the bundled Bridge 0.1.10 with DeepSeek Harness 0.2.2-rc.1, using the native model-selection API when available and pinned security-fixed MCP dependencies. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.11) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-dsh-v0.3.11/packages/proxies/dsh-proxy/README.md)
 
 ## 0.3.10
 

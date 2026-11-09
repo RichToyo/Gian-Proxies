@@ -1,6 +1,6 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.56.0",
-  "sequence": 56,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.57.0",
+  "sequence": 57,
   "sourceId": "gian-official",
   "plugins": [
     {
@@ -87,27 +87,27 @@
     {
       "id": "ai.deepseek.harness",
       "displayName": "DeepSeek Harness",
-      "version": "0.3.10",
+      "version": "0.3.11",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "shared",
       "combination": {
         "certificate": {
-          "id": "proxies-e08799c61940229bbd5e272d870a867e5fff6773-41084304515-1",
-          "sha256": "9d04f85d575000666084a8580df99002a5ed389367b5d5820f7b64f3baf11f1a"
+          "id": "proxies-4fe03d18736060f1072285675c74c5e42ce41711-42678047730-1",
+          "sha256": "2ce8e5f69d2a848dd4d6c01a8cd71e22930af7b136f0c30c679b9df1aa075182"
         },
         "companions": [],
-        "generationId": "dsh-0.3.10-runtime-0.2.1-rc.2",
+        "generationId": "dsh-0.3.11-runtime-0.2.2-rc.1",
         "runtime": {
-          "asset": {
-            "sha256": "6151cd00a55165683fd2646332892077b56c840042725eed692fda4f4669692b",
-            "size": 144826646,
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.10/gian-runtime-dsh-0.2.1-rc.2-darwin-arm64.tar.gz"
-          },
-          "entryRelativePath": "node_modules/@deepseek-ai/dsh/lib/bin.js",
-          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "deepseek-harness",
-          "version": "0.2.1-rc.2"
+          "version": "0.2.2-rc.1",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.11/gian-runtime-dsh-0.2.2-rc.1-darwin-arm64.tar.gz",
+            "sha256": "7326fb4415fdbe2e9fd1709507c54b75359126fa38aef9e06df06ef864751ec8",
+            "size": 149083428
+          },
+          "format": "tar.gz",
+          "entryRelativePath": "node_modules/@deepseek-ai/dsh/lib/bin.js"
         }
       }
     },
@@ -179,16 +179,16 @@
         "companions": [],
         "generationId": "antigravity-0.0.7-runtime-1.4.5",
         "runtime": {
+          "asset": {
+            "sha256": "c2623c4c56201e5c29061090ae34609f1757875ed350725ef3a15d8c1b4644b0",
+            "size": 97756458,
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.7/gian-runtime-antigravity-1.4.5-darwin-arm64.tar.gz"
+          },
+          "entryRelativePath": "agy_acp_server.par",
+          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "antigravity-acp",
-          "version": "1.4.5",
-          "asset": {
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.7/gian-runtime-antigravity-1.4.5-darwin-arm64.tar.gz",
-            "sha256": "c2623c4c56201e5c29061090ae34609f1757875ed350725ef3a15d8c1b4644b0",
-            "size": 97756458
-          },
-          "format": "tar.gz",
-          "entryRelativePath": "agy_acp_server.par"
+          "version": "1.4.5"
         }
       }
     }
