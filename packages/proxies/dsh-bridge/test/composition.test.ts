@@ -71,3 +71,26 @@ test('preset declarations retain their distinct native tool compositions', async
   assert.doesNotMatch(minimal, /name: '@deepseek-ai\/dsh-tool-subagent'/);
   assert.doesNotMatch(minimal, /name: '@deepseek-ai\/dsh-tool-workflow'/);
 });
+
+test('preset subagent wiring selects the native old or new export without hiding other errors', async () => {
+  for (const name of ['standard', 'ptc', 'cordis']) {
+    const patch = await read(`presets/${name}.patch.yml`);
+    const disabled = patch.match(/name: '@deepseek-ai\/dsh-tool-subagent-control\/list-agents'\n\s+disabled: !!js "([^\n"]+)"/)?.[1];
+    const config = patch.match(/name: '@deepseek-ai\/dsh-tool-subagent'\n\s+config: !!js "([^\n"]+)"/)?.[1];
+    assert.ok(disabled, name);
+    assert.ok(config, name);
+    const evaluate = (expression: string, mode: 'old' | 'new' | 'broken'): unknown => {
+      const fakeProcess = { getBuiltinModule: () => ({ createRequire: () => ({ resolve: () => {
+        if (mode === 'old') return '/fixture/list-agents.js';
+        throw Object.assign(new Error('fixture resolution'), { code: mode === 'new' ? 'ERR_PACKAGE_PATH_NOT_EXPORTED' : 'MODULE_NOT_FOUND' });
+      } }) }) };
+      return Function('process', 'baseUrl', `return (${expression});`)(fakeProcess, '/fixture/package.json');
+    };
+    assert.equal(evaluate(disabled, 'old'), false);
+    assert.equal(evaluate(disabled, 'new'), true);
+    assert.deepEqual(evaluate(config, 'old'), { provider: 'spawn', toolName: 'subagent', modelSelectionSettings: true });
+    assert.deepEqual(evaluate(config, 'new'), { provider: 'spawn', toolName: 'subagent', modelSelection: true, modelDiscovery: true });
+    assert.throws(() => evaluate(disabled, 'broken'), /fixture resolution/);
+    assert.throws(() => evaluate(config, 'broken'), /fixture resolution/);
+  }
+});

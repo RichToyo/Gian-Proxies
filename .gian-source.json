@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "48ec436582f3aa047d173ea919c9555ace9c7b49",
+  "sourceCommit": "e71fb67a8181e81628405b7916be0d03d9839321",
   "workingTree": false,
   "externalPackages": [
     {
@@ -576,7 +576,7 @@
     {
       "source": "delivery/proxies/scripts/dsh-hosted-smoke.mjs",
       "path": "scripts/dsh-hosted-smoke.mjs",
-      "sha256": "d17d246e846eba69d965fb811d4208a06d6703698978632d8f1c98213eaf4925"
+      "sha256": "8f945385ba59d9ff602e50d7e3f0fa8605dd1ca6f7b33de8225867bcd9d4918e"
     },
     {
       "source": "delivery/proxies/scripts/grok-native-comparison.mjs",
@@ -591,7 +591,7 @@
     {
       "source": "delivery/proxies/scripts/release-product.mjs",
       "path": "scripts/release-product.mjs",
-      "sha256": "f1e0a82f4830d2880e7415534e1d1f46de7d97dbedc2b1f039132015d68b137a"
+      "sha256": "1044bcc2da00e3628f78baab01713e8c1698597aa90281f23808a1ba83f4cd25"
     },
     {
       "source": "delivery/proxies/scripts/runtime-qualification.test.mjs",
@@ -1511,7 +1511,7 @@
     {
       "source": "packages/proxies/dsh-bridge/presets/cordis.patch.yml",
       "path": "packages/proxies/dsh-bridge/presets/cordis.patch.yml",
-      "sha256": "a6dfa606f4d21eb9f3761932510ad5e2f7fae6b9a213ac6ba0def4596ff02684"
+      "sha256": "85f03a8328c7ec92029b9433eca1fa81aebcc3521e865415354156a40d6c0fb9"
     },
     {
       "source": "packages/proxies/dsh-bridge/presets/minimal.patch.yml",
@@ -1521,12 +1521,12 @@
     {
       "source": "packages/proxies/dsh-bridge/presets/ptc.patch.yml",
       "path": "packages/proxies/dsh-bridge/presets/ptc.patch.yml",
-      "sha256": "56e1d38185b85d82dd4e3b908c661720a23b41d56537b925158d199b0b86f181"
+      "sha256": "f64a29c5861be1f448e50344f044865c61ee7ce3a6ee4618c867edd8361c4d15"
     },
     {
       "source": "packages/proxies/dsh-bridge/presets/standard.patch.yml",
       "path": "packages/proxies/dsh-bridge/presets/standard.patch.yml",
-      "sha256": "a6132e0ebda92bb544127f2ea7124d20de6deae899bd620e175f03919e855357"
+      "sha256": "d2364499633e5880cc703af3e680f18a3c375551d8bf8540bbcc56da040008a8"
     },
     {
       "source": "packages/proxies/dsh-bridge/src/cli.ts",
@@ -1601,7 +1601,7 @@
     {
       "source": "packages/proxies/dsh-bridge/test/composition.test.ts",
       "path": "packages/proxies/dsh-bridge/test/composition.test.ts",
-      "sha256": "4beb7a3df46af90391a6d467332c2a31fae33aead890e76172e6e15fe935c03d"
+      "sha256": "97094b5908d196bad6b235d5e4b3c60d784e2296ca2d797b8f3a2b1ce9f04353"
     },
     {
       "source": "packages/proxies/dsh-bridge/test/cordis-host.test.ts",
@@ -3016,7 +3016,7 @@
     {
       "source": "scripts/run-dsh-proxy-canary.mjs",
       "path": "scripts/run-dsh-proxy-canary.mjs",
-      "sha256": "d89031a5aad8f9340fe77cc4a6c03101400e097fdacb873264814f8578f38124"
+      "sha256": "5eb05f169525d6501ff255fe48399a651b213056a602afa354b619bdab485985"
     },
     {
       "source": "scripts/stage-official-catalog-release.mjs",
@@ -4468,7 +4468,7 @@
     {
       "path": "packages/proxies/dsh-bridge/presets/cordis.patch.yml",
       "mode": 420,
-      "sha256": "a6dfa606f4d21eb9f3761932510ad5e2f7fae6b9a213ac6ba0def4596ff02684"
+      "sha256": "85f03a8328c7ec92029b9433eca1fa81aebcc3521e865415354156a40d6c0fb9"
     },
     {
       "path": "packages/proxies/dsh-bridge/presets/minimal.patch.yml",
@@ -4478,12 +4478,12 @@
     {
       "path": "packages/proxies/dsh-bridge/presets/ptc.patch.yml",
       "mode": 420,
-      "sha256": "56e1d38185b85d82dd4e3b908c661720a23b41d56537b925158d199b0b86f181"
+      "sha256": "f64a29c5861be1f448e50344f044865c61ee7ce3a6ee4618c867edd8361c4d15"
     },
     {
       "path": "packages/proxies/dsh-bridge/presets/standard.patch.yml",
       "mode": 420,
-      "sha256": "a6132e0ebda92bb544127f2ea7124d20de6deae899bd620e175f03919e855357"
+      "sha256": "d2364499633e5880cc703af3e680f18a3c375551d8bf8540bbcc56da040008a8"
     },
     {
       "path": "packages/proxies/dsh-bridge/README.md",
@@ -4563,7 +4563,7 @@
     {
       "path": "packages/proxies/dsh-bridge/test/composition.test.ts",
       "mode": 420,
-      "sha256": "4beb7a3df46af90391a6d467332c2a31fae33aead890e76172e6e15fe935c03d"
+      "sha256": "97094b5908d196bad6b235d5e4b3c60d784e2296ca2d797b8f3a2b1ce9f04353"
     },
     {
       "path": "packages/proxies/dsh-bridge/test/cordis-host.test.ts",
@@ -5978,7 +5978,7 @@
     {
       "path": "scripts/dsh-hosted-smoke.mjs",
       "mode": 420,
-      "sha256": "d17d246e846eba69d965fb811d4208a06d6703698978632d8f1c98213eaf4925"
+      "sha256": "8f945385ba59d9ff602e50d7e3f0fa8605dd1ca6f7b33de8225867bcd9d4918e"
     },
     {
       "path": "scripts/grok-native-comparison.mjs",
@@ -6013,7 +6013,7 @@
     {
       "path": "scripts/release-product.mjs",
       "mode": 420,
-      "sha256": "f1e0a82f4830d2880e7415534e1d1f46de7d97dbedc2b1f039132015d68b137a"
+      "sha256": "1044bcc2da00e3628f78baab01713e8c1698597aa90281f23808a1ba83f4cd25"
     },
     {
       "path": "scripts/run-dsh-bridge-canary.mjs",
@@ -6023,7 +6023,7 @@
     {
       "path": "scripts/run-dsh-proxy-canary.mjs",
       "mode": 420,
-      "sha256": "d89031a5aad8f9340fe77cc4a6c03101400e097fdacb873264814f8578f38124"
+      "sha256": "5eb05f169525d6501ff255fe48399a651b213056a602afa354b619bdab485985"
     },
     {
       "path": "scripts/runtime-qualification.test.mjs",

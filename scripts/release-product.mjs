@@ -54,7 +54,8 @@ export function validateCertificate(certificate, expected = {}) {
     if (actual !== String(value)) throw new Error(`Certificate ${key} mismatch`);
   }
   const required = ownerDirect ? ['source', 'build', 'archive-integrity']
-    : ['source', 'build', 'proxy-contracts', 'runtime-artifacts', 'archive-self-tests'];
+    : ['source', 'build', 'proxy-contracts', 'runtime-artifacts', 'archive-self-tests',
+      ...(shipping.some(definition => definition.id === 'dsh') ? ['dsh-native-smoke'] : [])];
   const notRun = ownerDirect ? ['proxy-contracts', 'runtime-artifacts', 'archive-self-tests'] : [];
   if (!Array.isArray(certificate.steps) || required.some(id => certificate.steps.filter(s => s.id === id && s.status === 'PASS').length !== 1)
     || notRun.some(id => certificate.steps.filter(s => s.id === id && s.status === 'NOT_RUN').length !== 1)

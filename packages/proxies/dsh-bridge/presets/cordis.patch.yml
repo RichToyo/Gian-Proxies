@@ -85,12 +85,10 @@
                 name: '@deepseek-ai/dsh-tool-subagent-control'
               - id: tool-subagent-list-agents
                 name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+                disabled: !!js "(() => { try { process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-tool-subagent-control/list-agents'); return false; } catch (e) { if (e.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return true; throw e; } })()"
               - id: tool-subagent
                 name: '@deepseek-ai/dsh-tool-subagent'
-                config:
-                  provider: spawn
-                  toolName: subagent
-                  modelSelectionSettings: true
+                config: !!js "(() => { try { process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-tool-subagent-control/list-agents'); return { provider: 'spawn', toolName: 'subagent', modelSelectionSettings: true }; } catch (e) { if (e.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED') throw e; return { provider: 'spawn', toolName: 'subagent', modelSelection: true, modelDiscovery: true }; } })()"
               - id: tool-subagent-fork
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:

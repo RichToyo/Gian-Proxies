@@ -23,6 +23,25 @@ assert.equal(coordinate.asset.sha256, sha256);
 assert.equal(coordinate.asset.size, bytes.length);
 const temporary = await mkdtemp(join(tmpdir(), 'gian-dsh-hosted-'));
 try {
+  const history = JSON.parse(await readFile(join(root, 'catalog/proxy-information/evidence/current-combinations.json'), 'utf8'));
+  const baseline = history.plugins.find(item => item.id === 'ai.deepseek.harness')?.combination?.runtime;
+  assert.equal(baseline?.version, '0.2.1-rc.2');
+  const baseUrl = new URL(baseline.asset.url);
+  assert.equal(baseUrl.origin, 'https://github.com');
+  const parts = baseUrl.pathname.split('/');
+  assert.deepEqual(parts.slice(1, 5), ['RichToyo', 'Gian-Proxies', 'releases', 'download']);
+  const tag = parts[5];
+  const filename = parts[6];
+  assert.ok(tag && filename && parts.length === 7);
+  execFileSync('gh', ['release', 'download', tag, '--repo', 'RichToyo/Gian-Proxies', '--pattern', filename, '--dir', temporary], { timeout: 180000, stdio: 'inherit' });
+  const baselineBytes = await readFile(join(temporary, filename));
+  assert.equal(baselineBytes.length, baseline.asset.size);
+  assert.equal(createHash('sha256').update(baselineBytes).digest('hex'), baseline.asset.sha256);
+  const oldRuntime = join(temporary, 'baseline');
+  await extractManagedRuntimeArchive(baselineBytes, oldRuntime);
+  const oldBridge = await runDshBridgeCanary({ binaryPath: join(oldRuntime, baseline.entryRelativePath) });
+  assert.equal(oldBridge.runtime.version, baseline.version);
+  assert.equal(oldBridge.quotaConsuming, false);
   const runtime = join(temporary, 'runtime');
   await extractManagedRuntimeArchive(bytes, runtime);
   const binaryPath = join(runtime, candidate.entryRelativePath);
@@ -43,8 +62,11 @@ try {
   assert.equal(proxy.quotaConsuming, false);
   assert.ok(proxy.mockLlm.requests > 0);
   const evidence = { status: 'PASS', runtime: candidate.version, runtimeSha256: sha256,
+    baselineRuntime: baseline.version, baselineRuntimeSha256: baseline.asset.sha256,
+    baselineBridgeLifecycle: oldBridge.lifecycle,
     bridgeLifecycle: bridge.lifecycle, proxyLifecycle: proxy.lifecycle,
     mockProviderRequests: proxy.mockLlm.requests, realProviderTurns: 'NOT_RUN',
+    baselineResidualProcesses: oldBridge.processTree.residualProcesses,
     bridgeResidualProcesses: bridge.processTree.residualProcesses,
     proxyResidualProcesses: proxy.processTree.residualProcesses };
   await writeFile(join(root, 'artifacts/release/dsh-native-evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`);
