@@ -36,6 +36,7 @@ test('bridge peer range admits the pinned DSH runtime and retains the 0.2.0 RC l
 
   assert.equal(satisfies(pinned, range, { includePrerelease: false }), true,
     `${pinned} must satisfy the bridge peer range ${range}`);
+  assert.equal(satisfies('0.2.1-rc.2', range), true, 'the current published Runtime must stay admitted');
   assert.equal(satisfies('0.2.0-rc.2', range), true,
     'the 0.2.0 RC line must stay admitted');
   assert.equal(satisfies('0.2.1-alpha.5', range), false,

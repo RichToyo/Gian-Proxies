@@ -131,7 +131,7 @@
     "packages/proxies/dsh-bridge": {
       "dependencies": {
         "@deepseek-ai/dsh": {
-          "specifier": "^0.2.0-rc.2 || 0.2.1-rc.2",
+          "specifier": "^0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.2-rc.1",
           "version": "0.2.0-rc.2(e28a1a4400d56421792fb26f85f78b62)"
         }
       },

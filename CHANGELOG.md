@@ -1,5 +1,12 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidate - DeepSeek 2026-11-10
+
+- Select DeepSeek Proxy 0.3.11 and Runtime 0.2.2-rc.1 against signed Catalog 56.
+- Pin security-fixed MCP client and fflate dependencies; preserve prior peer support.
+- Use native model selection when available and retain the legacy fallback.
+- Hosted qualification and immutable publication remain required.
+
 ## Runtime maintenance candidate - Antigravity 2026-11-10
 
 - Select Antigravity 0.0.7 and Runtime 1.4.5 against signed Catalog 55.

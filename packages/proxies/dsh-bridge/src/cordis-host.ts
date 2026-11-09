@@ -131,6 +131,7 @@ interface CordisAgent {
   status: 'idle' | 'running';
   session: CordisSession;
   ctx: AnyContext;
+  model?: { select(selection: Readonly<DshModelSelection>): void };
   cancel(cause: { kind: 'user' | 'disposed' }, options?: { keepInbox?: boolean }): void;
   whenIdle(): Promise<void>;
   followup(message: Record<string, unknown>): void;
@@ -412,6 +413,7 @@ interface DshModelSelection {
 interface DshModelSelectionRef {
   current: DshModelSelection;
   assembled?: DshModelSelection;
+  nativeSelect?: boolean;
 }
 
 interface ChildAgentFacts {
@@ -478,6 +480,9 @@ function installModelSelection(ctx: AnyContext, selection: DshModelSelectionRef)
       throw new Error('RUNTIME_UNAVAILABLE: DSH request waterfall is unavailable');
     }
     const resolved = await (next as () => Promise<Record<string, unknown>>)();
+    // Newer DSH fixes the selection before this waterfall and rejects any
+    // attempted change here. Older versions still require this adapter.
+    if (selection.nativeSelect) return resolved;
     const selected = selection.assembled ?? selection.current;
     const { reasoningEffort: _ignored, ...rest } = resolved;
     return {
@@ -1663,6 +1668,9 @@ export class CordisDshHost implements BridgeHost {
     if (blocks.length === 0) {
       throw new BridgeProtocolError(-32000, 'Turn input resolved to no native content.', 'CONFIG_VALUE_INVALID');
     }
+    const nativeModel = record.handle.agent.model;
+    record.selection.nativeSelect = typeof nativeModel?.select === 'function';
+    if (record.selection.nativeSelect) nativeModel!.select(selection);
     const instructionBlocks = blocks.filter(
       block => typeof (block as { source?: { kind?: string } }).source?.kind === 'string'
         && (block as { source: { kind: string } }).source.kind === 'skill-invocation',

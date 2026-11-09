@@ -434,9 +434,11 @@ test('real Cordis host reports a missing persisted native Session canonically', 
   ));
 });
 
-test('latest DSH turn config selects the advertised model, effort, and permission preset', async () => {
+for (const nativeSelect of [false, true]) {
+  test(`DSH turn config selects model and effort with ${nativeSelect ? 'native' : 'legacy'} selection`, async () => {
   const waterfalls = new Map<string, (...args: unknown[]) => unknown>();
   const followed: Array<Record<string, unknown>> = [];
+  const selected: Array<Record<string, unknown>> = [];
   const policies: string[] = [];
   const permissionPresets: string[] = [];
   const presetResolutions: string[] = [];
@@ -453,6 +455,7 @@ test('latest DSH turn config selects the advertised model, effort, and permissio
   };
   const agent = {
     id: 'native-agent',
+    ...(nativeSelect ? { model: { select: (value: Record<string, unknown>) => selected.push(value) } } : {}),
     status: 'idle' as const,
     session: { id: 'native-agent', header: { createdAt: Date.now() }, events: [] },
     ctx: agentContext,
@@ -556,15 +559,19 @@ test('latest DSH turn config selects the advertised model, effort, and permissio
     model: 'old-model',
     reasoningEffort: 'low',
   })) as Record<string, unknown>;
-  assert.deepEqual(resolved, {
-    provider: 'opencode-go',
-    model: 'deepseek-v4-flash',
-    reasoningEffort: 'high',
+  assert.deepEqual(resolved, nativeSelect ? {
+    provider: 'old-provider', model: 'old-model', reasoningEffort: 'low',
+  } : {
+    provider: 'opencode-go', model: 'deepseek-v4-flash', reasoningEffort: 'high',
   });
+  assert.deepEqual(selected, nativeSelect ? [{
+    provider: 'opencode-go', model: 'deepseek-v4-flash', reasoningEffort: 'high',
+  }] : []);
   assert.deepEqual(permissionPresets, ['danger-full-access']);
   assert.deepEqual(policies, []);
   assert.equal(followed.length, 1);
 });
+}
 
 test('real Cordis host bridges an ask approval to interaction.respond', async () => {
   const listeners = new Map<string, (...args: unknown[]) => unknown>();

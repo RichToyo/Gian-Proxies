@@ -9,17 +9,13 @@ the base global tools, and preserves native preset activation diagnostics.
 
 ## Runtime baseline
 
-The production baseline is `@deepseek-ai/dsh@0.2.1-rc.2` (npm dist-tag
-`latest`, integrity
-`sha512-tvY+yhfKRifthbqPe/OK0AYxM5ZkvqfYq/jMYgJcEUxiRRL1Vwra3Ti5TB6AXgSWQdiPHYh/Vp6SJa9yHwMNuw==`,
-upstream tag `dsh-v0.2.1-rc.2`, commit
-`687f282e8625c6b8d11ff58211a90524be2e4317`). The session format version the
-bridge reports and keys its identity with is DSH `SESSION_FORMAT_VERSION = 4`.
-The bridge `peerDependencies` range is `^0.2.0-rc.2 || 0.2.1-rc.2` — the 0.2.0 RC line stays admitted, and 0.2.1-rc.2 is admitted explicitly because npm semver treats prerelease tuples strictly. Handshake defaults read
-the bridge package version (`0.1.9-Dev`) instead of a second hardcoded value.
-Every native surface below was originally checked against the shipped `.d.ts`
-contracts of 0.2.0-rc.2; the exact 0.2.1-rc.2 package diff leaves those
-surfaces unchanged (session format stays 4, event vocabulary additive-only).
+The source candidate targets `@deepseek-ai/dsh@0.2.2-rc.1`, official tag
+`dsh-v0.2.2-rc.1`, commit `66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db`.
+The prior published baseline remains 0.2.1-rc.2 until qualification and release.
+Both use session format 4 and the same known session-event names. The Bridge
+retains the old peer range and adds the exact 0.2.2-rc.1 prerelease. Model
+selection uses the native Agent API when present and the legacy waterfall on
+older runtimes. Handshake reads the Bridge version from package metadata.
 The real Cordis host probes the mounted services at `initialize` and reports
 only what is present.
 

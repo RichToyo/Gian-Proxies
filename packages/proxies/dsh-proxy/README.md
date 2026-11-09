@@ -9,7 +9,7 @@ settings without rewriting one another's Runtime or Bridge composition.
 ## Layout
 
 - `manifest.json` — Manifest v4 (`id: ai.deepseek.harness`, `process.scope:
-  shared`, protocol range `>=2.2 <3.0`, verified runtime `0.2.1-rc.2`).
+  shared`, protocol range `>=2.2 <3.0`, verified runtime `0.2.2-rc.1`).
 - `src/core/service.ts` — session/turn projection, stable `sourceTurnId` /
   `stepId` / `eventId` identity, terminal-state enforcement, runtime-exit
   terminalization.
@@ -22,11 +22,11 @@ settings without rewriting one another's Runtime or Bridge composition.
 
 ## Runtime baseline
 
-The production Bridge targets `@deepseek-ai/dsh@0.2.1-rc.2` (npm `latest`,
-upstream tag `dsh-v0.2.1-rc.2`, commit
-`639ed015397290b3745d163aafe02ffee4aa3f84`, session format 4). Capabilities
-are advertised only when the connected Bridge reports the corresponding native
-boundary; everything else fails closed with `CAPABILITY_NOT_SUPPORTED`.
+The source candidate targets `@deepseek-ai/dsh@0.2.2-rc.1` at official
+tag `dsh-v0.2.2-rc.1` (commit `66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db`).
+The prior published baseline remains 0.2.1-rc.2 until qualification and release.
+Capabilities are advertised only when the connected Bridge reports the native
+boundary; other operations fail closed with `CAPABILITY_NOT_SUPPORTED`.
 
 ## Capability matrix
 
@@ -50,9 +50,9 @@ boundary; everything else fails closed with `CAPABILITY_NOT_SUPPORTED`.
 | `customization.list` | partial | `skill` kind inventories `ctx.skills` read-only (`provider_api`, stable `ci1_` ids); `mcp`/`hook`/`rule` answer `provider_unsupported` — no enumeration API in this build |
 | Agent Presets vs approval mode | distinct | Agent Presets stay session-bound (`agent_preset`); approval maps to real `ctx.permissionPresets` presets (`permission_preset`) |
 
-Catalog Provider, model, and reasoning selections are applied through DSH's
-per-Agent request waterfalls (still the 0.2.1-rc.2 mechanism); per-model reasoning
-choices regenerate on model switch and a stale inherited effort is cleared.
+Catalog Provider, model, and reasoning selections use the native Agent model
+API when available and the legacy per-Agent waterfall on older DSH versions;
+per-model reasoning choices regenerate on model switch and stale effort clears.
 Catalog input descriptors mirror the runtime-truth attachment/skill surfaces.
 
 ## Identity and replay

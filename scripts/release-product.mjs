@@ -160,6 +160,11 @@ async function qualify() {
         publishRuntime: runtimes.candidates.find(r => r.provider === definition.id)?.asset.publish ?? false });
     }
   });
+  if (shipping.some(definition => definition.id === 'dsh')) {
+    await step('dsh-native-smoke', async () => {
+      command(process.execPath, ['scripts/dsh-hosted-smoke.mjs']);
+    });
+  }
   const revision = git('rev-parse', 'HEAD');
   const runner = { environment: process.env.GIAN_RUNNER_ENVIRONMENT, os: process.env.RUNNER_OS, arch: process.env.RUNNER_ARCH,
     runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT };
