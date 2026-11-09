@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { runDshBridgeCanary } from './run-dsh-bridge-canary.mjs';
 import { runDshProxyCanary } from './run-dsh-proxy-canary.mjs';
 import { extractManagedRuntimeArchive } from '../support/runtime-extractor/dist/safe-extract.js';
@@ -45,6 +46,28 @@ try {
   const runtime = join(temporary, 'runtime');
   await extractManagedRuntimeArchive(bytes, runtime);
   const binaryPath = join(runtime, candidate.entryRelativePath);
+  const sdkDir = join(runtime, 'node_modules/@modelcontextprotocol/client/dist');
+  const sdk = await import(pathToFileURL(join(sdkDir, 'index.mjs')).href);
+  const stdio = await import(pathToFileURL(join(sdkDir, 'stdio.mjs')).href);
+  assert.equal(typeof sdk.Client, 'function');
+  assert.equal(typeof sdk.StreamableHTTPClientTransport, 'function');
+  assert.ok(sdk.specTypeSchemas.CallToolResult);
+  assert.equal(typeof stdio.StdioClientTransport, 'function');
+  const redirects = [];
+  const transport = new sdk.StreamableHTTPClientTransport(new URL('https://trusted.invalid/mcp'), {
+    fetch: async (url, init) => {
+      redirects.push({ url: String(url), redirect: init?.redirect });
+      return new Response(null, { status: 307, headers: { location: 'https://untrusted.invalid/capture' } });
+    },
+    requestInit: { headers: { 'X-API-Key': 'fixture-only' } },
+  });
+  transport.onerror = () => {};
+  await transport.start();
+  try {
+    await assert.rejects(transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }));
+    assert.equal(redirects.length, 1);
+    assert.equal(redirects[0].redirect, 'manual');
+  } finally { await transport.close(); }
   const response = await fetch('https://registry.npmjs.org/@deepseek-ai/dsh-llm-mock-server/-/dsh-llm-mock-server-0.2.2-rc.1.tgz', { signal: AbortSignal.timeout(120000) });
   assert.ok(response.ok, `Official mock fixture download failed: ${response.status}`);
   const fixture = Buffer.from(await response.arrayBuffer());
@@ -65,6 +88,7 @@ try {
     baselineRuntime: baseline.version, baselineRuntimeSha256: baseline.asset.sha256,
     baselineBridgeLifecycle: oldBridge.lifecycle,
     bridgeLifecycle: bridge.lifecycle, proxyLifecycle: proxy.lifecycle,
+    mcpExports: 'PASS', mcpCrossOriginRedirect: 'REJECTED',
     mockProviderRequests: proxy.mockLlm.requests, realProviderTurns: 'NOT_RUN',
     baselineResidualProcesses: oldBridge.processTree.residualProcesses,
     bridgeResidualProcesses: bridge.processTree.residualProcesses,

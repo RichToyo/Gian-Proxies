@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "e71fb67a8181e81628405b7916be0d03d9839321",
+  "sourceCommit": "c039bc8886cc757aff11f40a128158f94c1beaca",
   "workingTree": false,
   "externalPackages": [
     {
@@ -576,7 +576,7 @@
     {
       "source": "delivery/proxies/scripts/dsh-hosted-smoke.mjs",
       "path": "scripts/dsh-hosted-smoke.mjs",
-      "sha256": "8f945385ba59d9ff602e50d7e3f0fa8605dd1ca6f7b33de8225867bcd9d4918e"
+      "sha256": "21923e175f399cbdfd7c50dc98ad152061f5828b73ed61c8996d7a9897641ac3"
     },
     {
       "source": "delivery/proxies/scripts/grok-native-comparison.mjs",
@@ -1641,7 +1641,7 @@
     {
       "source": "packages/proxies/dsh-bridge/test/fixtures/preset-inspector/index.mjs",
       "path": "packages/proxies/dsh-bridge/test/fixtures/preset-inspector/index.mjs",
-      "sha256": "4714a9acf17255ea4dc691028c9ae70deac17593d9da86a0085af7ab3661182b"
+      "sha256": "5dda4752a0793f1877175d398bbef1ad614ceb4f789c9a62c0b301923540127e"
     },
     {
       "source": "packages/proxies/dsh-bridge/test/fixtures/preset-inspector/package.json",
@@ -3011,7 +3011,7 @@
     {
       "source": "scripts/run-dsh-bridge-canary.mjs",
       "path": "scripts/run-dsh-bridge-canary.mjs",
-      "sha256": "31a048877236ab4838d1919ec97f1722911fb4e58d995de9c8ec6afc67a7d892"
+      "sha256": "b83b9bcb758986600168fec666d493348c5720d9dc2ec22cfbc5f0fcac4f2010"
     },
     {
       "source": "scripts/run-dsh-proxy-canary.mjs",
@@ -4603,7 +4603,7 @@
     {
       "path": "packages/proxies/dsh-bridge/test/fixtures/preset-inspector/index.mjs",
       "mode": 420,
-      "sha256": "4714a9acf17255ea4dc691028c9ae70deac17593d9da86a0085af7ab3661182b"
+      "sha256": "5dda4752a0793f1877175d398bbef1ad614ceb4f789c9a62c0b301923540127e"
     },
     {
       "path": "packages/proxies/dsh-bridge/test/fixtures/preset-inspector/package.json",
@@ -5978,7 +5978,7 @@
     {
       "path": "scripts/dsh-hosted-smoke.mjs",
       "mode": 420,
-      "sha256": "8f945385ba59d9ff602e50d7e3f0fa8605dd1ca6f7b33de8225867bcd9d4918e"
+      "sha256": "21923e175f399cbdfd7c50dc98ad152061f5828b73ed61c8996d7a9897641ac3"
     },
     {
       "path": "scripts/grok-native-comparison.mjs",
@@ -6018,7 +6018,7 @@
     {
       "path": "scripts/run-dsh-bridge-canary.mjs",
       "mode": 420,
-      "sha256": "31a048877236ab4838d1919ec97f1722911fb4e58d995de9c8ec6afc67a7d892"
+      "sha256": "b83b9bcb758986600168fec666d493348c5720d9dc2ec22cfbc5f0fcac4f2010"
     },
     {
       "path": "scripts/run-dsh-proxy-canary.mjs",

@@ -407,7 +407,7 @@ export async function runDshBridgeCanary(options = {}) {
         assert.ok(createdReport.tools.includes('todo_write'));
       }
       if (preset === 'ptc') {
-        assert.ok(createdReport.tools.includes('run_code'));
+        assert.deepEqual(createdReport.modelTools, ['run_code']);
         assert.ok(createdReport.tools.includes('web_search'));
       }
       if (preset === 'minimal') {
@@ -428,6 +428,7 @@ export async function runDshBridgeCanary(options = {}) {
       assert.equal(resumedReport?.preset, preset);
       assert.equal(resumedReport?.nativeSessionId, created.session.nativeId);
       assert.deepEqual(resumedReport?.tools, createdReport.tools);
+      assert.deepEqual(resumedReport?.modelTools, createdReport.modelTools);
       const closeResumed = await client.request('session.close', { sessionId: resumedId });
       assert.equal(closeResumed?.ok, true);
       presetSessions.push({ preset, tools: createdReport.tools, resumed: true });

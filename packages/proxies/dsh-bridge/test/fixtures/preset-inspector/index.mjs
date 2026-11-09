@@ -18,13 +18,19 @@ export default class GianCanaryPresetInspector {
     ctx.on('agent/created', async ({ agent, source }) => {
       try {
         const tools = ctx.agentPresets.serviceFor(agent, 'tools') ?? agent.ctx.tools;
-        const schemas = tools.schemas(scopeOf(agent.ctx));
+        const scope = scopeOf(agent.ctx);
+        const schemas = tools.schemas(scope);
+        const prompt = ctx.agentPresets.serviceFor(agent, 'systemPrompt') ?? agent.ctx.systemPrompt;
+        if (!prompt || typeof prompt.assemble !== 'function') throw new Error('Native system prompt assembly is unavailable');
+        const assembled = await prompt.assemble({ scope, agent });
+        if (!Array.isArray(assembled.tools)) throw new Error('Native model tool view is unavailable');
         await this.report({
           type: 'agent',
           nativeSessionId: agent.session.id,
           source,
           preset: ctx.agentPresets.composedPreset(agent.ctx),
           tools: schemas.map(schema => schema.name).sort(),
+          modelTools: assembled.tools.map(schema => schema.name).sort(),
         });
       } catch (error) {
         await this.report({ type: 'agent-error', stack: error?.stack ?? String(error) });
