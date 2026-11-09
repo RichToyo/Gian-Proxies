@@ -1,5 +1,11 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidate - Antigravity 2026-11-10
+
+- Select Antigravity 0.0.7 and Runtime 1.4.5 against signed Catalog 55.
+- Add opt-in bounded cleanup diagnostics while retaining fail-closed behavior.
+- Qualification and immutable publication remain required.
+
 ## Runtime maintenance candidate - Codex 2026-11-07
 
 - Select Codex 0.3.13 against signed Catalog 55, preserving excluded tuples.

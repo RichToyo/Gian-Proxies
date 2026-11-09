@@ -34,6 +34,7 @@ import {
 } from './errors.js';
 import {
   spawnAntigravityProcess,
+  type AntigravityProcessCleanupDiagnostic,
   type AntigravityProcessExit,
   type AntigravityProcessTransport,
 } from './process-transport.js';
@@ -69,6 +70,7 @@ export interface AntigravityAcpClientOptions {
   startupTimeoutMs?: number;
   requestTimeoutMs?: number;
   gracefulStopMs?: number;
+  onCleanupDiagnostic?: (diagnostic: AntigravityProcessCleanupDiagnostic) => void;
   transportFactory?: AntigravityTransportFactory;
 }
 
@@ -114,6 +116,7 @@ export class AntigravityAcpClient implements AntigravityRuntimeClient {
   private readonly startupTimeoutMs: number;
   private readonly requestTimeoutMs: number;
   private readonly gracefulStopMs: number;
+  private readonly onCleanupDiagnostic: AntigravityAcpClientOptions['onCleanupDiagnostic'];
   private readonly transportFactory: AntigravityTransportFactory | undefined;
   private readonly emitter = new EventEmitter<{
     sessionUpdate: [SessionNotification];
@@ -147,6 +150,7 @@ export class AntigravityAcpClient implements AntigravityRuntimeClient {
     this.startupTimeoutMs = positiveMs(options.startupTimeoutMs, DEFAULT_STARTUP_TIMEOUT_MS, 'startupTimeoutMs');
     this.requestTimeoutMs = positiveMs(options.requestTimeoutMs, DEFAULT_REQUEST_TIMEOUT_MS, 'requestTimeoutMs');
     this.gracefulStopMs = positiveMs(options.gracefulStopMs, DEFAULT_GRACEFUL_STOP_MS, 'gracefulStopMs');
+    this.onCleanupDiagnostic = options.onCleanupDiagnostic;
     this.transportFactory = options.transportFactory;
   }
 
@@ -321,6 +325,7 @@ export class AntigravityAcpClient implements AntigravityRuntimeClient {
         cwd: this.cwd,
         env: this.envOverlay,
         gracefulStopMs: this.gracefulStopMs,
+        ...(this.onCleanupDiagnostic ? { onCleanupDiagnostic: this.onCleanupDiagnostic } : {}),
       });
     const transport: AntigravityAcpTransport = {
       generation,

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "providers": [
-    "codex"
+    "antigravity"
   ],
   "baseCatalogTag": "catalog-v1.55.0",
   "baseCatalogRepository": "RichToyo/Gian-Proxies"

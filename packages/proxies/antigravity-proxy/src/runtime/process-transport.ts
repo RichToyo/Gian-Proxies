@@ -28,6 +28,23 @@ export interface AntigravityProcessExit {
   error?: Error;
 }
 
+export interface AntigravityProcessCleanupDiagnostic {
+  phase: 'stop-signal' | 'reap-signal' | 'reap-probe' | 'reap-deadline';
+  code: string | null;
+}
+
+type CleanupDiagnosticSink = (diagnostic: AntigravityProcessCleanupDiagnostic) => void;
+
+function cleanupDiagnostic(sink: CleanupDiagnosticSink | undefined, phase: AntigravityProcessCleanupDiagnostic['phase'], error?: unknown): void {
+  if (!sink) return;
+  const code = error !== null && typeof error === 'object' && 'code' in error ? error.code : null;
+  try {
+    sink({ phase, code: typeof code === 'string' && /^E[A-Z0-9_]{1,31}$/.test(code) ? code : null });
+  } catch {
+    // Diagnostics never alter cleanup semantics.
+  }
+}
+
 export interface AntigravityProcessTransport {
   connection: ClientSideConnection;
   exit: Promise<AntigravityProcessExit>;
@@ -51,6 +68,7 @@ export async function spawnAntigravityProcess(
     cwd: string;
     env: NodeJS.ProcessEnv | undefined;
     gracefulStopMs: number;
+    onCleanupDiagnostic?: CleanupDiagnosticSink;
   },
 ): Promise<AntigravityProcessTransport> {
   await assertServerExecutable(options.binaryPath);
@@ -104,7 +122,7 @@ export async function spawnAntigravityProcess(
   let frameError: Error | undefined;
   const exit = leaderExit.then(async (event) => {
     const pid = child.pid;
-    if (pid !== undefined && pid > 0) await reapOwnedGroup(pid, options.gracefulStopMs);
+    if (pid !== undefined && pid > 0) await reapOwnedGroup(pid, options.gracefulStopMs, options.onCleanupDiagnostic);
     releaseOwnership();
     if (frameError && !event.error) return { ...event, error: frameError };
     return event;
@@ -147,7 +165,7 @@ export async function spawnAntigravityProcess(
           }
         }
       }
-      stopping ??= stopOwnedProcess(child, leaderExit, exit, options.gracefulStopMs, force);
+      stopping ??= stopOwnedProcess(child, leaderExit, exit, options.gracefulStopMs, force, options.onCleanupDiagnostic);
       return stopping;
     },
   };
@@ -236,6 +254,7 @@ export async function stopOwnedProcess(
   exit: Promise<AntigravityProcessExit>,
   gracefulStopMs: number,
   force: boolean,
+  onDiagnostic?: CleanupDiagnosticSink,
 ): Promise<void> {
   const pid = child.pid ?? -1;
   let signalError: Error | undefined;
@@ -244,6 +263,7 @@ export async function stopOwnedProcess(
     try {
       signalOwnedGroup(pid, name);
     } catch (error) {
+      cleanupDiagnostic(onDiagnostic, 'stop-signal', error);
       signalError = asError(error);
     }
   };
@@ -301,13 +321,19 @@ function leaderExited(child: ChildProcess): boolean {
  * SIGKILL the owned process group and wait until no member remains.
  * A dead leader does not skip this. Windows has no group signal.
  */
-async function reapOwnedGroup(pid: number, budgetMs: number): Promise<void> {
+async function reapOwnedGroup(pid: number, budgetMs: number, onDiagnostic?: CleanupDiagnosticSink): Promise<void> {
   if (process.platform === 'win32') return;
-  signalOwnedGroup(pid, 'SIGKILL');
+  try {
+    signalOwnedGroup(pid, 'SIGKILL');
+  } catch (error) {
+    cleanupDiagnostic(onDiagnostic, 'reap-signal', error);
+    throw error;
+  }
   const started = Date.now();
   for (;;) {
-    if (!groupHasMembers(pid)) return;
+    if (!groupHasMembers(pid, onDiagnostic)) return;
     if (Date.now() - started >= budgetMs) {
+      cleanupDiagnostic(onDiagnostic, 'reap-deadline');
       throw new AntigravityRuntimeError(
         `Antigravity ACP process group ${pid} still has descendants after SIGKILL.`,
       );
@@ -334,11 +360,12 @@ function signalOwnedGroup(pid: number, signal: NodeJS.Signals): void {
   }
 }
 
-function groupHasMembers(pid: number): boolean {
+function groupHasMembers(pid: number, onDiagnostic?: CleanupDiagnosticSink): boolean {
   try {
     process.kill(-pid, 0);
     return true;
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') cleanupDiagnostic(onDiagnostic, 'reap-probe', error);
     return (error as NodeJS.ErrnoException).code !== 'ESRCH';
   }
 }

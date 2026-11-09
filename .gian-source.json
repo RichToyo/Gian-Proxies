@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "0c7cb271379d968528ac370d6384990523c2070c",
+  "sourceCommit": "00571816df69d855ee60244e78aa8162b4a73ac5",
   "workingTree": false,
   "externalPackages": [
     {
@@ -456,7 +456,7 @@
     {
       "source": "catalog/proxy-information/io.gian.antigravity/basic.md",
       "path": "catalog/proxy-information/io.gian.antigravity/basic.md",
-      "sha256": "ff9491d84d31560b1c6a730bf4c3cefa8da0be91ca3ae66cdf717031cf20e069"
+      "sha256": "d6e8962fa9913d54914739a30722a04cfae37ea6bf8ba6df511c19845ccc8d9f"
     },
     {
       "source": "catalog/proxy-information/io.gian.antigravity/changelog.json",
@@ -471,7 +471,7 @@
     {
       "source": "catalog/proxy-information/io.gian.antigravity/tutorial.md",
       "path": "catalog/proxy-information/io.gian.antigravity/tutorial.md",
-      "sha256": "6a28e08b255d877834f2e3fbff26b084f44f52b1ce6fee3870f1dbd84a6d7f55"
+      "sha256": "0f76144b6facd3905c1395edc9ce40bb2f8320e58e59269053c979ae260e469c"
     },
     {
       "source": "catalog/proxy-information/kimi/basic.md",
@@ -546,7 +546,7 @@
     {
       "source": "delivery/proxies/CHANGELOG.md",
       "path": "CHANGELOG.md",
-      "sha256": "df8a6d18cc2e64b4931e3040fd308e388b5151b3cc03069be2baf4c04dd1e8e9"
+      "sha256": "720ec4dbdd32874a69228c35f56fdc7b74759b49b55203f9141047ec119cd293"
     },
     {
       "source": "delivery/proxies/README.md",
@@ -561,7 +561,7 @@
     {
       "source": "delivery/proxies/release-selection.json",
       "path": "release-selection.json",
-      "sha256": "eda8874fb00d7826d86cc06dc6f7be6baff612369231394fb9f7baa1bfdf7263"
+      "sha256": "02be2db638d60c9100942c7c2790064d13e99da611444db09b74b13e2e6c4238"
     },
     {
       "source": "delivery/proxies/scripts/catalog-docs-policy.mjs",
@@ -591,7 +591,7 @@
     {
       "source": "delivery/proxies/scripts/runtime-qualification.test.mjs",
       "path": "scripts/runtime-qualification.test.mjs",
-      "sha256": "66ee05e7bb962c0af74b24740e34a31d0cecd42e3403c8418a2dc45b4a1e8a43"
+      "sha256": "3743ed241f6054e4c4006ba93d86fd4e312edef248ca7e9cc22c69881f172146"
     },
     {
       "source": "delivery/proxies/scripts/verify-source.mjs",
@@ -691,7 +691,7 @@
     {
       "source": "packages/proxies/antigravity-proxy/src/runtime/acp-client.ts",
       "path": "packages/proxies/antigravity-proxy/src/runtime/acp-client.ts",
-      "sha256": "a988e6bfc650ea79a5ac2616274ac95e987789b661749dc73ecf484f60237f35"
+      "sha256": "b3f0366ae75c7add5e9a7ce6dc561b17955eff04ec7c502ec001d4db16ce6a54"
     },
     {
       "source": "packages/proxies/antigravity-proxy/src/runtime/cli-models.ts",
@@ -741,7 +741,7 @@
     {
       "source": "packages/proxies/antigravity-proxy/src/runtime/process-transport.ts",
       "path": "packages/proxies/antigravity-proxy/src/runtime/process-transport.ts",
-      "sha256": "3894ba0eca813f3de90f141f7704f5f4969f1821d5cd189d6cae87553fffd4fc"
+      "sha256": "b6dd19e3b1d191ebde741f199072b956c9511b7f04b6cb5a7ea75268b29b9574"
     },
     {
       "source": "packages/proxies/antigravity-proxy/src/transport/protocol.ts",
@@ -846,7 +846,7 @@
     {
       "source": "packages/proxies/antigravity-proxy/test/runtime-process.test.ts",
       "path": "packages/proxies/antigravity-proxy/test/runtime-process.test.ts",
-      "sha256": "11bad328bd8dcfcf02366d31aa417b5605d3c77bc3a8c1939f0dd7bd6796030d"
+      "sha256": "f6d30a7f59e0eb0f21f40f0b0303ee3246e233ac1141f2920eb3ca3f04e7d67b"
     },
     {
       "source": "packages/proxies/antigravity-proxy/test/service.test.ts",
@@ -3488,7 +3488,7 @@
     {
       "path": "catalog/proxy-information/io.gian.antigravity/basic.md",
       "mode": 420,
-      "sha256": "ff9491d84d31560b1c6a730bf4c3cefa8da0be91ca3ae66cdf717031cf20e069"
+      "sha256": "d6e8962fa9913d54914739a30722a04cfae37ea6bf8ba6df511c19845ccc8d9f"
     },
     {
       "path": "catalog/proxy-information/io.gian.antigravity/changelog.json",
@@ -3503,7 +3503,7 @@
     {
       "path": "catalog/proxy-information/io.gian.antigravity/tutorial.md",
       "mode": 420,
-      "sha256": "6a28e08b255d877834f2e3fbff26b084f44f52b1ce6fee3870f1dbd84a6d7f55"
+      "sha256": "0f76144b6facd3905c1395edc9ce40bb2f8320e58e59269053c979ae260e469c"
     },
     {
       "path": "catalog/proxy-information/kimi/basic.md",
@@ -3553,7 +3553,7 @@
     {
       "path": "CHANGELOG.md",
       "mode": 420,
-      "sha256": "df8a6d18cc2e64b4931e3040fd308e388b5151b3cc03069be2baf4c04dd1e8e9"
+      "sha256": "720ec4dbdd32874a69228c35f56fdc7b74759b49b55203f9141047ec119cd293"
     },
     {
       "path": "LICENSE",
@@ -3643,7 +3643,7 @@
     {
       "path": "packages/proxies/antigravity-proxy/src/runtime/acp-client.ts",
       "mode": 420,
-      "sha256": "a988e6bfc650ea79a5ac2616274ac95e987789b661749dc73ecf484f60237f35"
+      "sha256": "b3f0366ae75c7add5e9a7ce6dc561b17955eff04ec7c502ec001d4db16ce6a54"
     },
     {
       "path": "packages/proxies/antigravity-proxy/src/runtime/cli-models.ts",
@@ -3693,7 +3693,7 @@
     {
       "path": "packages/proxies/antigravity-proxy/src/runtime/process-transport.ts",
       "mode": 420,
-      "sha256": "3894ba0eca813f3de90f141f7704f5f4969f1821d5cd189d6cae87553fffd4fc"
+      "sha256": "b6dd19e3b1d191ebde741f199072b956c9511b7f04b6cb5a7ea75268b29b9574"
     },
     {
       "path": "packages/proxies/antigravity-proxy/src/transport/protocol.ts",
@@ -3798,7 +3798,7 @@
     {
       "path": "packages/proxies/antigravity-proxy/test/runtime-process.test.ts",
       "mode": 420,
-      "sha256": "11bad328bd8dcfcf02366d31aa417b5605d3c77bc3a8c1939f0dd7bd6796030d"
+      "sha256": "f6d30a7f59e0eb0f21f40f0b0303ee3246e233ac1141f2920eb3ca3f04e7d67b"
     },
     {
       "path": "packages/proxies/antigravity-proxy/test/service.test.ts",
@@ -5898,7 +5898,7 @@
     {
       "path": "release-selection.json",
       "mode": 420,
-      "sha256": "eda8874fb00d7826d86cc06dc6f7be6baff612369231394fb9f7baa1bfdf7263"
+      "sha256": "02be2db638d60c9100942c7c2790064d13e99da611444db09b74b13e2e6c4238"
     },
     {
       "path": "runtimes/deepseek-harness/package-lock.json",
@@ -5998,7 +5998,7 @@
     {
       "path": "scripts/runtime-qualification.test.mjs",
       "mode": 420,
-      "sha256": "66ee05e7bb962c0af74b24740e34a31d0cecd42e3403c8418a2dc45b4a1e8a43"
+      "sha256": "3743ed241f6054e4c4006ba93d86fd4e312edef248ca7e9cc22c69881f172146"
     },
     {
       "path": "scripts/stage-official-catalog-release.mjs",

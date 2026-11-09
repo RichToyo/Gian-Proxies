@@ -120,6 +120,7 @@ test('reaps a descendant after the leader exits on its own', skipWindows, async 
 
 test('stop kills a stubborn leader and its harness descendant together', skipWindows, async () => {
   const root = await mkdtemp(join(tmpdir(), 'agy-group-'));
+  const diagnostics: Array<{ phase: string; code: string | null }> = [];
   const leaderPath = join(root, 'leader.pid');
   const descendantPath = join(root, 'descendant.pid');
   const { server } = await installedFake(root);
@@ -127,6 +128,7 @@ test('stop kills a stubborn leader and its harness descendant together', skipWin
     binaryPath: server,
     cwd: dirname(server),
     gracefulStopMs: 200,
+    onCleanupDiagnostic: (event) => diagnostics.push(event),
     env: {
       HOME: root,
       PATH: '',
@@ -143,7 +145,12 @@ test('stop kills a stubborn leader and its harness descendant together', skipWin
     descendant = await readPid(descendantPath);
     assert.equal(processAlive(leader), true);
     assert.equal(processAlive(descendant), true);
-    await client.stop();
+    try {
+      await client.stop();
+    } catch (error) {
+      console.error('Antigravity cleanup diagnostics:', JSON.stringify(diagnostics));
+      throw error;
+    }
     assert.equal(processAlive(leader), false);
     assert.equal(processAlive(descendant), false);
   } finally {
@@ -232,6 +239,27 @@ test('the post-SIGKILL wait fails closed when the leader never exits', { timeout
       && /did not exit within 40ms after SIGKILL/.test(error.message),
   );
   assert.equal(Date.now() - started < 1_000, true);
+});
+
+test('EPERM remains a cleanup failure and reports only phase and code', skipWindows, async () => {
+  const originalKill = process.kill;
+  const diagnostics: Array<{ phase: string; code: string | null }> = [];
+  const denied = Object.assign(new Error('injected signal failure'), { code: 'EPERM' });
+  process.kill = ((pid: number) => {
+    assert.equal(pid, -424242);
+    throw denied;
+  }) as typeof process.kill;
+  try {
+    const child = { ...idleLeader(), pid: 424242 } as ChildProcess;
+    const hung = new Promise<AntigravityProcessExit>(() => undefined);
+    await assert.rejects(
+      stopOwnedProcess(child, hung, hung, 40, true, (event) => diagnostics.push(event)),
+      (error: unknown) => error instanceof AntigravityCleanupError && error.cause === denied,
+    );
+    assert.deepEqual(diagnostics, [{ phase: 'stop-signal', code: 'EPERM' }]);
+  } finally {
+    process.kill = originalKill;
+  }
 });
 
 test('stop returns when the owned exit settles and still reports a reap failure', async () => {
