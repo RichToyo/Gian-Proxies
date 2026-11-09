@@ -3168,5 +3168,30 @@
     "process": {
       "scope": "session"
     }
+  },
+  {
+    "tag": "proxy-antigravity-v0.0.7",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.7",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.7/gian-proxy-antigravity-0.0.7-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:315b977d820c226e43c52d357ed2f5f1d2f1bdb19062a7bbcc7f43f3d4d30cb4",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "io.gian.antigravity",
+    "pluginVersion": "0.0.7",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "antigravity-acp",
+      "displayName": "Antigravity ACP Server",
+      "verifiedVersions": [
+        "1.4.5"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
   }
 ]

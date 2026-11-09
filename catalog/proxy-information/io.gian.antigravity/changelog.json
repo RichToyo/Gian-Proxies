@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "io.gian.antigravity",
-  "currentVersion": "0.0.6",
+  "currentVersion": "0.0.7",
   "entries": [
+    {
+      "version": "0.0.7",
+      "firstPublishedAt": "2026-11-09T18:27:50Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-antigravity-v0.0.7",
+          "publishedAt": "2026-11-09T18:27:50Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.7",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.7/gian-proxy-antigravity-0.0.7-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "315b977d820c226e43c52d357ed2f5f1d2f1bdb19062a7bbcc7f43f3d4d30cb4",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.7/gian-proxy-antigravity-0.0.7-darwin-arm64.tar.gz",
+            "sha256": "7bad4ae085b38fce832e10cac286e045f2c0be0da709c385be9250ae3d8ec1d8",
+            "size": 194259
+          },
+          "runtimeDeclaration": {
+            "id": "antigravity-acp",
+            "versions": [
+              "1.4.5"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Add opt-in, bounded cleanup diagnostics while preserving fail-closed process ownership. Retain read-only quota inspection for the separate official Antigravity CLI account. Upgrade the managed ACP Runtime to official registry 1.4.5 with pinned pair bytes; native ACP initialize shows agent identity unchanged and agentCapabilities deep-equal to the published 1.4.4 bytes. Use Proxy Protocol SDK 1.0.4. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.7",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-antigravity-v0.0.7/packages/proxies/antigravity-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.0.6",
       "firstPublishedAt": "2026-10-29T18:54:04Z",
