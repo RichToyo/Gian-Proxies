@@ -1,5 +1,11 @@
 # Gian Proxies Changelog
 
+## Runtime maintenance candidate - Claude 2026-11-11
+
+- Select Claude Proxy 0.3.23 and Runtime 2.1.322 against signed Catalog 57.
+- Pin official bytes including model, MCP OAuth and permission fixes.
+- Hosted qualification and immutable publication remain required.
+
 ## Runtime maintenance candidate - DeepSeek 2026-11-10
 
 - Select DeepSeek Proxy 0.3.11 and Runtime 0.2.2-rc.1 against signed Catalog 56.
