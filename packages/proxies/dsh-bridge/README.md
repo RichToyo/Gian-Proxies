@@ -9,11 +9,11 @@ the base global tools, and preserves native preset activation diagnostics.
 
 ## Runtime baseline
 
-The source candidate targets `@deepseek-ai/dsh@0.2.2-rc.1`, official tag
-`dsh-v0.2.2-rc.1`, commit `66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db`.
-The prior published baseline remains 0.2.1-rc.2 until qualification and release.
-Both use session format 4 and the same known session-event names. The Bridge
-retains the old peer range and adds the exact 0.2.2-rc.1 prerelease. Model
+The source candidate targets `@deepseek-ai/dsh@0.2.2-rc.2`, official tag
+`dsh-v0.2.2-rc.2`, commit `ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c`.
+The prior published baseline remains 0.2.2-rc.1 until qualification and release.
+The Bridge
+retains the old peer range and adds the exact 0.2.2-rc.2 prerelease. Model
 selection uses the native Agent API when present and the legacy waterfall on
 older runtimes. Handshake reads the Bridge version from package metadata.
 The real Cordis host probes the mounted services at `initialize` and reports

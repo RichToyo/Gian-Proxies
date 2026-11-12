@@ -26,7 +26,7 @@ const temporary = await mkdtemp(join(tmpdir(), 'gian-dsh-hosted-'));
 try {
   const history = JSON.parse(await readFile(join(root, 'catalog/proxy-information/evidence/current-combinations.json'), 'utf8'));
   const baseline = history.plugins.find(item => item.id === 'ai.deepseek.harness')?.combination?.runtime;
-  assert.equal(baseline?.version, '0.2.1-rc.2');
+  assert.equal(baseline?.version, '0.2.2-rc.1');
   const baseUrl = new URL(baseline.asset.url);
   assert.equal(baseUrl.origin, 'https://github.com');
   const parts = baseUrl.pathname.split('/');
@@ -68,10 +68,10 @@ try {
     assert.equal(redirects.length, 1);
     assert.equal(redirects[0].redirect, 'manual');
   } finally { await transport.close(); }
-  const response = await fetch('https://registry.npmjs.org/@deepseek-ai/dsh-llm-mock-server/-/dsh-llm-mock-server-0.2.2-rc.1.tgz', { signal: AbortSignal.timeout(120000) });
+  const response = await fetch('https://registry.npmjs.org/@deepseek-ai/dsh-llm-mock-server/-/dsh-llm-mock-server-0.2.2-rc.2.tgz', { signal: AbortSignal.timeout(120000) });
   assert.ok(response.ok, `Official mock fixture download failed: ${response.status}`);
   const fixture = Buffer.from(await response.arrayBuffer());
-  assert.equal(createHash('sha512').update(fixture).digest('base64'), 'hxBNmQEGeibDdmdEtWv3Pmm/11omcnvWbyh6RULkasUQoNVfgppJbrBtres2EaqUjaEULIRuMFhdLZcX13zMhQ==');
+  assert.equal(createHash('sha512').update(fixture).digest('base64'), 'txqzOAkNrvoxg0NUoruqM6/ojN7d6WfdptlZfJUMqRPHktyqFtWlMjbzP0rOAsAZEdrNtz/c5BzhWecsJnsPYw==');
   const archive = join(temporary, 'mock.tgz');
   const mockServerPath = join(temporary, 'mock-server.mjs');
   await writeFile(archive, fixture);

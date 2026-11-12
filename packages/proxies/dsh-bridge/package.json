@@ -1,6 +1,6 @@
 {
   "name": "@gian/dsh-bridge",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "private": true,
   "description": "Gian-managed Cordis bundle that speaks gian.dsh.bridge/1.0 inside a binding-scoped DSH profile",
   "type": "module",
@@ -45,7 +45,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh": "^0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.2-rc.1"
+    "@deepseek-ai/dsh": "^0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.2-rc.1 || 0.2.2-rc.2"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh": {

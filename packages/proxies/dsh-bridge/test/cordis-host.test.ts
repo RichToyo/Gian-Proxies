@@ -7,6 +7,49 @@ import test from 'node:test';
 import { CordisDshHost, dshVersionFromEntrypoint } from '../src/cordis-host.js';
 import { signHostBinding } from '../src/host-binding.js';
 
+test('rc.2 native subagent parentSessionId attributes only owned lifecycle events', async () => {
+  const listeners = new Map<string, (...args: unknown[]) => unknown>();
+  const emitted: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const agent = {
+    id: '', status: 'idle', session: { id: '', events: [] }, ctx: {},
+    cancel: () => undefined, whenIdle: async () => undefined,
+    followup: () => undefined, steer: () => undefined,
+  };
+  const host = new CordisDshHost({
+    agents: { create: async (options: { sessionId: string }) => {
+      agent.id = options.sessionId;
+      agent.session.id = options.sessionId;
+      return { agent, dispose: async () => undefined };
+    } },
+    llm: {
+      listProviders: () => [{ id: 'deepseek' }],
+      listModels: async () => [{ id: 'flash', provider: 'deepseek' }],
+    },
+    on: (name: string, listener: (...args: unknown[]) => unknown) => {
+      listeners.set(name, listener);
+      return () => listeners.delete(name);
+    },
+  } as never, '0.1.11');
+  host.attachSink(event => emitted.push(event));
+  try {
+    await host.sessionCreate({ sessionId: 'gian-parent', cwd: '/tmp', roots: ['/tmp'], config: {} });
+    // This shape follows rc.2 SubagentRunInfo; identities are synthetic.
+    const native = { runId: 'run-1', provider: 'dsh', id: 'child-1', local: true, parentSessionId: agent.id };
+    listeners.get('subagent/start')?.(native);
+    listeners.get('subagent/start')?.({ ...native, runId: 'run-2', id: 'child-2', parentSessionId: 'child-1' });
+    listeners.get('subagent/start')?.({ ...native, runId: 'foreign', id: 'child-foreign', parentSessionId: 'foreign-parent' });
+    listeners.get('subagent/end')?.({ ...native, stopReason: 'completed' });
+    const lifecycle = emitted.filter(event => event.method.startsWith('subagent.'));
+    assert.deepEqual(lifecycle.map(event => [event.method, event.params.sessionId, event.params.agentId]), [
+      ['subagent.started', 'gian-parent', 'run-1'],
+      ['subagent.started', 'gian-parent', 'run-2'],
+      ['subagent.finished', 'gian-parent', 'run-1'],
+    ]);
+  } finally {
+    await host.dispose();
+  }
+});
+
 test('DSH runtime version follows the real CLI entry behind an npm launcher symlink', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'gian-dsh-version-'));
   t.after(async () => {

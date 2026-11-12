@@ -1,5 +1,10 @@
 # Gian Proxies Changelog
 
+## DSH Proxy 0.3.12 - 2026-11-13
+
+- Upgrade the managed DeepSeek Runtime to 0.2.2-rc.2 and preserve native subagent attribution.
+- Select DSH against signed Catalog 58 for exact-artifact hosted qualification.
+
 ## Runtime maintenance candidate - Claude 2026-11-11
 
 - Select Claude Proxy 0.3.23 and Runtime 2.1.322 against signed Catalog 57.

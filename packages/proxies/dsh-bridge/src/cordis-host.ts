@@ -312,6 +312,8 @@ interface CordisSubagentRunInfo {
   provider: string;
   id: string;
   local: boolean;
+  /** Native rc.2 identifies the direct creator in each lifecycle event. */
+  parentSessionId?: string;
 }
 
 interface CordisSubagentRunEndInfo extends CordisSubagentRunInfo {
@@ -2062,7 +2064,7 @@ export class CordisDshHost implements BridgeHost {
     if (this.disposed || !payload || typeof payload !== 'object') return;
     const info = payload as CordisSubagentRunInfo;
     if (typeof info.runId !== 'string' || typeof info.id !== 'string') return;
-    const parent = this.attributedParent(info.id);
+    const parent = this.attributedParent(info.id, info.parentSessionId);
     if (parent === null) return;
     this.children.set(info.id, {
       parentSessionId: parent.id,
@@ -2086,7 +2088,7 @@ export class CordisDshHost implements BridgeHost {
     const info = payload as CordisSubagentRunEndInfo;
     if (typeof info.runId !== 'string' || typeof info.id !== 'string') return;
     const facts = this.children.get(info.id);
-    const parent = (facts !== undefined ? this.sessions.get(facts.parentSessionId) : this.attributedParent(info.id)) ?? null;
+    const parent = (facts !== undefined ? this.sessions.get(facts.parentSessionId) : this.attributedParent(info.id, info.parentSessionId)) ?? null;
     this.children.delete(info.id);
     if (parent === null) return;
     const state = info.stopReason === 'completed' || info.stopReason === 'max-tokens'
@@ -2107,7 +2109,13 @@ export class CordisDshHost implements BridgeHost {
   }
 
   /** Find the Gian record whose agent owns this child, when attribution is provable. */
-  private attributedParent(childNativeId: string): CordisSessionRecord | null {
+  private attributedParent(childNativeId: string, parentNativeId?: string): CordisSessionRecord | null {
+    if (typeof parentNativeId === 'string') {
+      const direct = this.byNativeId.get(parentNativeId);
+      if (direct) return direct;
+      const ancestor = this.children.get(parentNativeId);
+      return ancestor ? this.sessions.get(ancestor.parentSessionId) ?? null : null;
+    }
     const registry = this.ctx.get?.('agents') ?? this.ctx.agents;
     if (registry !== null && typeof registry === 'object'
       && typeof (registry as CordisAgentRegistry).isOwnedBy === 'function') {

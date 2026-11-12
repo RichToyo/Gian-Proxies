@@ -26,17 +26,17 @@
   {
     "pluginId": "ai.deepseek.harness",
     "runtimeId": "deepseek-harness",
-    "version": "0.2.2-rc.1",
+    "version": "0.2.2-rc.2",
     "format": "tar.gz",
     "entryRelativePath": "node_modules/@deepseek-ai/dsh/lib/bin.js",
     "build": {
       "kind": "dsh-lock",
-      "packageSha256": "16f4b8e266d52140ac3d12510310e6f586619c8dfa0edc99b53385db7d0c5c99",
-      "lockSha256": "a01aad7c276568b0a46ff5ce0268ac6fd37185da4bf0302233763529b2e86ba2"
+      "packageSha256": "7a3c2c65cb82c26f0a82ef791b8ee5cf9302f57d430b56e6c57f6d05560ea694",
+      "lockSha256": "590d7d0227bf0a95a5cef109f256e8554444393da1b22f8aef2c6a5a0bd40785"
     },
     "asset": {
-      "sha256": "7326fb4415fdbe2e9fd1709507c54b75359126fa38aef9e06df06ef864751ec8",
-      "size": 149083428
+      "sha256": "c3f4a4aeeeb987d92bc0003bee5e5f7d3e13e13f6279095c7ade9c4740d893d0",
+      "size": 222552966
     }
   },
   {
