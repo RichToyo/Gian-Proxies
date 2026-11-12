@@ -11,7 +11,7 @@ the base global tools, and preserves native preset activation diagnostics.
 
 The source candidate targets `@deepseek-ai/dsh@0.2.2-rc.2`, official tag
 `dsh-v0.2.2-rc.2`, commit `ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c`.
-The prior published baseline remains 0.2.2-rc.1 until qualification and release.
+The published baseline is 0.2.2-rc.2 after exact-artifact qualification.
 The Bridge
 retains the old peer range and adds the exact 0.2.2-rc.2 prerelease. Model
 selection uses the native Agent API when present and the legacy waterfall on

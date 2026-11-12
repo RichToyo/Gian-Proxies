@@ -1,6 +1,6 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.58.0",
-  "sequence": 58,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.59.0",
+  "sequence": 59,
   "sourceId": "gian-official",
   "plugins": [
     {
@@ -17,16 +17,16 @@
         "companions": [],
         "generationId": "claude-0.3.23-runtime-2.1.322",
         "runtime": {
+          "asset": {
+            "sha256": "a9d237949db816a0b7afd88a9a8e1df36b3a597a30f5a41d1c0539eb180a3450",
+            "size": 323702464,
+            "url": "https://downloads.claude.ai/claude-code-releases/2.1.322/darwin-arm64/claude"
+          },
+          "entryRelativePath": "bin/claude",
+          "format": "raw",
           "kind": "native-binary",
           "runtimeId": "claude",
-          "version": "2.1.322",
-          "asset": {
-            "url": "https://downloads.claude.ai/claude-code-releases/2.1.322/darwin-arm64/claude",
-            "sha256": "a9d237949db816a0b7afd88a9a8e1df36b3a597a30f5a41d1c0539eb180a3450",
-            "size": 323702464
-          },
-          "format": "raw",
-          "entryRelativePath": "bin/claude"
+          "version": "2.1.322"
         }
       }
     },
@@ -87,27 +87,27 @@
     {
       "id": "ai.deepseek.harness",
       "displayName": "DeepSeek Harness",
-      "version": "0.3.11",
+      "version": "0.3.12",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "shared",
       "combination": {
         "certificate": {
-          "id": "proxies-4fe03d18736060f1072285675c74c5e42ce41711-42678047730-1",
-          "sha256": "2ce8e5f69d2a848dd4d6c01a8cd71e22930af7b136f0c30c679b9df1aa075182"
+          "id": "proxies-43c0e4f4bc48c79568b90e8cea3933b9e5252cd2-43280499718-1",
+          "sha256": "e53ceb77467afabf34637078f8b85a512bcbdc0c9981c13eddf3bb5ffebe962d"
         },
         "companions": [],
-        "generationId": "dsh-0.3.11-runtime-0.2.2-rc.1",
+        "generationId": "dsh-0.3.12-runtime-0.2.2-rc.2",
         "runtime": {
-          "asset": {
-            "sha256": "7326fb4415fdbe2e9fd1709507c54b75359126fa38aef9e06df06ef864751ec8",
-            "size": 149083428,
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.11/gian-runtime-dsh-0.2.2-rc.1-darwin-arm64.tar.gz"
-          },
-          "entryRelativePath": "node_modules/@deepseek-ai/dsh/lib/bin.js",
-          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "deepseek-harness",
-          "version": "0.2.2-rc.1"
+          "version": "0.2.2-rc.2",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.12/gian-runtime-dsh-0.2.2-rc.2-darwin-arm64.tar.gz",
+            "sha256": "d9669252f82f0ec651b400fb2e04894666065a3dc0f20e2e8a50628e7609f21a",
+            "size": 226258557
+          },
+          "format": "tar.gz",
+          "entryRelativePath": "node_modules/@deepseek-ai/dsh/lib/bin.js"
         }
       }
     },
