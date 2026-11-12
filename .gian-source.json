@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "f74b8eef58cc84da3272e07b693b4728c6b43a48",
+  "sourceCommit": "e8541b1b53b578cd8fce4d627ece4cf4e4f245d9",
   "workingTree": false,
   "externalPackages": [
     {
@@ -606,7 +606,7 @@
     {
       "source": "packages/host/src/runtime/dev-runtime-coordinates.json",
       "path": "support/runtime-extractor/dev-runtime-coordinates.json",
-      "sha256": "b00d35d6658192b6b7db0a3477aecda3f7f25026153caf92aa051efb1ea90928"
+      "sha256": "b49c689d22224fe6a8b1e5f5e36894e48514e9cd197fcf86b9afe6d6f22ed48b"
     },
     {
       "source": "packages/host/src/runtime/errors.ts",
@@ -6063,7 +6063,7 @@
     {
       "path": "support/runtime-extractor/dev-runtime-coordinates.json",
       "mode": 420,
-      "sha256": "b00d35d6658192b6b7db0a3477aecda3f7f25026153caf92aa051efb1ea90928"
+      "sha256": "b49c689d22224fe6a8b1e5f5e36894e48514e9cd197fcf86b9afe6d6f22ed48b"
     },
     {
       "path": "support/runtime-extractor/src/errors.ts",
