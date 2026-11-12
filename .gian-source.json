@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "e8541b1b53b578cd8fce4d627ece4cf4e4f245d9",
+  "sourceCommit": "c38808d369b55daa53f126b559ffbbda7f019605",
   "workingTree": false,
   "externalPackages": [
     {
@@ -3016,7 +3016,7 @@
     {
       "source": "scripts/run-dsh-proxy-canary.mjs",
       "path": "scripts/run-dsh-proxy-canary.mjs",
-      "sha256": "5eb05f169525d6501ff255fe48399a651b213056a602afa354b619bdab485985"
+      "sha256": "0568fd41b756bfd8d21328fc534f02d4804e353b57dd0fc7f81666cfb5f2377a"
     },
     {
       "source": "scripts/stage-official-catalog-release.mjs",
@@ -6023,7 +6023,7 @@
     {
       "path": "scripts/run-dsh-proxy-canary.mjs",
       "mode": 420,
-      "sha256": "5eb05f169525d6501ff255fe48399a651b213056a602afa354b619bdab485985"
+      "sha256": "0568fd41b756bfd8d21328fc534f02d4804e353b57dd0fc7f81666cfb5f2377a"
     },
     {
       "path": "scripts/runtime-qualification.test.mjs",
