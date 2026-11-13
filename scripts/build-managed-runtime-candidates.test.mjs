@@ -60,8 +60,8 @@ test('DeepSeek Harness Runtime has a complete exact npm lock', async () => {
     'utf8',
   ));
   assert.equal(lock.lockfileVersion, 3);
-  assert.equal(lock.packages[''].dependencies['@deepseek-ai/dsh'], '0.2.2-rc.2');
-  assert.equal(lock.packages['node_modules/@deepseek-ai/dsh'].version, '0.2.2-rc.2');
+  assert.equal(lock.packages[''].dependencies['@deepseek-ai/dsh'], '0.2.2-rc.3');
+  assert.equal(lock.packages['node_modules/@deepseek-ai/dsh'].version, '0.2.2-rc.3');
   assert.equal(lock.packages['node_modules/@modelcontextprotocol/client'].version, '2.3.0');
   assert.equal(lock.packages['node_modules/fflate'].version, '0.8.3');
   for (const [path, candidate] of Object.entries(lock.packages)) {

@@ -444,7 +444,7 @@ export async function runDshProxyCanary(options = {}) {
     if (mockServer !== null) {
       assert.ok(mockServer.requests.length >= 1, 'mock LLM server received no model request.');
       const mockRequest = mockServer.requests[0];
-      const messagesProtocol = ['0.2.1-rc.2', '0.2.2-rc.1', '0.2.2-rc.2'].includes(dshVersion);
+      const messagesProtocol = ['0.2.1-rc.2', '0.2.2-rc.1', '0.2.2-rc.2', '0.2.2-rc.3'].includes(dshVersion);
       const expectedPath = messagesProtocol ? '/v1/messages' : '/chat/completions';
       assert.ok(mockRequest.path.endsWith(expectedPath), `unexpected mock request path ${mockRequest.path} for ${dshVersion}; expected ${expectedPath}`);
       assert.ok(

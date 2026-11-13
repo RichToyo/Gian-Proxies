@@ -9,7 +9,7 @@ settings without rewriting one another's Runtime or Bridge composition.
 ## Layout
 
 - `manifest.json` — Manifest v4 (`id: ai.deepseek.harness`, `process.scope:
-  shared`, protocol range `>=2.2 <3.0`, verified runtime `0.2.2-rc.2`).
+  shared`, protocol range `>=2.2 <3.0`, verified runtime `0.2.2-rc.3`).
 - `src/core/service.ts` — session/turn projection, stable `sourceTurnId` /
   `stepId` / `eventId` identity, terminal-state enforcement, runtime-exit
   terminalization.
@@ -22,8 +22,8 @@ settings without rewriting one another's Runtime or Bridge composition.
 
 ## Runtime baseline
 
-The source candidate targets `@deepseek-ai/dsh@0.2.2-rc.2` at official
-tag `dsh-v0.2.2-rc.2` (commit `ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c`).
+The source candidate targets `@deepseek-ai/dsh@0.2.2-rc.3` at official
+tag `dsh-v0.2.2-rc.3` (commit `38a6a5c965aa99ab525161efb7cc5cf1fe62fced`).
 The published baseline is 0.2.2-rc.2 after exact-artifact qualification.
 Capabilities are advertised only when the connected Bridge reports the native
 boundary; other operations fail closed with `CAPABILITY_NOT_SUPPORTED`.

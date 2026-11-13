@@ -20,15 +20,15 @@ test('the real standalone verifier imports without Host and retains the package-
   assert.ok(existsSync(new URL('./build-antigravity-runtime.mjs', builderUrl)));
 });
 
-test('the Antigravity Runtime batch selects only Antigravity on signed RichToyo Catalog 60', () => {
+test('the DSH Runtime batch selects only DSH on signed RichToyo Catalog 60', () => {
   const selection = JSON.parse(readFileSync(new URL('../release-selection.json', import.meta.url), 'utf8'));
-  const providers = ['antigravity'];
+  const providers = ['dsh'];
   assert.deepEqual(selection, { schema: 1, providers, baseCatalogRepository: 'RichToyo/Gian-Proxies', baseCatalogTag: 'catalog-v1.60.0' });
   const selected = selectReleaseDefinitions(proxyDefinitions, selection);
   assert.deepEqual(selected.map(item => item.id), providers);
   assert.deepEqual(selectRuntimeProviders(providers), providers);
-  assert.deepEqual(selected.map(item => item.pluginVersion), ['0.0.8']);
-  assert.deepEqual(selected.map(item => item.runtime.verifiedCliVersions), [['1.5.0']]);
+  assert.deepEqual(selected.map(item => item.pluginVersion), ['0.3.13']);
+  assert.deepEqual(selected.map(item => item.runtime.verifiedCliVersions), [['0.2.2-rc.3']]);
   assert.equal(selected.some(item => item.id === 'zcode'), false);
   for (const id of ['claude', 'codex', 'kimi', 'grok', 'dsh', 'zcode', 'antigravity']) assert.ok(proxyDefinitions.some(item => item.id === id));
 });

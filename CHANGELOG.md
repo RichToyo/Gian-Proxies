@@ -1,5 +1,10 @@
 # Gian Proxies Changelog
 
+## DSH Proxy 0.3.13 - 2026-11-14
+
+- Upgrade the managed DeepSeek Runtime to 0.2.2-rc.3 with exact dependency and native API checks.
+- Select DSH against signed Catalog 60 for exact-artifact hosted qualification.
+
 ## Antigravity Proxy 0.0.8 - 2026-11-14
 
 - Upgrade the managed ACP Runtime to official registry 1.5.0 with the validated paired archive.
