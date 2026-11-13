@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "d9c10598f82a60194d759e4c6346b6d3489bafbc",
+  "sourceCommit": "b5aa4649ac110b8c12872a5e16fa02ad971db435",
   "workingTree": false,
   "externalPackages": [
     {
@@ -416,7 +416,7 @@
     {
       "source": "catalog/proxy-information/evidence/current-combinations.json",
       "path": "catalog/proxy-information/evidence/current-combinations.json",
-      "sha256": "fc3cc5279c3b6b9bdb1010022f97f50c5b0251c5a39aa2d8ad60e1760bed596e"
+      "sha256": "6bcdfba3460efed45702a841d336674f2fb70fd2f546f416e2784688722efc77"
     },
     {
       "source": "catalog/proxy-information/evidence/dsh-bridge-versions.json",
@@ -426,12 +426,12 @@
     {
       "source": "catalog/proxy-information/evidence/manifests.json",
       "path": "catalog/proxy-information/evidence/manifests.json",
-      "sha256": "198b028ee04eb5ec9a7bc1c285fa2bdd11e94ff1b8eb85fbfa0e9497aa7e480d"
+      "sha256": "3e23f5c79752782e5bd8f79248a3ecf2575004452fe0db91bce74bd23531a312"
     },
     {
       "source": "catalog/proxy-information/evidence/releases.json",
       "path": "catalog/proxy-information/evidence/releases.json",
-      "sha256": "59c419f4fab8cb0009d7fe1fbe375b9b3a02b44d709a08c5c9d556a9603a3f69"
+      "sha256": "176a5c43b21b92351e3c798a547fc5c5695de0b4e97251f60a4d0956f8851759"
     },
     {
       "source": "catalog/proxy-information/grok/basic.md",
@@ -461,12 +461,12 @@
     {
       "source": "catalog/proxy-information/io.gian.antigravity/changelog.json",
       "path": "catalog/proxy-information/io.gian.antigravity/changelog.json",
-      "sha256": "484d802781cad0a43531117af95c6f6af9ae4b7411b8bcdc26aa54a8a7ef3817"
+      "sha256": "010d7fc3c126de2f575626818373bea3d581b0d193c1b8dc1d238b07ad45c468"
     },
     {
       "source": "catalog/proxy-information/io.gian.antigravity/changelog.md",
       "path": "catalog/proxy-information/io.gian.antigravity/changelog.md",
-      "sha256": "943ff9f2a1a45a767dc9661f85fd6c3888ea8d2d8583e4dded59b177eb9bd6fb"
+      "sha256": "58a52617f1cab28d06ee4a97617a175eb1ca086041f8b48b646044ec5316af8a"
     },
     {
       "source": "catalog/proxy-information/io.gian.antigravity/tutorial.md",
@@ -506,7 +506,7 @@
     {
       "source": "catalog/proxy-information/project.test.mjs",
       "path": "catalog/proxy-information/project.test.mjs",
-      "sha256": "fb79c9f3b7efffa9a10743df0fd585ce4b867c3339b580f06cbd18ca998bc3c4"
+      "sha256": "25d4faf4999f886029c4372cc6594c43ca614b43493759289b3fafd557d849c0"
     },
     {
       "source": "catalog/proxy-information/validate.mjs",
@@ -561,7 +561,7 @@
     {
       "source": "delivery/proxies/release-selection.json",
       "path": "release-selection.json",
-      "sha256": "424a7c73b3793c66c4898d8ccfd37defd211a83c5ffe1a8fe18cd86e79273b01"
+      "sha256": "e0f632c506273fc447a2beb2b8555d33c3760f7522e5de713a8621aed31977aa"
     },
     {
       "source": "delivery/proxies/scripts/catalog-docs-policy.mjs",
@@ -596,7 +596,7 @@
     {
       "source": "delivery/proxies/scripts/runtime-qualification.test.mjs",
       "path": "scripts/runtime-qualification.test.mjs",
-      "sha256": "9a2b9204454860d6234ad834aef9e450b18fe8cf5dfa328716888be57f511d83"
+      "sha256": "0bea6d5f5c46fedaf53b8867a8bf4d93921d641713022015e082970e534294e1"
     },
     {
       "source": "delivery/proxies/scripts/verify-source.mjs",
@@ -3458,7 +3458,7 @@
     {
       "path": "catalog/proxy-information/evidence/current-combinations.json",
       "mode": 420,
-      "sha256": "fc3cc5279c3b6b9bdb1010022f97f50c5b0251c5a39aa2d8ad60e1760bed596e"
+      "sha256": "6bcdfba3460efed45702a841d336674f2fb70fd2f546f416e2784688722efc77"
     },
     {
       "path": "catalog/proxy-information/evidence/dsh-bridge-versions.json",
@@ -3468,7 +3468,7 @@
     {
       "path": "catalog/proxy-information/evidence/manifests.json",
       "mode": 420,
-      "sha256": "198b028ee04eb5ec9a7bc1c285fa2bdd11e94ff1b8eb85fbfa0e9497aa7e480d"
+      "sha256": "3e23f5c79752782e5bd8f79248a3ecf2575004452fe0db91bce74bd23531a312"
     },
     {
       "path": "catalog/proxy-information/evidence/README.md",
@@ -3478,7 +3478,7 @@
     {
       "path": "catalog/proxy-information/evidence/releases.json",
       "mode": 420,
-      "sha256": "59c419f4fab8cb0009d7fe1fbe375b9b3a02b44d709a08c5c9d556a9603a3f69"
+      "sha256": "176a5c43b21b92351e3c798a547fc5c5695de0b4e97251f60a4d0956f8851759"
     },
     {
       "path": "catalog/proxy-information/grok/basic.md",
@@ -3508,12 +3508,12 @@
     {
       "path": "catalog/proxy-information/io.gian.antigravity/changelog.json",
       "mode": 420,
-      "sha256": "484d802781cad0a43531117af95c6f6af9ae4b7411b8bcdc26aa54a8a7ef3817"
+      "sha256": "010d7fc3c126de2f575626818373bea3d581b0d193c1b8dc1d238b07ad45c468"
     },
     {
       "path": "catalog/proxy-information/io.gian.antigravity/changelog.md",
       "mode": 420,
-      "sha256": "943ff9f2a1a45a767dc9661f85fd6c3888ea8d2d8583e4dded59b177eb9bd6fb"
+      "sha256": "58a52617f1cab28d06ee4a97617a175eb1ca086041f8b48b646044ec5316af8a"
     },
     {
       "path": "catalog/proxy-information/io.gian.antigravity/tutorial.md",
@@ -3553,7 +3553,7 @@
     {
       "path": "catalog/proxy-information/project.test.mjs",
       "mode": 420,
-      "sha256": "fb79c9f3b7efffa9a10743df0fd585ce4b867c3339b580f06cbd18ca998bc3c4"
+      "sha256": "25d4faf4999f886029c4372cc6594c43ca614b43493759289b3fafd557d849c0"
     },
     {
       "path": "catalog/proxy-information/README.md",
@@ -5913,7 +5913,7 @@
     {
       "path": "release-selection.json",
       "mode": 420,
-      "sha256": "424a7c73b3793c66c4898d8ccfd37defd211a83c5ffe1a8fe18cd86e79273b01"
+      "sha256": "e0f632c506273fc447a2beb2b8555d33c3760f7522e5de713a8621aed31977aa"
     },
     {
       "path": "runtimes/deepseek-harness/package-lock.json",
@@ -6028,7 +6028,7 @@
     {
       "path": "scripts/runtime-qualification.test.mjs",
       "mode": 420,
-      "sha256": "9a2b9204454860d6234ad834aef9e450b18fe8cf5dfa328716888be57f511d83"
+      "sha256": "0bea6d5f5c46fedaf53b8867a8bf4d93921d641713022015e082970e534294e1"
     },
     {
       "path": "scripts/stage-official-catalog-release.mjs",

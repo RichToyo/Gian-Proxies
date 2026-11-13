@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-11-13T18:15:21.382Z",
+  "capturedAt": "2026-11-13T18:46:45.499Z",
   "repositories": [
     "RichLogic/Gian",
     "RichLogic/Gian-Proxies"
@@ -4261,6 +4261,44 @@
           "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.24/gian-proxy-claude-0.3.24-darwin-arm64.tar.gz.sha256",
           "size": 111,
           "digest": "sha256:2a0eaf5828d08ee948932590124e03c2246eb4dcc93f0c29ce88b06daa180d9c"
+        }
+      ]
+    },
+    {
+      "tag": "proxy-antigravity-v0.0.8",
+      "date": "2026-11-13T18:45:42Z",
+      "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.8",
+      "body": "Independent Proxy 0.0.8. Exact hosted artifacts from proxies-57c62d1cb77388648f847247a7c7a30393edfd8c-43481768311-1. DSH includes its Bridge. ZCode includes a managed CLI Runtime built from its pinned upstream Git commit. No App or real-provider acceptance is claimed.",
+      "assets": [
+        {
+          "name": "certificate.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.8/certificate.json",
+          "size": 4074,
+          "digest": "sha256:151e8009d66e4e59a0a23b0260e639ef553fc253ff578a647a3fc096bae5bf93"
+        },
+        {
+          "name": "gian-proxy-antigravity-0.0.8-darwin-arm64.tar.gz",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.8/gian-proxy-antigravity-0.0.8-darwin-arm64.tar.gz",
+          "size": 194258,
+          "digest": "sha256:4f651d56c636df85e3994a29f4be8dcdf8206e842fb2b08d36cd8919921784e0"
+        },
+        {
+          "name": "gian-proxy-antigravity-0.0.8-darwin-arm64.tar.gz.manifest.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.8/gian-proxy-antigravity-0.0.8-darwin-arm64.tar.gz.manifest.json",
+          "size": 639,
+          "digest": "sha256:fa6d2018d1a95e723bef6386a2911c59d5601b77d09dc5201da62ad92f36095b"
+        },
+        {
+          "name": "gian-proxy-antigravity-0.0.8-darwin-arm64.tar.gz.sha256",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.8/gian-proxy-antigravity-0.0.8-darwin-arm64.tar.gz.sha256",
+          "size": 115,
+          "digest": "sha256:b72e8aaea1a90520e93cb2c803b7fab05bbf2e66b0ce48e213d3a244b82f0e95"
+        },
+        {
+          "name": "gian-runtime-antigravity-1.5.0-darwin-arm64.tar.gz",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.8/gian-runtime-antigravity-1.5.0-darwin-arm64.tar.gz",
+          "size": 100235809,
+          "digest": "sha256:7c5e7eeac38488aa4a2f635f448a92365424bbc83ce7ab3407d435556b93f034"
         }
       ]
     }

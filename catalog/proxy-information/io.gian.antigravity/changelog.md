@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.0.7**, Runtime **1.4.5**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.0.8**, Runtime **1.5.0**. These are distribution targets, not this machine's installed state.
+
+## 0.0.8
+
+First published: 2026-11-13T18:45:42Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.8): 2026-11-13T18:45:42Z.
+- CLI: 1.5.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Add opt-in, bounded cleanup diagnostics while preserving fail-closed process ownership. Retain read-only quota inspection for the separate official Antigravity CLI account. Upgrade the managed ACP Runtime to official registry 1.5.0 with pinned pair bytes; native ACP initialize shows agent identity unchanged and agentCapabilities deep-equal to the published 1.4.5 bytes. Use Proxy Protocol SDK 1.0.4. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.8) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-antigravity-v0.0.8/packages/proxies/antigravity-proxy/README.md)
 
 ## 0.0.7
 
