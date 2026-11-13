@@ -1,5 +1,10 @@
 # Gian Proxies Changelog
 
+## Antigravity Proxy 0.0.8 - 2026-11-14
+
+- Upgrade the managed ACP Runtime to official registry 1.5.0 with the validated paired archive.
+- Select Antigravity against signed Catalog 60 for exact-artifact hosted qualification.
+
 ## Claude Proxy 0.3.24 - 2026-11-14
 
 - Upgrade the managed Claude Runtime to 2.1.323, including upstream permission and sandbox fixes.

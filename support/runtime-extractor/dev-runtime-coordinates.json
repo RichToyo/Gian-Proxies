@@ -78,7 +78,7 @@
   {
     "pluginId": "io.gian.antigravity",
     "runtimeId": "antigravity-acp",
-    "version": "1.4.5",
+    "version": "1.5.0",
     "format": "tar.gz",
     "entryRelativePath": "agy_acp_server.par",
     "probe": {
@@ -86,11 +86,11 @@
     },
     "build": {
       "kind": "antigravity-pair",
-      "sourceSha256": "886fff7767d08994ca39eb02c3d01a7532c7325a94aa33aaf52d52068733284f"
+      "sourceSha256": "c82ecb4ef476bfc35cbe5b2745cdddef873b99c9f5bd7fd11e5ca1fc1667a3fc"
     },
     "asset": {
-      "sha256": "c2623c4c56201e5c29061090ae34609f1757875ed350725ef3a15d8c1b4644b0",
-      "size": 97756458
+      "sha256": "7c5e7eeac38488aa4a2f635f448a92365424bbc83ce7ab3407d435556b93f034",
+      "size": 100235809
     }
   }
 ]

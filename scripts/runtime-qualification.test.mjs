@@ -20,27 +20,27 @@ test('the real standalone verifier imports without Host and retains the package-
   assert.ok(existsSync(new URL('./build-antigravity-runtime.mjs', builderUrl)));
 });
 
-test('the Claude Runtime batch selects only Claude on signed RichToyo Catalog 59', () => {
+test('the Antigravity Runtime batch selects only Antigravity on signed RichToyo Catalog 60', () => {
   const selection = JSON.parse(readFileSync(new URL('../release-selection.json', import.meta.url), 'utf8'));
-  const providers = ['claude'];
-  assert.deepEqual(selection, { schema: 1, providers, baseCatalogRepository: 'RichToyo/Gian-Proxies', baseCatalogTag: 'catalog-v1.59.0' });
+  const providers = ['antigravity'];
+  assert.deepEqual(selection, { schema: 1, providers, baseCatalogRepository: 'RichToyo/Gian-Proxies', baseCatalogTag: 'catalog-v1.60.0' });
   const selected = selectReleaseDefinitions(proxyDefinitions, selection);
   assert.deepEqual(selected.map(item => item.id), providers);
   assert.deepEqual(selectRuntimeProviders(providers), providers);
-  assert.deepEqual(selected.map(item => item.pluginVersion), ['0.3.24']);
-  assert.deepEqual(selected.map(item => item.runtime.verifiedCliVersions), [['2.1.323']]);
+  assert.deepEqual(selected.map(item => item.pluginVersion), ['0.0.8']);
+  assert.deepEqual(selected.map(item => item.runtime.verifiedCliVersions), [['1.5.0']]);
   assert.equal(selected.some(item => item.id === 'zcode'), false);
   for (const id of ['claude', 'codex', 'kimi', 'grok', 'dsh', 'zcode', 'antigravity']) assert.ok(proxyDefinitions.some(item => item.id === id));
 });
 
 test('Runtime publication derives its URL and preserves actual candidate digest/size, not invented evidence', () => {
   // Synthetic candidate only; no Runtime, archive, certificate or release is produced.
-  const candidate = { provider: 'antigravity', version: '1.4.5', asset: {
+  const candidate = { provider: 'antigravity', version: '1.5.0', asset: {
     name: 'runtime-fixture.tar.gz', path: '/fixture/runtime.tar.gz', size: 123, sha256: 'a'.repeat(64), publish: false,
   } };
   const result = withPublishedRuntimeAsset(candidate);
   const repository = standalone ? 'RichToyo/Gian-Proxies' : 'RichToyo/Gian';
-  assert.equal(result.asset.url, `https://github.com/${repository}/releases/download/proxy-antigravity-v0.0.7/runtime-fixture.tar.gz`);
+  assert.equal(result.asset.url, `https://github.com/${repository}/releases/download/proxy-antigravity-v0.0.8/runtime-fixture.tar.gz`);
   assert.equal(result.asset.publish, true);
   assert.equal(result.asset.sha256, candidate.asset.sha256);
   assert.equal(result.asset.size, candidate.asset.size);

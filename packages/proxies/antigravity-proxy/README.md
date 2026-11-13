@@ -88,7 +88,7 @@ Those checks establish executable/protocol readiness, not successful login.
 - Proxy 0.0.1 with upstream ACP Runtime 1.3.0 is published (Catalog 29);
   Proxy 0.0.5 with Runtime 1.4.3 is published (Catalog 41);
   Proxy 0.0.6 with Runtime 1.4.4 is published (Catalog 47).
-  Proxy 0.0.7 targets upstream ACP Runtime 1.4.5, the current ACP registry
+  Proxy 0.0.8 targets upstream ACP Runtime 1.5.0, the current ACP registry
   version; publication requires successful independent hosted qualification
   and an exact signed Catalog combination.
   Source-first Dev includes it with the pinned darwin-arm64 Runtime pair.
