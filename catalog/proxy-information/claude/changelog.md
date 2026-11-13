@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.23**, Runtime **2.1.322**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.24**, Runtime **2.1.323**. These are distribution targets, not this machine's installed state.
+
+## 0.3.24
+
+First published: 2026-11-13T18:14:07Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.24): 2026-11-13T18:14:07Z.
+- CLI: 2.1.323 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Retain first-party account quota inspection for the Gian menu bar and cumulative usage identity. Upgrade the managed Claude Code Runtime to official 2.1.323 with pinned binary bytes. Upstream notes include permission, sandbox, resume and hook heartbeat fixes. Use Proxy Protocol SDK 1.0.4. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.3.24) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-claude-v0.3.24/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts)
 
 ## 0.3.23
 
