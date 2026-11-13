@@ -3318,5 +3318,30 @@
     "process": {
       "scope": "shared"
     }
+  },
+  {
+    "tag": "proxy-dsh-v0.3.13",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.3.13",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.13/gian-proxy-dsh-0.3.13-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:d627f189e7a9cf671da95629d2d04308918d8257cd35799f29715cf17fe23c3b",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "ai.deepseek.harness",
+    "pluginVersion": "0.3.13",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "deepseek-harness",
+      "displayName": "DeepSeek Harness",
+      "verifiedVersions": [
+        "0.2.2-rc.3"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
   }
 ]

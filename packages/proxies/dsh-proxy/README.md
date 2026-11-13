@@ -24,7 +24,7 @@ settings without rewriting one another's Runtime or Bridge composition.
 
 The source candidate targets `@deepseek-ai/dsh@0.2.2-rc.3` at official
 tag `dsh-v0.2.2-rc.3` (commit `38a6a5c965aa99ab525161efb7cc5cf1fe62fced`).
-The published baseline is 0.2.2-rc.2 after exact-artifact qualification.
+The published baseline is 0.2.2-rc.3 after exact-artifact qualification.
 Capabilities are advertised only when the connected Bridge reports the native
 boundary; other operations fail closed with `CAPABILITY_NOT_SUPPORTED`.
 
