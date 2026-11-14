@@ -1,5 +1,10 @@
 # Gian Proxies Changelog
 
+## Claude Proxy 0.3.25 - 2026-11-15
+
+- Upgrade the managed Claude Runtime to 2.1.325 with upstream security and session fixes.
+- Preserve upstream sandbox permission defaults and qualify against signed Catalog 62.
+
 ## DSH Proxy 0.3.13 - 2026-11-14
 
 - Upgrade the managed DeepSeek Runtime to 0.2.2-rc.3 with exact dependency and native API checks.

@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "providers": [
-    "dsh"
+    "claude"
   ],
-  "baseCatalogTag": "catalog-v1.61.0",
+  "baseCatalogTag": "catalog-v1.62.0",
   "baseCatalogRepository": "RichToyo/Gian-Proxies"
 }
