@@ -1,32 +1,32 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.62.0",
-  "sequence": 62,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.63.0",
+  "sequence": 63,
   "sourceId": "gian-official",
   "plugins": [
     {
       "id": "claude",
       "displayName": "Claude Code",
-      "version": "0.3.24",
+      "version": "0.3.25",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "session",
       "combination": {
         "certificate": {
-          "id": "proxies-7e68cc09381d40268774e3727805051cd67d41bc-43479183146-1",
-          "sha256": "4e88166d340e28c66a65d581f2733463c79712da199bd48cbdb810c9672d9cc9"
+          "id": "proxies-7267c1694e0db48be05740d40b622b0b6e6d211e-43624630427-1",
+          "sha256": "c60e3ac0b84a83609cbd04969f1a35ef8fe18f4833c6d62b2dd0a53ee8d5c676"
         },
         "companions": [],
-        "generationId": "claude-0.3.24-runtime-2.1.323",
+        "generationId": "claude-0.3.25-runtime-2.1.325",
         "runtime": {
-          "asset": {
-            "sha256": "5432918d904a9b6afef7bb79d20df24d76052eabc1f41bceb84091d21f8889a7",
-            "size": 344369984,
-            "url": "https://downloads.claude.ai/claude-code-releases/2.1.323/darwin-arm64/claude"
-          },
-          "entryRelativePath": "bin/claude",
-          "format": "raw",
           "kind": "native-binary",
           "runtimeId": "claude",
-          "version": "2.1.323"
+          "version": "2.1.325",
+          "asset": {
+            "url": "https://downloads.claude.ai/claude-code-releases/2.1.325/darwin-arm64/claude",
+            "sha256": "84590fefe6338be9087f5814b61f9a54c5f21524163a4c127cb5a808e31009f2",
+            "size": 347406976
+          },
+          "format": "raw",
+          "entryRelativePath": "bin/claude"
         }
       }
     },
@@ -98,16 +98,16 @@
         "companions": [],
         "generationId": "dsh-0.3.13-runtime-0.2.2-rc.3",
         "runtime": {
+          "asset": {
+            "sha256": "4813830917dd06d240a1350e0e8ea63cd5a01d12e67ea402172842c459177c46",
+            "size": 226412398,
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.13/gian-runtime-dsh-0.2.2-rc.3-darwin-arm64.tar.gz"
+          },
+          "entryRelativePath": "node_modules/@deepseek-ai/dsh/lib/bin.js",
+          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "deepseek-harness",
-          "version": "0.2.2-rc.3",
-          "asset": {
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.13/gian-runtime-dsh-0.2.2-rc.3-darwin-arm64.tar.gz",
-            "sha256": "4813830917dd06d240a1350e0e8ea63cd5a01d12e67ea402172842c459177c46",
-            "size": 226412398
-          },
-          "format": "tar.gz",
-          "entryRelativePath": "node_modules/@deepseek-ai/dsh/lib/bin.js"
+          "version": "0.2.2-rc.3"
         }
       }
     },
