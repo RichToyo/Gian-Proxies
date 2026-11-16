@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.12**, Runtime **0.166.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.14**, Runtime **0.169.0**. These are distribution targets, not this machine's installed state.
+
+## 0.3.14
+
+First published: 2026-11-16T15:20:41Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.14): 2026-11-16T15:20:41Z.
+- CLI: 0.169.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Retain read-only ChatGPT subscription quota inspection. Upgrade the managed Codex Runtime to official 0.169.0 with pinned archive bytes. Resolve expired native approval requests without recording a user decision. The new required-human-approval capability remains disabled and fails closed until the Host can verify human origin. Use Proxy Protocol SDK 1.0.4. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.14) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.14/packages/proxies/codex-proxy/README.md)
 
 ## 0.3.12
 
