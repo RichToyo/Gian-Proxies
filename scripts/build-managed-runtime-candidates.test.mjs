@@ -25,6 +25,7 @@ test('managed Runtime candidates pin exact official Claude, Codex, Kimi, and Gro
   assert.match(upstreamRuntimeCandidates.codex.url, /^https:\/\/github\.com\/openai\/codex\/releases\/download\//);
   assert.equal(upstreamRuntimeCandidates.kimi.format, 'tar.gz');
   assert.equal(upstreamRuntimeCandidates.kimi.entryRelativePath, 'kimi');
+  assert.equal(upstreamRuntimeCandidates.kimi.publish, true);
   assert.equal(upstreamRuntimeCandidates.grok.format, 'raw');
   assert.equal(upstreamRuntimeCandidates.grok.entryRelativePath, 'bin/grok');
   assert.equal(upstreamRuntimeCandidates.grok.version, '1.0.77');

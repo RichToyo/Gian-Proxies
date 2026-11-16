@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "daf60b20f3962bcce49ce094bd72c6284240cbfe",
+  "sourceCommit": "492750b1148ab55493e550e4bc19978a7edbb04a",
   "workingTree": false,
   "externalPackages": [
     {
@@ -3176,12 +3176,12 @@
     {
       "source": "scripts/build-managed-runtime-candidates.mjs",
       "path": "scripts/build-managed-runtime-candidates.mjs",
-      "sha256": "a3eb70cf436b645819491b54a10ca6e33ee353d82448c3e59abf446bf375dd3e"
+      "sha256": "265465bd481c83c9b2f7193f278995775620fafdce914c097ed4a27a347227fd"
     },
     {
       "source": "scripts/build-managed-runtime-candidates.test.mjs",
       "path": "scripts/build-managed-runtime-candidates.test.mjs",
-      "sha256": "aaae709672423c830369ce70e521c06b192ba26393b7b6907912cb4ef3d27784"
+      "sha256": "f3929a20f22834cf5d7f2d4d532c6b0f26333eaf822668bc6b2af1012a4908a0"
     },
     {
       "source": "scripts/build-proxy-artifacts.mjs",
@@ -6368,12 +6368,12 @@
     {
       "path": "scripts/build-managed-runtime-candidates.mjs",
       "mode": 420,
-      "sha256": "b76dba4625d064815542820a4b89668c57d31a342db800295c9b4530f137cecb"
+      "sha256": "8705b1d15dacb08fbee2429c8745c9457647c484e8fdcc0c3c51db386f2eda24"
     },
     {
       "path": "scripts/build-managed-runtime-candidates.test.mjs",
       "mode": 420,
-      "sha256": "aaae709672423c830369ce70e521c06b192ba26393b7b6907912cb4ef3d27784"
+      "sha256": "f3929a20f22834cf5d7f2d4d532c6b0f26333eaf822668bc6b2af1012a4908a0"
     },
     {
       "path": "scripts/build-proxy-artifacts.mjs",

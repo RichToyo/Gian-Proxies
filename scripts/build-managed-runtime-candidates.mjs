@@ -54,6 +54,7 @@ export const upstreamRuntimeCandidates = Object.freeze({
     url: 'https://github.com/MoonshotAI/kimi-code/releases/download/%40moonshot-ai/kimi-code%402.6.2/kimi-code-darwin-arm64.tar.gz',
     sha256: '0e198ee3ac1d40964a8dc1da08cdf55f80e5a26d28dfa7a0967cd5a645ec32be',
     size: 59888844,
+    publish: true,
   }),
   grok: Object.freeze({
     version: '1.0.77',
