@@ -1937,6 +1937,17 @@ export class CodexProxyService {
   }
 
   private async handleRuntimeServerRequest(message: RuntimeServerRequest) {
+    const params = (message.params ?? {}) as Record<string, unknown>;
+    // Do not advertise or satisfy managed human-only checkpoints until the
+    // Host can authenticate the origin of an approval. Unknown kinds also
+    // fail closed; older servers omit kind for ordinary command approvals.
+    if (message.method === 'item/commandExecution/requestApproval'
+      && params.kind !== undefined
+      && params.kind !== 'command'
+      && params.kind !== 'writeStdin') {
+      await this.runtime.respond(message.id, { decision: 'cancel' });
+      return;
+    }
     const threadId = extractThreadId(message.params);
     if (!threadId) {
       await this.runtime.respond(message.id, cancelledServerRequestResponse(message.method));
@@ -1966,7 +1977,6 @@ export class CodexProxyService {
     // approvalPolicy/approvalsReviewer decides which requests reach this
     // bridge; Gian only renders the exact interaction and returns the user's
     // explicit response.
-    const params = (message.params ?? {}) as Record<string, unknown>;
     const reason = approvalReason(message.method, params);
     const permissionsKind = message.method === 'item/permissions/requestApproval'
       ? classifyPermissionsKind(requestedPermissionsFromParams(params))

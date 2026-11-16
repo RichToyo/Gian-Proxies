@@ -3701,6 +3701,29 @@ test('gian.proxy/2 adapter returns native MCP tool elicitation decisions to Code
   }
 });
 
+test('managed human-only and unknown command approval kinds fail closed', async () => {
+  const harness = await createHarness();
+  try {
+    const created = await harness.service.createSession({ cwd: '/tmp/work' });
+    await harness.service.startTurn({ sessionId: created.session.id, input: [{ type: 'text', text: 'work' }] }, 10);
+    // Codex 0.169.0 CommandExecutionRequestApprovalParams native shape.
+    for (const [id, kind] of [[901, 'humanCommand'], [902, 'futureKind']] as const) {
+      harness.runtime.emitServerRequest({ id, method: 'item/commandExecution/requestApproval', params: {
+        threadId: created.session.threadId, itemId: `item-${id}`, approvalId: `approval-${id}`,
+        kind, command: 'git push',
+      } });
+    }
+    await waitFor(() => harness.runtime.responses.length === 2);
+    assert.deepEqual(harness.runtime.responses, [
+      { id: 901, payload: { decision: 'cancel' } },
+      { id: 902, payload: { decision: 'cancel' } },
+    ]);
+    assert.equal(harness.events.filter(event => event.method === 'approval.requested').length, 0);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
 test('native serverRequest/resolved cancels only the matching pending interaction', async () => {
   const harness = await createHarness();
   try {

@@ -1,5 +1,10 @@
 # Gian Proxies Changelog
 
+## Codex Proxy 0.3.14 - 2026-11-16
+
+- Upgrade the managed Codex Runtime to 0.169.0 and cancel human-only or unknown approval kinds until human origin can be verified.
+- Select Codex against signed Catalog 63 for exact-artifact hosted qualification.
+
 ## Claude Proxy 0.3.25 - 2026-11-15
 
 - Upgrade the managed Claude Runtime to 2.1.325 with upstream security and session fixes.
