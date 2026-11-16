@@ -38,6 +38,25 @@ class FakeSocket extends EventEmitter {
   }
 }
 
+class ClosingSocket extends FakeSocket {
+  override sendText(text: string): void {
+    this.sent.push(JSON.parse(text) as Record<string, unknown>);
+    queueMicrotask(() => { if (this.status === 'open') this.close(); });
+  }
+}
+
+class RejectingSocket extends FakeSocket {
+  override sendText(text: string): void {
+    const frame = JSON.parse(text) as Record<string, unknown>;
+    this.sent.push(frame);
+    if (frame.type === 'subscribe') {
+      const payload = frame.payload as { session_ids: string[] };
+      queueMicrotask(() => this.emit('message', JSON.stringify({ type: 'ack', id: frame.id,
+        code: 0, payload: { accepted: [], not_found: payload.session_ids } })));
+    }
+  }
+}
+
 function supervisor(t: TestContext): { result: KimiServerSupervisorResult; exit: () => void } {
   let exit!: () => void;
   const result: KimiServerSupervisorResult = {
@@ -49,6 +68,19 @@ function supervisor(t: TestContext): { result: KimiServerSupervisorResult; exit:
   t.mock.method(KimiServerSupervisor.prototype, 'start', async () => result);
   return { result, exit };
 }
+
+test('a socket close during subscription retries only the barrier and preserves a native negative ACK', async t => {
+  supervisor(t);
+  const sockets = [new ClosingSocket(), new RejectingSocket()];
+  let index = 0;
+  const connect = t.mock.method(WsSocket, 'connect', async () => sockets[index++] as unknown as WsSocket);
+  const runtime = new KimiServerRuntime({ kimiBin: '/fixture/kimi' });
+  try {
+    await runtime.start();
+    await assert.rejects(runtime.subscribe('native'), { domainCode: 'NATIVE_SESSION_NOT_FOUND' });
+    assert.equal(connect.mock.callCount(), 2);
+  } finally { await runtime.stop(); }
+});
 
 test('event socket loss reconnects at the durable cursor without runtime down or stale socket callbacks', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });

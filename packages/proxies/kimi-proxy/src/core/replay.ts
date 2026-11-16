@@ -49,7 +49,7 @@ export function terminalEventIdFor(
   return `evt-${sha16([nativeSessionId, sourceTurnId, method])}`;
 }
 
-function inputItemsOf(message: KimiMessage): Array<Record<string, unknown>> {
+export function inputItemsOf(message: KimiMessage): Array<Record<string, unknown>> {
   const items: Array<Record<string, unknown>> = [];
   for (const part of message.content) {
     if (part.type === 'text' && part.text !== '') {

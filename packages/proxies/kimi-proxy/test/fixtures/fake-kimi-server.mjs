@@ -22,6 +22,11 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { createInterface } from 'node:readline';
 
+if (process.argv.includes('--version')) {
+  process.stdout.write('2.3.3\n');
+  process.exit(0);
+}
+
 const scenarioPath = process.env.FAKE_SCENARIO;
 const logPath = process.env.FAKE_LOG;
 const scenario = scenarioPath ? JSON.parse(fs.readFileSync(scenarioPath, 'utf8')) : {};

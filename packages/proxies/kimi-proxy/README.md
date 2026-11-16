@@ -16,7 +16,13 @@ The entry point requires an absolute managed binary path:
 node dist/src/cli/spawn.js --kimi-bin /absolute/path/to/kimi
 ```
 
-Current Proxy version: **0.4.15**. Successful question dismissal
+Candidate Proxy version: **0.4.16**, targeting the official Kimi Code
+Runtime **2.6.2**. The new conversation feed uses native snapshot barriers,
+unsequenced turn identities, explicit interaction responses and native history
+pagination. Temporary event-channel loss is reconciled without resending the
+prompt. Exact hosted qualification and publication are still required.
+
+Legacy 2.3.3 behavior: successful question dismissal
 accepts the native 40909 response only for the dismiss endpoint with its
 verified success payload; REST and WebSocket resolution share one terminal
 fact, including when the native event arrives before the response.
@@ -35,7 +41,7 @@ tool facts also distinguish reused tool-call ids across turns. Replay snapshot
 identity is v2 for this change; terminal identities are unchanged. Existing
 stored transcripts are not rewritten.
 
-## Runtime baseline
+## Legacy Runtime baseline
 
 - Kimi Code CLI `2.3.3` (the Manifest and pinned Runtime candidate select
   the same exact official archive). The native probes below cover earlier

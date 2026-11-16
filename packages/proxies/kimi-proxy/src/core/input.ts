@@ -31,7 +31,7 @@ export interface OuterInputItem {
 
 export interface BuiltPromptInput {
   content: KimiContentPart[];
-  skills: Array<{ name: string; args?: string }>;
+  skills: Array<{ name: string; path?: string; args?: string }>;
 }
 
 function invalid(message: string): KimiProtocolError {
@@ -63,7 +63,7 @@ function mimeOf(item: OuterInputItem): string | undefined {
 /** Build the prompt payload pieces from outer input items. */
 export function buildPromptInput(items: OuterInputItem[]): BuiltPromptInput {
   const content: KimiContentPart[] = [];
-  const skills: Array<{ name: string; args?: string }> = [];
+  const skills: Array<{ name: string; path?: string; args?: string }> = [];
   for (const item of items) {
     switch (item.type) {
       case 'text': {
@@ -101,6 +101,7 @@ export function buildPromptInput(items: OuterInputItem[]): BuiltPromptInput {
         }
         skills.push({
           name,
+          ...(typeof item.path === 'string' && item.path !== '' ? { path: item.path } : {}),
           ...(typeof item.args === 'string' && item.args !== '' ? { args: item.args } : {}),
         });
         continue;

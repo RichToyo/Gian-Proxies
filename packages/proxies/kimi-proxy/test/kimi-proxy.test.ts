@@ -2230,7 +2230,7 @@ test('Side Chat send refuses a rejected reconnect subscription before submitting
       const result = await harness.request('turn.start', params);
       assert.equal(result.kind, 'error', JSON.stringify(result.payload));
       assert.equal((result.payload as { error: { data: { domainCode: string } } }).error.data.domainCode,
-        'NATIVE_SESSION_NOT_FOUND', 'a retry checks the subscription again instead of returning a false acceptance');
+        'NATIVE_SESSION_NOT_FOUND', `attempt ${attempt}: ${JSON.stringify(result.payload)}; log ${JSON.stringify(harness.fakeLog().slice(-12))}`);
     }
     assert.equal(harness.fakeLog().some((entry) => entry.method === 'POST' && String(entry.path).endsWith('/prompts')),
       false, 'neither the first send nor its retry can leave an unseen native prompt');

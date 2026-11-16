@@ -1,5 +1,11 @@
 # Gian Proxies Changelog
 
+## Kimi Proxy 0.4.16 candidate - 2026-11-17
+
+- Target the official Kimi Code 2.6.2 Runtime with a reviewed native conversation, interaction and replay migration.
+- Preserve owned background work and reconnect without automatically resending prompts or answering permissions.
+- Exact-artifact hosted qualification and immutable publication remain required.
+
 ## Codex Proxy 0.3.14 - 2026-11-16
 
 - Upgrade the managed Codex Runtime to 0.169.0 and cancel human-only or unknown approval kinds until human origin can be verified.

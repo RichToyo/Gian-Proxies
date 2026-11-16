@@ -137,7 +137,22 @@ export class KimiServerRuntime {
     if (existing === undefined || (cursor !== undefined && cursor.seq > existing.seq)) {
       this.subscriptions.set(sessionId, cursor ?? existing);
     }
-    const effective = this.subscriptions.get(sessionId);
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await this.subscribeOnce(sessionId, this.subscriptions.get(sessionId));
+        return;
+      } catch (error) {
+        // Socket close may race a send after the server has disconnected.
+        // Retrying only the read-only subscription is safe: no prompt has
+        // been submitted, and a native negative ACK remains authoritative.
+        if (attempt >= 2 || this.stopped || !(error instanceof Error)
+          || error.message !== 'Kimi event socket closed before subscription was acknowledged.') throw error;
+        await new Promise(resolvePromise => setTimeout(resolvePromise, 100 * (attempt + 1)));
+      }
+    }
+  }
+
+  private async subscribeOnce(sessionId: string, effective: SessionCursor | undefined): Promise<void> {
     const id = this.nextId();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const acknowledged = new Promise<void>((resolve, reject) => {
