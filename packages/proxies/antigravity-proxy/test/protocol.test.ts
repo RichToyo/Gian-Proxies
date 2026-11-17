@@ -206,6 +206,109 @@ test('Host conformance accepts modern catalogs, session events and structured fa
   assert.equal(notifications.at(-1)?.method, 'runtime.error');
 });
 
+test('Host conformance accepts ACP 1.5.0 thinking_level session after cold catalog.resolve caches projected thinking', async (t) => {
+  const cli = await cliDouble(modelsDocument([
+    { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)' },
+    { id: 'gemini-3.8-flash-low', label: 'Gemini 3.8 Flash (Low)' },
+  ]));
+  t.after(() => cli.dispose());
+  const service = new FakeService();
+  service.optionsFor = () => [
+    {
+      id: 'model',
+      name: 'Model',
+      type: 'select',
+      currentValue: 'gemini-3.8-flash',
+      options: [{ value: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash' }],
+    },
+    {
+      id: 'thinking_level',
+      name: 'Thinking Level',
+      type: 'select',
+      currentValue: 'high',
+      options: [
+        { value: 'low', name: 'low' },
+        { value: 'medium', name: 'medium' },
+        { value: 'high', name: 'high' },
+      ],
+    },
+    {
+      id: 'mode',
+      name: 'Session Mode',
+      type: 'select',
+      currentValue: 'default',
+      options: [
+        { value: 'default', name: 'default' },
+        { value: 'auto_edit', name: 'auto_edit' },
+        { value: 'yolo', name: 'yolo' },
+      ],
+    },
+  ];
+  const host = new HostProtocolValidator({ pluginId: 'io.gian.antigravity', processScope: 'shared' });
+  const adapter = new AntigravityProtocolV2Adapter(service, '0.0.8', (method, params) => {
+    host.acceptLine(JSON.stringify({ jsonrpc: '2.0', method, params }));
+  }, cli.options);
+  const send = async (method: string, params: Record<string, unknown>) => {
+    const input = request(method, params);
+    host.registerRequest(input);
+    let output: unknown;
+    await adapter.dispatch(input, (result, error) => {
+      assert.equal(error, undefined);
+      host.acceptLine(JSON.stringify({ jsonrpc: '2.0', id: input.id, result }));
+      output = result;
+    });
+    return output;
+  };
+  await send('initialize', { protocol: { name: 'gian.proxy', versions: ['2.3'] }, host: { name: 'Gian', version: '0.6.14' } });
+  const cold = resultSchemas['catalog.list'].parse(await send('catalog.list', {}));
+  // Cold process-level catalog.resolve caches resolvedTurnOptions = { model, thinking, mode } on HostProtocolValidator.
+  const coldResolved = resultSchemas['catalog.resolve'].parse(await send('catalog.resolve', {
+    catalogRevision: cold.catalogRevision,
+    sessionConfig: {},
+    turnConfig: { model: 'gemini-3.8-flash', thinking: 'low', mode: 'default' },
+  }));
+  assert.equal(coldResolved.specialCatalogs?.thinking, 'thinking');
+
+  const created = resultSchemas['session.create'].parse(await send('session.create', {
+    sessionId: 'agy-150',
+    workspace: { cwd: '/tmp', roots: ['/tmp'] },
+    config: {},
+  })).session;
+  assert.deepEqual(created.turnConfigOptions?.map((option) => [option.id, option.defaultValue]), [
+    ['model', 'gemini-3.8-flash'],
+    ['thinking', 'high'],
+    ['mode', 'default'],
+  ]);
+
+  const liveResolved = resultSchemas['catalog.resolve'].parse(await send('catalog.resolve', {
+    sessionId: 'agy-150',
+    streamId: created.streamId,
+    catalogRevision: created.turnConfigRevision,
+    sessionConfig: {},
+    turnConfig: { model: 'gemini-3.8-flash', thinking: 'low', mode: 'yolo' },
+  }));
+  assert.equal(liveResolved.specialCatalogs?.thinking, 'thinking');
+  assert.deepEqual(liveResolved.resolvedDefaults.turnConfig, {
+    model: 'gemini-3.8-flash',
+    thinking: 'low',
+    mode: 'yolo',
+  });
+
+  await send('turn.start', {
+    sessionId: 'agy-150',
+    streamId: created.streamId,
+    turnId: 'turn-1',
+    input: [{ type: 'text', text: 'hello' }],
+    config: { model: 'gemini-3.8-flash', thinking: 'low', mode: 'yolo' },
+  });
+  assert.equal(service.starts, 1);
+  assert.deepEqual(service.turnConfig(), {
+    model: 'gemini-3.8-flash',
+    thinking: 'low',
+    mode: 'yolo',
+  });
+});
+
 test('native listing preserves oversized ACP pages and binds cursors to the workspace', async () => {
   const f = await fixture();
   const list = async (cursor?: string) => resultSchemas['session.native.list'].parse(

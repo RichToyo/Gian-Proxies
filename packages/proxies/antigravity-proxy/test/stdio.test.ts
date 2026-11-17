@@ -275,10 +275,10 @@ test('stdio session streams Gemini text and reaps the paired ACP process', POSIX
     turnConfig: {},
   }, 'resolve-session'));
   const projected = created.turnConfigOptions;
-  assert.deepEqual(projected.map((option) => option.id), ['model', 'mode', 'thought_level']);
+  assert.deepEqual(projected.map((option) => option.id), ['model', 'mode', 'thinking']);
   assert.deepEqual(
     asArray(resolved.configOptions, 'resolved configOptions').map((option) => record(option, 'config option').id),
-    ['model', 'mode', 'thought_level'],
+    ['model', 'mode', 'thinking'],
   );
   const wire = JSON.stringify({ snapshot: projected, resolved });
   assert.equal(wire.includes('"role"'), false);
@@ -289,7 +289,7 @@ test('stdio session streams Gemini text and reaps the paired ACP process', POSIX
   const special = record(resolved.specialCatalogs, 'specialCatalogs');
   assert.equal(special.model, 'model');
   assert.equal(special.approvalMode, 'mode');
-  assert.equal(special.thinking, 'thought_level');
+  assert.equal(special.thinking, 'thinking');
   const model = projected[0];
   const mode = projected[1];
   const thinking = projected[2];

@@ -89,6 +89,13 @@ history entry. Historical snapshots must not be filled with invented hashes.
 
 ## Updates
 
+Antigravity Proxy 0.0.9 has a one-version Owner-authorized no-test publication
+exception for the ACP 1.5.0 Thinking configuration fix. Use `owner_no_tests=true`
+for its build and Catalog publication. All tests and Runtime probes are NOT_RUN.
+Only the exact signed-base ACP 1.5.0 Runtime is reused; no Runtime replacement,
+approval-mode change, App release or waiver for another version is authorized.
+Source provenance, archive hashes, immutable tags and Catalog signatures remain required.
+
 Claude Proxy 0.3.4 and its 0.3.5 creation/CLI follow-up have explicit
 Owner-selected direct-publication exceptions:
 dispatch qualification with `owner_no_tests=true`, then publish the exact

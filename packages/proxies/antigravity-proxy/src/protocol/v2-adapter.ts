@@ -263,7 +263,7 @@ export class AntigravityProtocolV2Adapter {
     return {
       // Resolution changes dependent choices, not the underlying advertisement.
       // Native updates (including currentValue) still invalidate the fence.
-      catalogRevision: fingerprint({ native, projection: 'family-thinking-v1' }),
+      catalogRevision: fingerprint({ native, projection: 'family-thinking-v2' }),
       input: [{ type: 'text' }], configOptions, specialCatalogs, slashCommands: [],
     };
   }
@@ -384,10 +384,19 @@ export class AntigravityProtocolV2Adapter {
   }
 
   private validateBinding(native: SessionConfigOption[], values: ConfigValues, binding: 'session' | 'turn', resolving = false): void {
-    if (resolving) resolveConfigValues(native, values);
-    else validateConfigValues(native, values);
     const options = toGianConfigOptions(native, values);
-    for (const id of Object.keys(values)) {
+    if (resolving) {
+      const canonical = resolveConfigValues(native, values);
+      for (const id of Object.keys(canonical)) {
+        if (options.find(option => option.id === id)?.binding !== binding) {
+          throw new ProtocolError('CONFIG_BINDING_INVALID', `Config option ${id} does not bind to ${binding}.`);
+        }
+      }
+      return;
+    }
+    validateConfigValues(native, values);
+    const canonical = resolveConfigValues(native, values);
+    for (const id of Object.keys(canonical)) {
       if (options.find(option => option.id === id)?.binding !== binding) {
         throw new ProtocolError('CONFIG_BINDING_INVALID', `Config option ${id} does not bind to ${binding}.`);
       }

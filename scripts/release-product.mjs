@@ -33,13 +33,20 @@ const gh = (...args) => execFileSync('gh', args, { cwd: root, encoding: 'utf8', 
 const asset = path => ({ name: path.split('/').at(-1), size: readFileSync(path).length, sha256: hash(readFileSync(path)) });
 const releaseUrl = (tag, name) => `https://github.com/${repository}/releases/download/${tag}/${name}`;
 
+function ownerDirectScope() {
+  if (shipping.length !== 1) return null;
+  const { id, pluginVersion } = shipping[0];
+  if (id === 'claude' && ['0.3.4', '0.3.5'].includes(pluginVersion)) return `Claude Proxy ${pluginVersion} without tests`;
+  if (id === 'antigravity' && pluginVersion === '0.0.9') return 'Antigravity Proxy 0.0.9 without tests';
+  return null;
+}
+
 export function validateCertificate(certificate, expected = {}) {
   const ownerDirect = certificate?.releaseMode === 'owner-authorized-no-tests';
-  if (ownerDirect && (shipping.length !== 1 || shipping[0].id !== 'claude'
-    || !['0.3.4', '0.3.5'].includes(shipping[0].pluginVersion) || certificate.status !== 'NOT_RUN'
+  if (ownerDirect && (!ownerDirectScope() || certificate.status !== 'NOT_RUN'
     || !certificate.authorization?.requestedBy
-    || certificate.authorization.scope !== `Claude Proxy ${shipping[0].pluginVersion} without tests`)) {
-    throw new Error('Invalid Owner-selected Claude publication receipt');
+    || certificate.authorization.scope !== ownerDirectScope())) {
+    throw new Error('Invalid Owner-selected publication receipt');
   }
   if (certificate?.schema !== 1 || certificate.model !== 'standalone-proxy-artifacts-v1'
     || certificate.status !== (ownerDirect ? 'NOT_RUN' : 'PASS')
@@ -182,9 +189,9 @@ async function qualify() {
 /** One explicit Owner exception, limited to this version. Never manufacture
  * passing test evidence, and retain all provenance/byte/signature checks. */
 async function ownerSelectedBuild() {
-  if (shipping.length !== 1 || shipping[0].id !== 'claude' || !['0.3.4', '0.3.5'].includes(shipping[0].pluginVersion)
+  if (!ownerDirectScope()
     || process.env.GITHUB_EVENT_NAME !== 'workflow_dispatch' || !process.env.GITHUB_ACTOR) {
-    throw new Error('Owner-selected build without tests is limited to the approved Claude fixes');
+    throw new Error('Owner-selected build without tests is limited to explicitly approved versions');
   }
   verifySource();
   if (git('status', '--porcelain', '--untracked-files=no')) throw new Error('Publication source is dirty');
@@ -197,10 +204,12 @@ async function ownerSelectedBuild() {
     releaseSelection.baseCatalogRepository, releaseSelection.baseCatalogTag,
   ).sequence + 1;
   const inherited = await inheritCatalogExecutables(source, sequence);
-  const previous = inherited.previous.plugins.find(plugin => plugin.pluginId === 'claude');
-  const metadata = proxyReleaseMetadata('claude');
+  const definition = shipping[0];
+  const previous = inherited.previous.plugins.find(plugin => plugin.pluginId === definition.pluginId);
+  const metadata = proxyReleaseMetadata(definition.id);
   let runtime = previous?.stable.combination?.runtime;
   if (!runtime || !metadata.runtime.verifiedVersions.includes(runtime.version)) {
+    if (definition.id !== 'claude') throw new Error('Direct publication must reuse the signed base Runtime');
     // The Owner also requested the current official CLI. Download and hash
     // its pinned bytes without executing a Runtime probe or model turn.
     const { upstreamRuntimeCandidates } = await import('./build-managed-runtime-candidates.mjs');
@@ -218,7 +227,7 @@ async function ownerSelectedBuild() {
       format: candidate.format, entryRelativePath: candidate.entryRelativePath };
   }
   rmSync(output, { recursive: true, force: true }); mkdirSync(output, { recursive: true });
-  await buildArtifacts(['--plugin', 'claude', '--output', 'artifacts/proxies'], { ownerAuthorizedNoTests: true });
+  await buildArtifacts(['--plugin', definition.id, '--output', 'artifacts/proxies'], { ownerAuthorizedNoTests: true });
   for (const suffix of ['', '.sha256', '.manifest.json']) {
     cpSync(join(root, 'artifacts/proxies', metadata.asset + suffix), join(output, metadata.asset + suffix));
   }
@@ -229,18 +238,18 @@ async function ownerSelectedBuild() {
     runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT };
   const certificate = { schema: 1, model: 'standalone-proxy-artifacts-v1', status: 'NOT_RUN',
     releaseMode: 'owner-authorized-no-tests', repository, revision, runner,
-    authorization: { requestedBy: process.env.GITHUB_ACTOR, scope: `Claude Proxy ${metadata.version} without tests` },
+    authorization: { requestedBy: process.env.GITHUB_ACTOR, scope: ownerDirectScope() },
     certificateId: `proxies-${revision}-${runner.runId}-${runner.runAttempt}`, completedAt: new Date().toISOString(),
     steps: [...['source', 'build', 'archive-integrity'].map(id => ({ id, status: 'PASS' })),
       ...['proxy-contracts', 'runtime-artifacts', 'archive-self-tests'].map(id => ({ id, status: 'NOT_RUN' }))],
     protocolPackage: json(join(root, 'protocol-package.json')),
-    proxies: [{ provider: 'claude', pluginId: metadata.pluginId, version: metadata.version,
+    proxies: [{ provider: definition.id, pluginId: metadata.pluginId, version: metadata.version,
       tag: metadata.tag, archive: metadata.asset, manifest, runtime, runtimeAsset: null, publishRuntime: false }],
     assets: readdirSync(output).sort().map(name => asset(join(output, name))),
     exclusions: ['All test execution', 'Runtime probes', 'archive self-tests', 'App/Desktop acceptance', 'real Provider turns'] };
   validateCertificate(certificate);
   put(join(output, 'certificate.json'), certificate);
-  console.log(`Built Claude Proxy ${metadata.version} for Owner-selected direct publication; all tests NOT_RUN`);
+  console.log(`Built ${definition.id} Proxy ${metadata.version} for Owner-selected direct publication; all tests NOT_RUN`);
 }
 
 function readCertified(directory) {
@@ -283,7 +292,7 @@ async function publish(directory) {
     if (record.publishRuntime) names.push(record.runtimeAsset);
     publishRelease(record.tag, names.map(name => join(directory, name)),
       certificate.releaseMode === 'owner-authorized-no-tests'
-        ? `Claude Proxy ${record.version}: native model metadata and condition-aware model/effort resolution. Owner-selected direct publication; all tests, Runtime probes and archive self-tests NOT_RUN. Declared Claude Code Runtime: ${record.runtime.version}. Artifact hashes and source provenance are bound by ${certificate.certificateId}.`
+        ? `${record.provider} Proxy ${record.version}: native model metadata and Thinking configuration compatibility. Owner-selected direct publication; all tests, Runtime probes and archive self-tests NOT_RUN. Declared Runtime: ${record.runtime.version}. Artifact hashes and source provenance are bound by ${certificate.certificateId}.`
         : `Independent Proxy ${record.version}. Exact hosted artifacts from ${certificate.certificateId}. DSH includes its Bridge. ZCode includes a managed CLI Runtime built from its pinned upstream Git commit. No App or real-provider acceptance is claimed.`);
   }
 }
@@ -333,6 +342,12 @@ async function catalog(directory, sequence, issuedAt) {
   rmSync(source, { recursive: true, force: true });
   cpSync(join(root, 'catalog/official-source'), source, { recursive: true });
   const inherited = await inheritCatalogExecutables(source, sequence, proof);
+  if (certificate.releaseMode === 'owner-authorized-no-tests' && shipping[0]?.id === 'antigravity') {
+    const previous = inherited.previous.plugins.find(plugin => plugin.pluginId === 'io.gian.antigravity');
+    if (!isDeepStrictEqual(previous?.stable.combination.runtime, certificate.proxies[0].runtime)) {
+      throw new Error('Antigravity direct publication cannot change the signed base Runtime');
+    }
+  }
   const { projectInformation } = await import('../catalog/proxy-information/project.mjs');
   const catalogRecords = selectedCatalogRecords(inherited.previous, certificate.proxies);
   const { localizations } = projectInformation(source, catalogRecords, {

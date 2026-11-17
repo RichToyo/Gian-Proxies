@@ -1,5 +1,11 @@
 # Gian Proxies Changelog
 
+## Antigravity Proxy 0.0.9 - 2026-11-17
+
+- Fix ACP 1.5.0 Thinking selection by exposing a consistent `thinking` option and preserving native setter IDs.
+- Retain the published ACP 1.5.0 Runtime and its native approval modes.
+- Owner-authorized direct publication: all tests, Runtime probes and archive self-tests are NOT_RUN.
+
 ## Kimi Proxy 0.4.16 candidate - 2026-11-17
 
 - Target the official Kimi Code 2.6.2 Runtime with a reviewed native conversation, interaction and replay migration.

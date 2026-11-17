@@ -116,6 +116,8 @@ function categoryOf(option: Record<string, unknown>): string | undefined {
   return nonEmpty(option.category) ? option.category : undefined;
 }
 
+const EFFORT_IDENTIFIERS = new Set(['thought_level', 'thinking_level', 'thinking']);
+
 function classify(id: string, category: string | undefined): {
   model: boolean;
   mode: boolean;
@@ -124,7 +126,8 @@ function classify(id: string, category: string | undefined): {
   const model = category === 'model' || (category === undefined && id === 'model');
   const mode = !model && (category === 'mode' || (category === undefined && id === 'mode'));
   const effort = !model && !mode && (
-    category === 'thought_level' || (category === undefined && (id === 'thought_level' || id === 'thinking'))
+    (category !== undefined && EFFORT_IDENTIFIERS.has(category))
+    || (category === undefined && EFFORT_IDENTIFIERS.has(id))
   );
   return { model, mode, effort };
 }
@@ -242,6 +245,14 @@ function modelProjection(options: NormalizedOption[]): ModelProjection | null {
   return families.size ? { model, families, variants } : null;
 }
 
+function effortProjection(options: NormalizedOption[]): NormalizedOption | null {
+  const efforts = options.filter((option) => option.effort && option.control === 'select' && option.choices.length > 0);
+  if (efforts.length !== 1) return null;
+  const effort = efforts[0]!;
+  if (options.some((option) => option !== effort && option.id === PROJECTED_THINKING_ID)) return null;
+  return effort;
+}
+
 function projectedSelection(projection: ModelProjection, values: ConfigValues): { family?: string; effort?: string } {
   const selected = values[projection.model.id] ?? projection.model.currentValue;
   if (typeof selected !== 'string') return {};
@@ -259,12 +270,17 @@ export function toGianConfigOptions(options: SessionConfigOption[], values: Conf
   if (!Array.isArray(options)) return [];
   const normalized = normalizedOptions(options);
   const projection = modelProjection(normalized);
+  const effort = projection ? null : effortProjection(normalized);
   const seen = new Set<string>();
   const projected: GianConfigOption[] = [];
   for (const option of normalized) {
     if (seen.has(option.id)) continue;
     seen.add(option.id);
     if (option.control !== 'select' || option.choices.length === 0) continue;
+    if (effort === option) {
+      projected.push(toGianOption({ ...option, id: PROJECTED_THINKING_ID }));
+      continue;
+    }
     if (!projection || projection.model !== option) {
       projected.push(toGianOption(option));
       continue;
@@ -319,9 +335,39 @@ function translateConfig(options: SessionConfigOption[], values: ConfigValues, i
   if (!Array.isArray(options) || !isRecord(values)) {
     throw new ConfigValidationError('invalid_catalog', '', 'Config options or values are not readable.');
   }
-  const projection = modelProjection(normalizedOptions(options));
-  const native = { ...values };
-  const product = { ...values };
+  const normalized = normalizedOptions(options);
+  const projection = modelProjection(normalized);
+  const effort = projection ? null : effortProjection(normalized);
+  let native: ConfigValues = { ...values };
+  let product: ConfigValues = { ...values };
+  if (effort && effort.id !== PROJECTED_THINKING_ID && (
+    Object.hasOwn(values, PROJECTED_THINKING_ID) || Object.hasOwn(values, effort.id)
+  )) {
+    if (
+      Object.hasOwn(values, PROJECTED_THINKING_ID)
+      && Object.hasOwn(values, effort.id)
+      && !Object.is(values[PROJECTED_THINKING_ID], values[effort.id])
+    ) {
+      throw new ConfigValidationError(
+        'invalid_config_value',
+        PROJECTED_THINKING_ID,
+        'Conflicting Thinking configuration values.',
+      );
+    }
+    const nextNative: ConfigValues = {};
+    const nextProduct: ConfigValues = {};
+    for (const [key, value] of Object.entries(values)) {
+      if (key === PROJECTED_THINKING_ID || key === effort.id) {
+        if (!Object.hasOwn(nextNative, effort.id)) nextNative[effort.id] = value;
+        if (!Object.hasOwn(nextProduct, PROJECTED_THINKING_ID)) nextProduct[PROJECTED_THINKING_ID] = value;
+        continue;
+      }
+      nextNative[key] = value;
+      nextProduct[key] = value;
+    }
+    native = nextNative;
+    product = nextProduct;
+  }
   if (projection && (Object.hasOwn(values, projection.model.id) || Object.hasOwn(values, PROJECTED_THINKING_ID))) {
     const id = projection.model.id;
     const selection = projectedSelection(projection, values);

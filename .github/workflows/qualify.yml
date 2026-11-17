@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       owner_no_tests:
-        description: Owner-selected direct Claude fixes build without any tests
+        description: Owner-selected direct build for explicitly allowlisted versions without tests
         required: false
         default: false
         type: boolean

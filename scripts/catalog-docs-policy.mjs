@@ -5,6 +5,21 @@ const documents = ['overview', 'setup', 'usage', 'troubleshooting'];
 
 export function assertQualifiedRuntime(record, definition, certificate) {
   if (!definition.runtimeQualification) return;
+  // The 0.0.9 Owner waiver reuses these already published ACP bytes, never a new Runtime.
+  if (certificate.releaseMode === 'owner-authorized-no-tests' && certificate.status === 'NOT_RUN'
+    && certificate.authorization?.scope === 'Antigravity Proxy 0.0.9 without tests'
+    && definition.id === 'antigravity' && definition.pluginVersion === '0.0.9'
+    && record.provider === 'antigravity' && record.version === '0.0.9'
+    && record.publishRuntime === false && record.runtimeAsset === null
+    && isDeepStrictEqual(record.runtime, {
+      kind: 'native-binary', runtimeId: 'antigravity-acp', version: '1.5.0',
+      asset: {
+        url: 'https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.8/gian-runtime-antigravity-1.5.0-darwin-arm64.tar.gz',
+        sha256: '7c5e7eeac38488aa4a2f635f448a92365424bbc83ce7ab3407d435556b93f034',
+        size: 100235809,
+      },
+      format: 'tar.gz', entryRelativePath: 'agy_acp_server.par',
+    })) return;
   const expectedUrl = `https://github.com/${certificate.repository}/releases/download/${record.tag}/${record.runtimeAsset}`;
   if (record.runtime?.kind !== 'native-binary' || record.runtime.runtimeId !== definition.runtime.id
     || !definition.runtime.verifiedCliVersions.includes(record.runtime.version) || record.publishRuntime !== true

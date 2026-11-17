@@ -91,9 +91,9 @@ function expectError(
   assert.fail('expected ConfigValidationError');
 }
 
-test('native options keep their ids and Gemini-only model choices', () => {
+test('native options keep their ids except single effort selectors projected to thinking, and filter Gemini-only model choices', () => {
   const projected = toGianConfigOptions(native);
-  assert.deepEqual(projected.map((option) => option.id), ['model', 'mode', 'thought_level']);
+  assert.deepEqual(projected.map((option) => option.id), ['model', 'mode', 'thinking']);
   assert.equal(projected.some((option) => option.control === 'boolean' || option.id === 'flag'), false);
   for (const option of projected) configOptionSchema.parse(option);
 
@@ -121,7 +121,7 @@ test('native options keep their ids and Gemini-only model choices', () => {
   assert.deepEqual(mode.choices?.map((choice) => choice.value), ['default', 'auto_edit', 'yolo']);
 
   const effort = projected[2]!;
-  assert.equal(effort.id, 'thought_level');
+  assert.equal(effort.id, 'thinking');
   assert.equal(effort.role, 'effort');
   assert.equal(effort.binding, 'turn');
   assert.equal(effort.defaultValue, 'high');
@@ -231,6 +231,15 @@ test('accepted values keep caller key order and native ids', () => {
     { configId: 'model', value: 'gemini-2.5-pro' },
     { configId: 'thought_level', value: 'low' },
   ]);
+  assert.deepEqual(validateConfigValues(native, {
+    thinking: 'low',
+    mode: 'yolo',
+    model: 'gemini-2.5-pro',
+  }), [
+    { configId: 'thought_level', value: 'low' },
+    { configId: 'mode', value: 'yolo' },
+    { configId: 'model', value: 'gemini-2.5-pro' },
+  ]);
 });
 
 test('native boolean controls are not advertised or sent as strings', () => {
@@ -315,5 +324,80 @@ test('fixed, unknown and colliding ids preserve identity; real native Thinking k
   assert.deepEqual(validateConfigValues(realThinking, { model: 'gemini-3.8-flash-high', thought_level: 'low' }), [
     { configId: 'model', value: 'gemini-3.8-flash-high' }, { configId: 'thought_level', value: 'low' },
   ]);
-  assert.equal(toGianConfigOptions(realThinking).some(option => option.id === 'thinking'), false);
+  assert.deepEqual(validateConfigValues(realThinking, { model: 'gemini-3.8-flash-high', thinking: 'low' }), [
+    { configId: 'model', value: 'gemini-3.8-flash-high' }, { configId: 'thought_level', value: 'low' },
+  ]);
+  const projectedReal = toGianConfigOptions(realThinking);
+  assert.deepEqual(projectedReal.map(option => option.id), ['model', 'mode', 'thinking']);
+  assert.equal(projectedReal[0]?.choices?.some(choice => choice.value === 'gemini-3.8-flash-high'), true);
+  assert.equal(projectedReal[0]?.choices?.some(choice => choice.value === 'gemini-3.8-flash'), false);
+});
+
+test('ACP 1.5.0 thinking_level projects to canonical thinking and writes back to native thinking_level', () => {
+  const acp150: SessionConfigOption[] = [
+    {
+      id: 'model',
+      name: 'Model',
+      type: 'select',
+      currentValue: 'gemini-3.8-flash',
+      options: [
+        { value: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
+        { value: 'gemini-3.8-pro', name: 'Gemini 3.8 Pro' },
+      ],
+    },
+    {
+      id: 'thinking_level',
+      name: 'Thinking Level',
+      type: 'select',
+      currentValue: 'high',
+      options: [
+        { value: 'low', name: 'low' },
+        { value: 'medium', name: 'medium' },
+        { value: 'high', name: 'high' },
+      ],
+    },
+    {
+      id: 'mode',
+      name: 'Session Mode',
+      type: 'select',
+      currentValue: 'default',
+      options: [
+        { value: 'default', name: 'default' },
+        { value: 'auto_edit', name: 'auto_edit' },
+        { value: 'yolo', name: 'yolo' },
+      ],
+    },
+  ];
+  const projected = toGianConfigOptions(acp150);
+  for (const option of projected) configOptionSchema.parse(option);
+  assert.deepEqual(projected.map((option) => [option.id, option.role, option.binding, option.defaultValue]), [
+    ['model', 'model', 'turn', 'gemini-3.8-flash'],
+    ['thinking', 'effort', 'turn', 'high'],
+    ['mode', 'approval_mode', 'turn', 'default'],
+  ]);
+  assert.deepEqual(validateConfigValues(acp150, {
+    model: 'gemini-3.8-pro',
+    thinking: 'low',
+    mode: 'yolo',
+  }), [
+    { configId: 'model', value: 'gemini-3.8-pro' },
+    { configId: 'thinking_level', value: 'low' },
+    { configId: 'mode', value: 'yolo' },
+  ]);
+  assert.deepEqual(validateConfigValues(acp150, { thinking_level: 'medium' }), [
+    { configId: 'thinking_level', value: 'medium' },
+  ]);
+  assert.deepEqual(resolveConfigValues(acp150, { thinking: 'low', mode: 'yolo' }), {
+    thinking: 'low',
+    mode: 'yolo',
+  });
+  assert.deepEqual(resolveConfigValues(acp150, { thinking_level: 'medium' }), {
+    thinking: 'medium',
+  });
+  const conflict = expectError(
+    () => validateConfigValues(acp150, { thinking: 'low', thinking_level: 'high' }),
+    'invalid_config_value',
+    'CONFIG_VALUE_INVALID',
+  );
+  assert.equal(conflict.configId, 'thinking');
 });

@@ -15,7 +15,7 @@ on:
         required: true
         type: string
       owner_no_tests:
-        description: Skip documentation tests for Owner-selected Claude fixes publication
+        description: Skip documentation tests for explicitly allowlisted Owner-selected publication
         required: false
         default: false
         type: boolean

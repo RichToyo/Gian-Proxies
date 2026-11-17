@@ -1613,6 +1613,57 @@ test('model is written first and dependent settings use the refreshed choices', 
   assert.equal(h.runtime.prompts.length, 0);
 });
 
+test('startTurn translates canonical thinking to ACP 1.5.0 thinking_level after model write', async () => {
+  const h = harness();
+  h.runtime.options = [
+    {
+      id: 'thinking_level',
+      name: 'Thinking Level',
+      type: 'select',
+      currentValue: 'high',
+      options: [
+        { value: 'low', name: 'low' },
+        { value: 'medium', name: 'medium' },
+        { value: 'high', name: 'high' },
+      ],
+    },
+    {
+      id: 'mode',
+      name: 'Session Mode',
+      type: 'select',
+      currentValue: 'default',
+      options: [
+        { value: 'default', name: 'default' },
+        { value: 'auto_edit', name: 'auto_edit' },
+        { value: 'yolo', name: 'yolo' },
+      ],
+    },
+    {
+      id: 'model',
+      name: 'Model',
+      type: 'select',
+      currentValue: 'gemini-3.8-flash',
+      options: [
+        { value: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
+        { value: 'gemini-3.8-pro', name: 'Gemini 3.8 Pro' },
+      ],
+    },
+  ];
+  const session = await attach(h, 'gian-150');
+  await h.service.startTurn({
+    sessionId: session.id,
+    turnId: 'turn-150',
+    prompt: prompt('hello'),
+    config: { thinking: 'low', mode: 'yolo', model: 'gemini-3.8-pro' },
+  });
+  assert.deepEqual(h.runtime.configWrites, [
+    { sessionId: session.nativeSessionId, configId: 'model', value: 'gemini-3.8-pro' },
+    { sessionId: session.nativeSessionId, configId: 'thinking_level', value: 'low' },
+    { sessionId: session.nativeSessionId, configId: 'mode', value: 'yolo' },
+  ]);
+  h.runtime.resolvePrompt(session.nativeSessionId, { stopReason: 'end_turn' });
+});
+
 test('late lost-prompt cancel rejection cannot modify a reused native id in a new generation', async () => {
   const h = harness({ cancelTimeoutMs: 1_000 });
   const original = await attach(h, 'gian-old');
