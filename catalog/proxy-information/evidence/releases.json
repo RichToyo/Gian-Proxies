@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-11-16T19:02:53.164Z",
+  "capturedAt": "2026-11-17T11:27:36.472Z",
   "repositories": [
     "RichLogic/Gian",
     "RichLogic/Gian-Proxies"
@@ -4439,6 +4439,38 @@
           "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.16/kimi-2.6.2-darwin-arm64.tar.gz",
           "size": 59888844,
           "digest": "sha256:0e198ee3ac1d40964a8dc1da08cdf55f80e5a26d28dfa7a0967cd5a645ec32be"
+        }
+      ]
+    },
+    {
+      "tag": "proxy-antigravity-v0.0.9",
+      "date": "2026-11-17T11:26:22Z",
+      "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.9",
+      "body": "antigravity Proxy 0.0.9: native model metadata and Thinking configuration compatibility. Owner-selected direct publication; all tests, Runtime probes and archive self-tests NOT_RUN. Declared Runtime: 1.5.0. Artifact hashes and source provenance are bound by proxies-009022f8c8a74e00958bfaa7354cb4219c5e4010-44072858601-1.",
+      "assets": [
+        {
+          "name": "certificate.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.9/certificate.json",
+          "size": 4088,
+          "digest": "sha256:c003da8f8f84e3993f176e7e4a0fa612144e70dc3dfe3cc1b8c76b1c955a131b"
+        },
+        {
+          "name": "gian-proxy-antigravity-0.0.9-darwin-arm64.tar.gz",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.9/gian-proxy-antigravity-0.0.9-darwin-arm64.tar.gz",
+          "size": 194620,
+          "digest": "sha256:fbc4044859f0160ad21a4d3b9282932ae841c7297e4f80faad2b2f7fbdabf327"
+        },
+        {
+          "name": "gian-proxy-antigravity-0.0.9-darwin-arm64.tar.gz.manifest.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.9/gian-proxy-antigravity-0.0.9-darwin-arm64.tar.gz.manifest.json",
+          "size": 639,
+          "digest": "sha256:1cadacf08ed0b333663c96c08a34cff958cf0e00b10fcec1189091ceab0b7c36"
+        },
+        {
+          "name": "gian-proxy-antigravity-0.0.9-darwin-arm64.tar.gz.sha256",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.9/gian-proxy-antigravity-0.0.9-darwin-arm64.tar.gz.sha256",
+          "size": 115,
+          "digest": "sha256:c2487229151065be506452e92b0c8f4b1d19015294519131b4aa970ef040ca3c"
         }
       ]
     }

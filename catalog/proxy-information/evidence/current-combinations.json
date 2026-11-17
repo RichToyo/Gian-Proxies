@@ -1,6 +1,6 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.65.0",
-  "sequence": 65,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.66.0",
+  "sequence": 66,
   "sourceId": "gian-official",
   "plugins": [
     {
@@ -71,16 +71,16 @@
         "companions": [],
         "generationId": "kimi-0.4.16-runtime-2.6.2",
         "runtime": {
+          "asset": {
+            "sha256": "0e198ee3ac1d40964a8dc1da08cdf55f80e5a26d28dfa7a0967cd5a645ec32be",
+            "size": 59888844,
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.16/kimi-2.6.2-darwin-arm64.tar.gz"
+          },
+          "entryRelativePath": "kimi",
+          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "kimi",
-          "version": "2.6.2",
-          "asset": {
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.16/kimi-2.6.2-darwin-arm64.tar.gz",
-            "sha256": "0e198ee3ac1d40964a8dc1da08cdf55f80e5a26d28dfa7a0967cd5a645ec32be",
-            "size": 59888844
-          },
-          "format": "tar.gz",
-          "entryRelativePath": "kimi"
+          "version": "2.6.2"
         }
       }
     },
@@ -168,27 +168,27 @@
     {
       "id": "io.gian.antigravity",
       "displayName": "Antigravity",
-      "version": "0.0.8",
+      "version": "0.0.9",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "shared",
       "combination": {
         "certificate": {
-          "id": "proxies-57c62d1cb77388648f847247a7c7a30393edfd8c-43481768311-1",
-          "sha256": "151e8009d66e4e59a0a23b0260e639ef553fc253ff578a647a3fc096bae5bf93"
+          "id": "proxies-009022f8c8a74e00958bfaa7354cb4219c5e4010-44072858601-1",
+          "sha256": "c003da8f8f84e3993f176e7e4a0fa612144e70dc3dfe3cc1b8c76b1c955a131b"
         },
         "companions": [],
-        "generationId": "antigravity-0.0.8-runtime-1.5.0",
+        "generationId": "antigravity-0.0.9-runtime-1.5.0",
         "runtime": {
-          "asset": {
-            "sha256": "7c5e7eeac38488aa4a2f635f448a92365424bbc83ce7ab3407d435556b93f034",
-            "size": 100235809,
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.8/gian-runtime-antigravity-1.5.0-darwin-arm64.tar.gz"
-          },
-          "entryRelativePath": "agy_acp_server.par",
-          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "antigravity-acp",
-          "version": "1.5.0"
+          "version": "1.5.0",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.8/gian-runtime-antigravity-1.5.0-darwin-arm64.tar.gz",
+            "sha256": "7c5e7eeac38488aa4a2f635f448a92365424bbc83ce7ab3407d435556b93f034",
+            "size": 100235809
+          },
+          "format": "tar.gz",
+          "entryRelativePath": "agy_acp_server.par"
         }
       }
     }

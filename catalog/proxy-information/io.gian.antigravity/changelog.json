@@ -1,8 +1,52 @@
 {
   "schemaVersion": 1,
   "pluginId": "io.gian.antigravity",
-  "currentVersion": "0.0.8",
+  "currentVersion": "0.0.9",
   "entries": [
+    {
+      "version": "0.0.9",
+      "firstPublishedAt": "2026-11-17T11:26:22Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-antigravity-v0.0.9",
+          "publishedAt": "2026-11-17T11:26:22Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.9",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.9/gian-proxy-antigravity-0.0.9-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "1cadacf08ed0b333663c96c08a34cff958cf0e00b10fcec1189091ceab0b7c36",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.9/gian-proxy-antigravity-0.0.9-darwin-arm64.tar.gz",
+            "sha256": "fbc4044859f0160ad21a4d3b9282932ae841c7297e4f80faad2b2f7fbdabf327",
+            "size": 194620
+          },
+          "runtimeDeclaration": {
+            "id": "antigravity-acp",
+            "versions": [
+              "1.5.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Fix ACP 1.5.0 Thinking selection by exposing a consistent thinking option and mapping it back to the native thinking_level or thought_level setter. Reject conflicting aliases. Retain the published ACP 1.5.0 Runtime bytes and native approval modes. Owner-authorized direct publication: all tests, Runtime probes, archive self-tests and Desktop acceptance are NOT_RUN; source provenance and artifact digests remain checked.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.9",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-antigravity-v0.0.9/packages/proxies/antigravity-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": [
+        "All tests, Runtime probes and archive self-tests are NOT_RUN by Owner instruction."
+      ]
+    },
     {
       "version": "0.0.8",
       "firstPublishedAt": "2026-11-13T18:45:42Z",

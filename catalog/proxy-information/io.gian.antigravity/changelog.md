@@ -2,7 +2,22 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.0.8**, Runtime **1.5.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.0.9**, Runtime **1.5.0**. These are distribution targets, not this machine's installed state.
+
+## 0.0.9
+
+First published: 2026-11-17T11:26:22Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.9): 2026-11-17T11:26:22Z.
+- CLI: 1.5.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Fix ACP 1.5.0 Thinking selection by exposing a consistent thinking option and mapping it back to the native thinking_level or thought_level setter. Reject conflicting aliases. Retain the published ACP 1.5.0 Runtime bytes and native approval modes. Owner-authorized direct publication: all tests, Runtime probes, archive self-tests and Desktop acceptance are NOT_RUN; source provenance and artifact digests remain checked. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.0.9) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-antigravity-v0.0.9/packages/proxies/antigravity-proxy/README.md)
+
+### Historical evidence limits
+
+- All tests, Runtime probes and archive self-tests are NOT_RUN by Owner instruction.
 
 ## 0.0.8
 
