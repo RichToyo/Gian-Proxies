@@ -20,6 +20,7 @@ test('managed Runtime candidates pin exact official Claude, Codex, Kimi, and Gro
   assert.equal(validateRuntimeCandidateDefinitions(), true);
   assert.deepEqual(Object.keys(upstreamRuntimeCandidates), ['claude', 'codex', 'kimi', 'grok']);
   assert.equal(upstreamRuntimeCandidates.claude.format, 'raw');
+  assert.equal(upstreamRuntimeCandidates.claude.publish, true);
   assert.match(upstreamRuntimeCandidates.claude.url, /^https:\/\/downloads\.claude\.ai\//);
   assert.equal(upstreamRuntimeCandidates.codex.format, 'tar.gz');
   assert.match(upstreamRuntimeCandidates.codex.url, /^https:\/\/github\.com\/openai\/codex\/releases\/download\//);

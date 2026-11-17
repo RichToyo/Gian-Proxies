@@ -1,6 +1,6 @@
 {
   "name": "@gian/cc-proxy",
-  "version": "0.3.25",
+  "version": "0.3.26",
   "private": true,
   "type": "module",
   "main": "./dist/src/cli/spawn.js",
