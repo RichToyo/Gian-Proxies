@@ -7,7 +7,7 @@
 
 ## Claude Proxy 0.3.26 candidate - 2026-11-18
 
-- Target the official Claude Code 2.1.326 Runtime with exact artifact qualification required.
+- Target the official Claude Code 2.1.327 Runtime with exact artifact qualification required.
 
 ## Antigravity Proxy 0.0.9 - 2026-11-17
 
