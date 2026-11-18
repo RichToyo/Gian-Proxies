@@ -15,7 +15,7 @@ type Handlers = {
 
 /** Unknown versions are not assumed to use either protocol generation. */
 export function kimiRuntimeMode(version: string): Mode {
-  if (version === '2.6.2') return 'conversation';
+  if (['2.6.2', '2.6.3'].includes(version)) return 'conversation';
   if (['2.1.1', '2.2.0', '2.3.0', '2.3.2', '2.3.3'].includes(version)) return 'legacy';
   throw new Error(`Kimi Runtime ${version} has no reviewed event protocol.`);
 }

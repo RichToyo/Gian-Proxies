@@ -8,7 +8,8 @@ test('only reviewed Kimi runtime generations select a wire protocol', () => {
   assert.equal(kimiRuntimeMode('2.3.3'), 'legacy');
   assert.equal(kimiRuntimeMode('2.2.0'), 'legacy');
   assert.equal(kimiRuntimeMode('2.6.2'), 'conversation');
-  assert.throws(() => kimiRuntimeMode('2.6.3'), /no reviewed event protocol/);
+  assert.equal(kimiRuntimeMode('2.6.3'), 'conversation');
+  assert.throws(() => kimiRuntimeMode('2.6.4'), /no reviewed event protocol/);
   assert.throws(() => kimiRuntimeMode('2.3.999'), /no reviewed event protocol/);
   assert.throws(() => kimiRuntimeMode('2.6.2-beta.1'), /no reviewed event protocol/);
 });

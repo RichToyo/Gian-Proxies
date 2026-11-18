@@ -16,8 +16,8 @@ The entry point requires an absolute managed binary path:
 node dist/src/cli/spawn.js --kimi-bin /absolute/path/to/kimi
 ```
 
-Candidate Proxy version: **0.4.16**, targeting the official Kimi Code
-Runtime **2.6.2**. The new conversation feed uses native snapshot barriers,
+Candidate Proxy version: **0.4.17**, targeting the official Kimi Code
+Runtime **2.6.3**. The new conversation feed uses native snapshot barriers,
 unsequenced turn identities, explicit interaction responses and native history
 pagination. Temporary event-channel loss is reconciled without resending the
 prompt. Exact hosted qualification and publication are still required.

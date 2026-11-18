@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "providers": [
-    "codex"
+    "kimi"
   ],
-  "baseCatalogTag": "catalog-v1.66.0",
+  "baseCatalogTag": "catalog-v1.67.0",
   "baseCatalogRepository": "RichToyo/Gian-Proxies"
 }

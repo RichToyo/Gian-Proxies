@@ -1,5 +1,10 @@
 # Gian Proxies Changelog
 
+## Kimi Proxy 0.4.17 candidate - 2026-11-19
+
+- Target the official Kimi Code 2.6.3 Runtime while retaining reviewed legacy and conversation protocol selection.
+- Exact-artifact hosted qualification and publication remain required.
+
 ## Claude Proxy 0.3.26 candidate - 2026-11-18
 
 - Target the official Claude Code 2.1.326 Runtime with exact artifact qualification required.
