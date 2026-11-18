@@ -3443,5 +3443,30 @@
     "process": {
       "scope": "shared"
     }
+  },
+  {
+    "tag": "proxy-codex-v0.3.15",
+    "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.15",
+    "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.15/gian-proxy-codex-0.3.15-darwin-arm64.tar.gz.manifest.json",
+    "digest": "sha256:996bcaf474f7e1c104dcbc329460a5f2f90bba155accfbee1a354a464cf94bd2",
+    "assetDigestVerified": true,
+    "schemaVersion": 4,
+    "pluginId": "codex",
+    "pluginVersion": "0.3.15",
+    "protocol": {
+      "name": "gian.proxy",
+      "range": ">=2.2 <3.0"
+    },
+    "runtime": {
+      "kind": "external",
+      "id": "codex",
+      "displayName": "Codex CLI",
+      "verifiedVersions": [
+        "0.169.1"
+      ]
+    },
+    "process": {
+      "scope": "shared"
+    }
   }
 ]

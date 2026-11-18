@@ -1,8 +1,52 @@
 {
   "schemaVersion": 1,
   "pluginId": "codex",
-  "currentVersion": "0.3.14",
+  "currentVersion": "0.3.15",
   "entries": [
+    {
+      "version": "0.3.15",
+      "firstPublishedAt": "2026-11-18T04:05:28Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-codex-v0.3.15",
+          "publishedAt": "2026-11-18T04:05:28Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.15",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.15/gian-proxy-codex-0.3.15-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "996bcaf474f7e1c104dcbc329460a5f2f90bba155accfbee1a354a464cf94bd2",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.3.15/gian-proxy-codex-0.3.15-darwin-arm64.tar.gz",
+            "sha256": "b3ad4a47707b44b1d08c01048dd1250af85b839021feebf870df46ce4c737a27",
+            "size": 244395
+          },
+          "runtimeDeclaration": {
+            "id": "codex",
+            "versions": [
+              "0.169.1"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Update the managed Codex Runtime to official 0.169.1 with pinned archive bytes. Owner-authorized direct publication: tests, Runtime probes, archive self-tests and real Provider and Desktop acceptance are NOT_RUN. Source provenance and artifact digests remain checked.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.15",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.15/packages/proxies/codex-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": [
+        "All tests, Runtime probes and archive self-tests are NOT_RUN by Owner instruction."
+      ]
+    },
     {
       "version": "0.3.14",
       "firstPublishedAt": "2026-11-16T15:20:41Z",

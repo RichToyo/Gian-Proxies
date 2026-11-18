@@ -2,7 +2,22 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.14**, Runtime **0.169.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.15**, Runtime **0.169.1**. These are distribution targets, not this machine's installed state.
+
+## 0.3.15
+
+First published: 2026-11-18T04:05:28Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.15): 2026-11-18T04:05:28Z.
+- CLI: 0.169.1 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Update the managed Codex Runtime to official 0.169.1 with pinned archive bytes. Owner-authorized direct publication: tests, Runtime probes, archive self-tests and real Provider and Desktop acceptance are NOT_RUN. Source provenance and artifact digests remain checked. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.3.15) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.3.15/packages/proxies/codex-proxy/README.md)
+
+### Historical evidence limits
+
+- All tests, Runtime probes and archive self-tests are NOT_RUN by Owner instruction.
 
 ## 0.3.14
 
