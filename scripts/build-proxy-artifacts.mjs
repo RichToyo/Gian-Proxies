@@ -244,7 +244,8 @@ export async function main(argv = process.argv.slice(2), options = {}) {
     : proxyDefinitions.filter(definition => definition.shipping);
   if (options.ownerAuthorizedNoTests && (selectedDefinitions.length !== 1
     || !((selectedDefinitions[0].id === 'claude' && ['0.3.4', '0.3.5'].includes(selectedDefinitions[0].pluginVersion))
-      || (selectedDefinitions[0].id === 'antigravity' && selectedDefinitions[0].pluginVersion === '0.0.9')))) {
+      || (selectedDefinitions[0].id === 'antigravity' && selectedDefinitions[0].pluginVersion === '0.0.9')
+      || (selectedDefinitions[0].id === 'codex' && selectedDefinitions[0].pluginVersion === '0.3.15')))) {
     throw new Error('The Owner-selected no-test packaging exception is limited to explicitly approved versions');
   }
   const outputDir = resolve(root, args.get('output') ?? 'artifacts/proxies');
