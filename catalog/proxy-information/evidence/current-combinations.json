@@ -1,6 +1,6 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.67.0",
-  "sequence": 67,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.68.0",
+  "sequence": 68,
   "sourceId": "gian-official",
   "plugins": [
     {
@@ -44,43 +44,43 @@
         "companions": [],
         "generationId": "codex-0.3.15-runtime-0.169.1",
         "runtime": {
+          "asset": {
+            "sha256": "1f39d0dc51f55103d8b043332e0b3dba53b35295392899a911a7714a4c342dcd",
+            "size": 172465794,
+            "url": "https://github.com/openai/codex/releases/download/rust-v0.169.1/codex-package-aarch64-apple-darwin.tar.gz"
+          },
+          "entryRelativePath": "bin/codex",
+          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "codex",
-          "version": "0.169.1",
-          "asset": {
-            "url": "https://github.com/openai/codex/releases/download/rust-v0.169.1/codex-package-aarch64-apple-darwin.tar.gz",
-            "sha256": "1f39d0dc51f55103d8b043332e0b3dba53b35295392899a911a7714a4c342dcd",
-            "size": 172465794
-          },
-          "format": "tar.gz",
-          "entryRelativePath": "bin/codex"
+          "version": "0.169.1"
         }
       }
     },
     {
       "id": "kimi",
       "displayName": "Kimi Code",
-      "version": "0.4.16",
+      "version": "0.4.17",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "shared",
       "combination": {
         "certificate": {
-          "id": "proxies-f029e6e8bed709d9d807054abdda36f567e6a3da-43930154336-1",
-          "sha256": "6364ba485fd9f94e57e3ff521f537ab902c0acd64c38c914c7b9eea90b9356e1"
+          "id": "proxies-612b57cddcb9188c2596ce79327a6e4a876b59f3-44367108634-1",
+          "sha256": "f9dffa35b9e7fd8f1a5f828431ed791f06020d7ab8d039a03847905c6517134b"
         },
         "companions": [],
-        "generationId": "kimi-0.4.16-runtime-2.6.2",
+        "generationId": "kimi-0.4.17-runtime-2.6.3",
         "runtime": {
-          "asset": {
-            "sha256": "0e198ee3ac1d40964a8dc1da08cdf55f80e5a26d28dfa7a0967cd5a645ec32be",
-            "size": 59888844,
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.16/kimi-2.6.2-darwin-arm64.tar.gz"
-          },
-          "entryRelativePath": "kimi",
-          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "kimi",
-          "version": "2.6.2"
+          "version": "2.6.3",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.17/kimi-2.6.3-darwin-arm64.tar.gz",
+            "sha256": "2f65c94f666b02641a20d305d84a3f5513938bf21d4884c82f9e479ffebccc00",
+            "size": 59942626
+          },
+          "format": "tar.gz",
+          "entryRelativePath": "kimi"
         }
       }
     },

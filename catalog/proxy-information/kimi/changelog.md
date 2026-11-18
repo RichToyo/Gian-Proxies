@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.16**, Runtime **2.6.2**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.17**, Runtime **2.6.3**. These are distribution targets, not this machine's installed state.
+
+## 0.4.17
+
+First published: 2026-11-18T18:27:12Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.17): 2026-11-18T18:27:12Z.
+- CLI: 2.6.3 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Upgrade the managed Kimi Code Runtime to official 2.6.3 while retaining its native conversation, interaction and history protocol. Keep owned background work on its admitted Gian turn, reconnect without resending prompts, and never answer permissions automatically. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.4.17) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.4.17/packages/proxies/kimi-proxy/README.md)
 
 ## 0.4.16
 
