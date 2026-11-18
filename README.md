@@ -89,6 +89,12 @@ history entry. Historical snapshots must not be filled with invented hashes.
 
 ## Updates
 
+Codex Proxy 0.3.15 and Codex CLI 0.169.1 have a one-version Owner-authorized
+no-test publication exception. Use `owner_no_tests=true` for its build and
+Catalog publication. Tests, Runtime probes, and real Provider acceptance are
+NOT_RUN. The official Runtime coordinate and downloaded bytes remain pinned
+and hash-checked; no compatibility verification is claimed.
+
 Antigravity Proxy 0.0.9 has a one-version Owner-authorized no-test publication
 exception for the ACP 1.5.0 Thinking configuration fix. Use `owner_no_tests=true`
 for its build and Catalog publication. All tests and Runtime probes are NOT_RUN.

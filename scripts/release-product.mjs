@@ -38,6 +38,7 @@ function ownerDirectScope() {
   const { id, pluginVersion } = shipping[0];
   if (id === 'claude' && ['0.3.4', '0.3.5'].includes(pluginVersion)) return `Claude Proxy ${pluginVersion} without tests`;
   if (id === 'antigravity' && pluginVersion === '0.0.9') return 'Antigravity Proxy 0.0.9 without tests';
+  if (id === 'codex' && pluginVersion === '0.3.15') return 'Codex Proxy 0.3.15 without tests';
   return null;
 }
 
@@ -209,19 +210,24 @@ async function ownerSelectedBuild() {
   const metadata = proxyReleaseMetadata(definition.id);
   let runtime = previous?.stable.combination?.runtime;
   if (!runtime || !metadata.runtime.verifiedVersions.includes(runtime.version)) {
-    if (definition.id !== 'claude') throw new Error('Direct publication must reuse the signed base Runtime');
-    // The Owner also requested the current official CLI. Download and hash
-    // its pinned bytes without executing a Runtime probe or model turn.
+    if (!['claude', 'codex'].includes(definition.id)) throw new Error('Direct publication must reuse the signed base Runtime');
+    // Download only the approved official CLI bytes without executing them.
     const { upstreamRuntimeCandidates } = await import('./build-managed-runtime-candidates.mjs');
-    const candidate = upstreamRuntimeCandidates.claude;
-    if (!metadata.runtime.verifiedVersions.includes(candidate.version) || candidate.format !== 'raw'
-      || !candidate.url.startsWith('https://downloads.claude.ai/claude-code-releases/')) {
-      throw new Error('Unapproved direct-publication Claude Runtime coordinate');
+    const candidate = upstreamRuntimeCandidates[definition.id];
+    const approvedCodex = definition.id === 'codex' && candidate.version === '0.169.1'
+      && candidate.format === 'tar.gz' && candidate.entryRelativePath === 'bin/codex'
+      && candidate.url === 'https://github.com/openai/codex/releases/download/rust-v0.169.1/codex-package-aarch64-apple-darwin.tar.gz'
+      && candidate.sha256 === '1f39d0dc51f55103d8b043332e0b3dba53b35295392899a911a7714a4c342dcd'
+      && candidate.size === 172465794;
+    const approvedClaude = definition.id === 'claude' && candidate.format === 'raw'
+      && candidate.url.startsWith('https://downloads.claude.ai/claude-code-releases/');
+    if (!metadata.runtime.verifiedVersions.includes(candidate.version) || !(approvedCodex || approvedClaude)) {
+      throw new Error('Unapproved direct-publication Runtime coordinate');
     }
     const response = await fetch(candidate.url, { signal: AbortSignal.timeout(120000) });
-    if (!response.ok) throw new Error(`Claude Runtime download failed (${response.status})`);
+    if (!response.ok) throw new Error(`Runtime download failed (${response.status})`);
     const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length !== candidate.size || hash(bytes) !== candidate.sha256) throw new Error('Official Claude Runtime digest mismatch');
+    if (bytes.length !== candidate.size || hash(bytes) !== candidate.sha256) throw new Error('Official Runtime digest mismatch');
     runtime = { kind: 'native-binary', runtimeId: metadata.runtime.id, version: candidate.version,
       asset: { url: candidate.url, sha256: candidate.sha256, size: candidate.size },
       format: candidate.format, entryRelativePath: candidate.entryRelativePath };

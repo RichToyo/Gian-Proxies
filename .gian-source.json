@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "847ac245754db2819ec1c2756df7aed509888d08",
+  "sourceCommit": "cd998f2b53309a1f5824afabf4fa2d57fd6f79d3",
   "workingTree": false,
   "externalPackages": [
     {
@@ -551,7 +551,7 @@
     {
       "source": "delivery/proxies/README.md",
       "path": "README.md",
-      "sha256": "a68170d8035f8289253780fe63ad263bc63cbbf7d8f95ecf9a23205fd61324aa"
+      "sha256": "cbc4072e8def1f626d58ff370f9583a455ede3f0dddb530d5e5d66d60078139d"
     },
     {
       "source": "delivery/proxies/protocol-package.json",
@@ -561,7 +561,7 @@
     {
       "source": "delivery/proxies/release-selection.json",
       "path": "release-selection.json",
-      "sha256": "40bcea38240371f6a51b8277b9906ddae25978d9f42f8284d9bca277468363c0"
+      "sha256": "3ad7832d5fd3419dbd36d4174dfa3703e8e812fecec4ecc95a81519e001cd770"
     },
     {
       "source": "delivery/proxies/scripts/catalog-docs-policy.mjs",
@@ -591,7 +591,7 @@
     {
       "source": "delivery/proxies/scripts/release-product.mjs",
       "path": "scripts/release-product.mjs",
-      "sha256": "5880e9df2893599adc1889f476ff59261e40ef0ff7c09c75268fe167999c1adb"
+      "sha256": "5c73d250424cd72ad80453529ad4c803c952c67a52eb0a2e0c8838774cf4d902"
     },
     {
       "source": "delivery/proxies/scripts/runtime-qualification.test.mjs",
@@ -1196,7 +1196,7 @@
     {
       "source": "packages/proxies/codex-proxy/README.md",
       "path": "packages/proxies/codex-proxy/README.md",
-      "sha256": "3e4f91e1d12490d7ceb9ff83c83f21e2e8316a75e948e98fd8ee5d3899201c20"
+      "sha256": "6749207e85782153422eb0d8300d7fb15ee52a344339afb02c97fc6b365a2b25"
     },
     {
       "source": "packages/proxies/codex-proxy/assets/logo-dark.png",
@@ -1211,12 +1211,12 @@
     {
       "source": "packages/proxies/codex-proxy/manifest.json",
       "path": "packages/proxies/codex-proxy/manifest.json",
-      "sha256": "014dd70d2aa92101a4d8926b745ad9d3ea14c2181b1c7d2ac371a6f9177c732c"
+      "sha256": "996bcaf474f7e1c104dcbc329460a5f2f90bba155accfbee1a354a464cf94bd2"
     },
     {
       "source": "packages/proxies/codex-proxy/package.json",
       "path": "packages/proxies/codex-proxy/package.json",
-      "sha256": "c3895e52db04689fed3d445115af0f073b6d046b5a5228012513d540a2939cb5"
+      "sha256": "76445655f9113c7a58e45cc705fa95e285e614f2638f97e6ccf67e6e63f28844"
     },
     {
       "source": "packages/proxies/codex-proxy/scripts/fake-catalog-ui-proxy.mjs",
@@ -1286,7 +1286,7 @@
     {
       "source": "packages/proxies/codex-proxy/src/plugin-version.ts",
       "path": "packages/proxies/codex-proxy/src/plugin-version.ts",
-      "sha256": "fedc21d7e66b2ec89c236ab1b201b740aeeebad4cb7207ba29fd8b242efe523f"
+      "sha256": "9789b6e283b2068163e7edfa5d21eac3421abef12268083cbc36006d2b955ecc"
     },
     {
       "source": "packages/proxies/codex-proxy/src/protocol/native-history.ts",
@@ -3176,7 +3176,7 @@
     {
       "source": "scripts/build-managed-runtime-candidates.mjs",
       "path": "scripts/build-managed-runtime-candidates.mjs",
-      "sha256": "eabc000d1297fe96d371ddf105311a3ba151ee928bd36b38fdfab2766af82f5a"
+      "sha256": "a7b85e21788b9fe74e535c0676680ace5230754798b2567cf16fe053e9ce0e87"
     },
     {
       "source": "scripts/build-managed-runtime-candidates.test.mjs",
@@ -3393,7 +3393,7 @@
     {
       "path": "catalog/official-source/plugins/codex/entry.json",
       "mode": 420,
-      "sha256": "d87c08036974809b6bd52a840cd7618b0a212594ad2441ede03923e086571be2"
+      "sha256": "ec8c4de50721f658705ae378ea09056b171634933f2e0df12b9bfed8543c7982"
     },
     {
       "path": "catalog/official-source/plugins/codex/overview.md",
@@ -3408,7 +3408,7 @@
     {
       "path": "catalog/official-source/plugins/codex/sidecar.json",
       "mode": 420,
-      "sha256": "014dd70d2aa92101a4d8926b745ad9d3ea14c2181b1c7d2ac371a6f9177c732c"
+      "sha256": "996bcaf474f7e1c104dcbc329460a5f2f90bba155accfbee1a354a464cf94bd2"
     },
     {
       "path": "catalog/official-source/plugins/codex/troubleshooting.md",
@@ -4383,17 +4383,17 @@
     {
       "path": "packages/proxies/codex-proxy/manifest.json",
       "mode": 420,
-      "sha256": "014dd70d2aa92101a4d8926b745ad9d3ea14c2181b1c7d2ac371a6f9177c732c"
+      "sha256": "996bcaf474f7e1c104dcbc329460a5f2f90bba155accfbee1a354a464cf94bd2"
     },
     {
       "path": "packages/proxies/codex-proxy/package.json",
       "mode": 420,
-      "sha256": "2acbe2186753a137429491f389770335ea312630f9d1c66b0a3ceb4f47cb6551"
+      "sha256": "33deb655fcc924c97506473bd99a025badf60b6e451e5915e87cdb50e4360db8"
     },
     {
       "path": "packages/proxies/codex-proxy/README.md",
       "mode": 420,
-      "sha256": "3e4f91e1d12490d7ceb9ff83c83f21e2e8316a75e948e98fd8ee5d3899201c20"
+      "sha256": "6749207e85782153422eb0d8300d7fb15ee52a344339afb02c97fc6b365a2b25"
     },
     {
       "path": "packages/proxies/codex-proxy/scripts/fake-catalog-ui-proxy.mjs",
@@ -4463,7 +4463,7 @@
     {
       "path": "packages/proxies/codex-proxy/src/plugin-version.ts",
       "mode": 420,
-      "sha256": "fedc21d7e66b2ec89c236ab1b201b740aeeebad4cb7207ba29fd8b242efe523f"
+      "sha256": "9789b6e283b2068163e7edfa5d21eac3421abef12268083cbc36006d2b955ecc"
     },
     {
       "path": "packages/proxies/codex-proxy/src/protocol/native-history.ts",
@@ -6338,12 +6338,12 @@
     {
       "path": "README.md",
       "mode": 420,
-      "sha256": "a68170d8035f8289253780fe63ad263bc63cbbf7d8f95ecf9a23205fd61324aa"
+      "sha256": "cbc4072e8def1f626d58ff370f9583a455ede3f0dddb530d5e5d66d60078139d"
     },
     {
       "path": "release-selection.json",
       "mode": 420,
-      "sha256": "40bcea38240371f6a51b8277b9906ddae25978d9f42f8284d9bca277468363c0"
+      "sha256": "3ad7832d5fd3419dbd36d4174dfa3703e8e812fecec4ecc95a81519e001cd770"
     },
     {
       "path": "runtimes/deepseek-harness/package-lock.json",
@@ -6368,7 +6368,7 @@
     {
       "path": "scripts/build-managed-runtime-candidates.mjs",
       "mode": 420,
-      "sha256": "4ba489662ed0856d6bf346ffce499b02151e587f43da8878bd90458b4e26fd1e"
+      "sha256": "aaed431ee4ff51ae73fb6affb316a95c39277dd4df6941de79333374ac6dad3a"
     },
     {
       "path": "scripts/build-managed-runtime-candidates.test.mjs",
@@ -6443,7 +6443,7 @@
     {
       "path": "scripts/release-product.mjs",
       "mode": 420,
-      "sha256": "5880e9df2893599adc1889f476ff59261e40ef0ff7c09c75268fe167999c1adb"
+      "sha256": "5c73d250424cd72ad80453529ad4c803c952c67a52eb0a2e0c8838774cf4d902"
     },
     {
       "path": "scripts/run-dsh-bridge-canary.mjs",
