@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.16**, Runtime **1.0.77**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.3.17**, Runtime **1.0.89**. These are distribution targets, not this machine's installed state.
+
+## 0.3.17
+
+First published: 2026-11-18T19:17:12Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.17): 2026-11-18T19:17:12Z.
+- CLI: 1.0.89 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Add first-party Grok account and billing inspection through prefixed native ACP extension methods, without creating a session or sending a prompt. Use Proxy Protocol SDK 1.0.4 and upgrade the managed Grok CLI to 1.0.89 with independently matched official distribution bytes. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.3.17) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-grok-v0.3.17/packages/proxies/grok-proxy/README.md)
 
 ## 0.3.16
 
