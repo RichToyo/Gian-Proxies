@@ -93,7 +93,9 @@ Codex Proxy 0.3.15 and Codex CLI 0.169.1 have a one-version Owner-authorized
 no-test publication exception. Use `owner_no_tests=true` for its build and
 Catalog publication. Tests, Runtime probes, and real Provider acceptance are
 NOT_RUN. The official Runtime coordinate and downloaded bytes remain pinned
-and hash-checked; no compatibility verification is claimed.
+and hash-checked; no compatibility verification is claimed. The Owner also
+authorized ignoring only GHSA-fc5q-39xc-vjpf in the unrelated DSH dependency
+for this build; other high-severity advisories still fail.
 
 Antigravity Proxy 0.0.9 has a one-version Owner-authorized no-test publication
 exception for the ACP 1.5.0 Thinking configuration fix. Use `owner_no_tests=true`

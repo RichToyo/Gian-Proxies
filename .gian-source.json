@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichLogic/Gian-Dev",
-  "sourceCommit": "cd998f2b53309a1f5824afabf4fa2d57fd6f79d3",
+  "sourceCommit": "31a8fa84bd6be0960c0df2b5490cc30c4f70ffab",
   "workingTree": false,
   "externalPackages": [
     {
@@ -531,7 +531,7 @@
     {
       "source": "delivery/proxies/.github/workflows/qualify.yml",
       "path": ".github/workflows/qualify.yml",
-      "sha256": "a48f8fddbdb88af3eb8b104f5e25c7a9ec71d16653bcaa55a78e68a499dad6fc"
+      "sha256": "58f54d07bd8fc33e7e60256fe2d24a23651752441d1f3e4bf5c48a726dbcd9ec"
     },
     {
       "source": "delivery/proxies/.github/workflows/release.yml",
@@ -551,7 +551,7 @@
     {
       "source": "delivery/proxies/README.md",
       "path": "README.md",
-      "sha256": "cbc4072e8def1f626d58ff370f9583a455ede3f0dddb530d5e5d66d60078139d"
+      "sha256": "c1804fd42cf744cc7f87ac6ece65dfa7c0a7ced2559062f1b76c98fb5d8296f4"
     },
     {
       "source": "delivery/proxies/protocol-package.json",
@@ -3283,7 +3283,7 @@
     {
       "path": ".github/workflows/qualify.yml",
       "mode": 420,
-      "sha256": "a48f8fddbdb88af3eb8b104f5e25c7a9ec71d16653bcaa55a78e68a499dad6fc"
+      "sha256": "58f54d07bd8fc33e7e60256fe2d24a23651752441d1f3e4bf5c48a726dbcd9ec"
     },
     {
       "path": ".github/workflows/release.yml",
@@ -6338,7 +6338,7 @@
     {
       "path": "README.md",
       "mode": 420,
-      "sha256": "cbc4072e8def1f626d58ff370f9583a455ede3f0dddb530d5e5d66d60078139d"
+      "sha256": "c1804fd42cf744cc7f87ac6ece65dfa7c0a7ced2559062f1b76c98fb5d8296f4"
     },
     {
       "path": "release-selection.json",
