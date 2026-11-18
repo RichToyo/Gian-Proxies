@@ -1,5 +1,9 @@
 # Gian Proxies Changelog
 
+## Grok Proxy 0.3.17 candidate - 2026-11-19
+
+- Target official Grok CLI 1.0.89 with exact hosted artifact qualification required.
+
 ## Kimi Proxy 0.4.17 candidate - 2026-11-19
 
 - Target the official Kimi Code 2.6.3 Runtime while retaining reviewed legacy and conversation protocol selection.

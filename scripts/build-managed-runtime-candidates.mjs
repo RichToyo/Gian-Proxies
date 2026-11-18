@@ -58,12 +58,12 @@ export const upstreamRuntimeCandidates = Object.freeze({
     publish: true,
   }),
   grok: Object.freeze({
-    version: '1.0.77',
+    version: '1.0.89',
     format: 'raw',
     entryRelativePath: 'bin/grok',
-    url: 'https://x.ai/cli/grok-1.0.77-macos-aarch64',
-    sha256: '197c66a63e5ac46e07450b0ca21d141ce665050a412180f185dadfae1c7a5b2a',
-    size: 184995488,
+    url: 'https://x.ai/cli/grok-1.0.89-macos-aarch64',
+    sha256: 'f149e6ad81339491f8d6e0c5fd712f2813042c0dfbb595c28d5767e4567c17a1',
+    size: 190386368,
     publish: true,
   }),
 });

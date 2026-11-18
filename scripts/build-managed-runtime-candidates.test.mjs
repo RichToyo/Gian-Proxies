@@ -29,9 +29,9 @@ test('managed Runtime candidates pin exact official Claude, Codex, Kimi, and Gro
   assert.equal(upstreamRuntimeCandidates.kimi.publish, true);
   assert.equal(upstreamRuntimeCandidates.grok.format, 'raw');
   assert.equal(upstreamRuntimeCandidates.grok.entryRelativePath, 'bin/grok');
-  assert.equal(upstreamRuntimeCandidates.grok.version, '1.0.77');
+  assert.equal(upstreamRuntimeCandidates.grok.version, '1.0.89');
   assert.equal(upstreamRuntimeCandidates.grok.publish, true);
-  assert.match(upstreamRuntimeCandidates.grok.url, /^https:\/\/x\.ai\/cli\/grok-1\.0\.77-macos-aarch64$/);
+  assert.match(upstreamRuntimeCandidates.grok.url, /^https:\/\/x\.ai\/cli\/grok-1\.0\.89-macos-aarch64$/);
   assert.match(upstreamRuntimeCandidates.kimi.url, /^https:\/\/github\.com\/MoonshotAI\/kimi-code\/releases\/download\//);
 });
 
