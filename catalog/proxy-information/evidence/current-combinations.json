@@ -1,32 +1,32 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.68.0",
-  "sequence": 68,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.69.0",
+  "sequence": 69,
   "sourceId": "gian-official",
   "plugins": [
     {
       "id": "claude",
       "displayName": "Claude Code",
-      "version": "0.3.25",
+      "version": "0.3.26",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "session",
       "combination": {
         "certificate": {
-          "id": "proxies-7267c1694e0db48be05740d40b622b0b6e6d211e-43624630427-1",
-          "sha256": "c60e3ac0b84a83609cbd04969f1a35ef8fe18f4833c6d62b2dd0a53ee8d5c676"
+          "id": "proxies-e5cac0deb9686bf85bfeac8e2fe0c9852a06908d-44371197950-1",
+          "sha256": "62e2c3edf8dffce1b563ef851c019464786c865dd35cdfa57e0b4cd6835f0a55"
         },
         "companions": [],
-        "generationId": "claude-0.3.25-runtime-2.1.325",
+        "generationId": "claude-0.3.26-runtime-2.1.327",
         "runtime": {
-          "asset": {
-            "sha256": "84590fefe6338be9087f5814b61f9a54c5f21524163a4c127cb5a808e31009f2",
-            "size": 347406976,
-            "url": "https://downloads.claude.ai/claude-code-releases/2.1.325/darwin-arm64/claude"
-          },
-          "entryRelativePath": "bin/claude",
-          "format": "raw",
           "kind": "native-binary",
           "runtimeId": "claude",
-          "version": "2.1.325"
+          "version": "2.1.327",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.26/claude-2.1.327-darwin-arm64",
+            "sha256": "76d48205c926c8a6978cfc2171b631bcd01e20bbadd085638bb2ec57bea91c5b",
+            "size": 354515104
+          },
+          "format": "raw",
+          "entryRelativePath": "bin/claude"
         }
       }
     },
@@ -71,16 +71,16 @@
         "companions": [],
         "generationId": "kimi-0.4.17-runtime-2.6.3",
         "runtime": {
+          "asset": {
+            "sha256": "2f65c94f666b02641a20d305d84a3f5513938bf21d4884c82f9e479ffebccc00",
+            "size": 59942626,
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.17/kimi-2.6.3-darwin-arm64.tar.gz"
+          },
+          "entryRelativePath": "kimi",
+          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "kimi",
-          "version": "2.6.3",
-          "asset": {
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.17/kimi-2.6.3-darwin-arm64.tar.gz",
-            "sha256": "2f65c94f666b02641a20d305d84a3f5513938bf21d4884c82f9e479ffebccc00",
-            "size": 59942626
-          },
-          "format": "tar.gz",
-          "entryRelativePath": "kimi"
+          "version": "2.6.3"
         }
       }
     },
