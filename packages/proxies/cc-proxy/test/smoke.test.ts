@@ -234,7 +234,7 @@ test('cli smoke reports protocol errors for malformed json', { skip: smokeSkip }
     const error = await proxy.nextResponse();
     assert.equal(error.id, null);
     assert.equal(error.error?.code, -32700);
-    assert.equal(error.error?.data?.domainCode, 'PARSE_ERROR');
+    assert.equal(error.error?.data, undefined);
   } finally {
     await proxy.close();
     await rm(dataDir, { recursive: true, force: true });

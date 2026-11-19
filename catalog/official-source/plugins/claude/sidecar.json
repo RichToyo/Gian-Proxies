@@ -2,7 +2,7 @@
   "schemaVersion": 4,
   "id": "claude",
   "displayName": "Claude Code",
-  "pluginVersion": "0.3.26",
+  "pluginVersion": "0.4.0",
   "entry": "proxy.mjs",
   "protocol": {
     "name": "gian.proxy",

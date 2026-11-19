@@ -83,7 +83,7 @@ test('Claude CLI negotiates gian.proxy/2.1 independently from its runtime versio
   assert.equal(result.capabilities['event.usage'], 1);
   assert.equal(result.capabilities['event.reasoning'], 1);
   assert.equal(result.capabilities['slash.list'], undefined);
-  assert.equal(result.capabilities['turn.steer'], undefined);
+  assert.equal(result.capabilities['turn.steer'], 1);
   assert.equal(result.capabilities['session.native.delete'], undefined);
   assert.equal(result.capabilities['integration.mcp.streamableHttp'], 1);
 
@@ -103,7 +103,8 @@ test('Claude gian.proxy/2 CLI reports a JSON-RPC parse error for malformed NDJSO
   const error = proxyErrorResponseSchema.parse(await proxy.next());
   assert.equal(error.id, null);
   assert.equal(error.error.code, -32700);
-  assert.equal((error.error.data as { domainCode?: string }).domainCode, 'PARSE_ERROR');
+  // Request-shape errors are standard JSON-RPC errors without domain data.
+  assert.equal(error.error.data, undefined);
   proxy.send({ jsonrpc: '2.0', id: 'req-shutdown', method: 'shutdown', params: {} });
   await proxy.next();
   assert.equal(await waitForExit(proxy.child), 0);

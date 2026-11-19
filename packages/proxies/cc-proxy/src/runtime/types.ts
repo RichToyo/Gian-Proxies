@@ -18,25 +18,29 @@ export interface ClaudeAgentTaskUpdate {
 /**
  * Events emitted by the runtime:
  *
- *   'channelReply'         – Claude Code called the reply tool
+ *   'channelReply'         – the active turn completed; carries any final text
+ *                            that was not already streamed
+ *   'turnFailed'           – the active turn ended with an error while the
+ *                            Claude Code process stays alive
  *   'permissionRequest'    – Claude Code needs user approval for a tool
  *                            (ExitPlanMode routes here too — host detects via toolName)
+ *   'permissionCancelled'  – Claude Code withdrew a pending approval request
  *   'autoClassifierDenied' – auto-mode classifier blocked an action
  *   'autoCircuitBreaker'   – process aborted by auto-mode circuit breaker
- *   'processExited'        – A Claude Code process exited
+ *   'processExited'        – the Claude Code process died during a turn
  *   'debug'                – Debug / log message
  */
 export interface ClaudeRuntimeEvents {
   channelReply: [sessionId: string, text: string];
-  /** Intermediate assistant text block from a stream-json `assistant` event.
-   *  Emitted for each `text` block as it arrives so the UI can render the
-   *  agent's commentary interleaved with tool calls — without this, only the
-   *  final `result` text would surface and you'd see "wall of actions then
-   *  one summary" UX.  `itemId` is stable across deltas of the same logical
-   *  block so the renderer can update in place. */
+  turnFailed: [sessionId: string, errorDetail: string, streamedLength: number];
+  permissionCancelled: [sessionId: string, requestId: string];
+  /** Assistant text as it streams. Each emit APPENDS `text` to the block
+   *  `itemId`, so the UI renders the agent's commentary interleaved with tool
+   *  calls instead of one summary at the end. `itemId` is stable across all
+   *  deltas of one logical block so the renderer can update in place. */
   assistantText: [sessionId: string, text: string, itemId: string];
-  /** Intermediate thinking/reasoning block from a stream-json assistant
-   *  event. Emitted under the event.reasoning capability. */
+  /** Thinking/reasoning as it streams, with the same append semantics.
+   *  Emitted under the event.reasoning capability. */
   assistantReasoning: [sessionId: string, text: string, itemId: string];
   permissionRequest: [sessionId: string, requestId: string, toolName: string, description: string, inputPreview: string];
   autoClassifierDenied: [sessionId: string, action: string, reason: string, consecutive: number, total: number];
@@ -53,10 +57,10 @@ export interface ClaudeRuntimeEvents {
     output: unknown,
     isError: boolean,
   ];
-  /** Claude -p's native task_started / task_notification lifecycle. */
+  /** Claude's native task_started / task_notification lifecycle. */
   agentTask: [sessionId: string, update: ClaudeAgentTaskUpdate];
   /** Current context samples from assistant events plus the result event's
-   *  per-invocation conversation delta and authoritative context-window size. */
+   *  per-turn conversation delta and authoritative context-window size. */
   tokenUsage: [sessionId: string, usage: TokenUsageUpdate];
   /** A stream-json event that is not one of the recognized Claude shapes.
    *  The adapter degrades these to a generic activity instead of silently
@@ -67,7 +71,7 @@ export interface ClaudeRuntimeEvents {
     code: number | null,
     signal: string | null,
     errorDetail?: string,
-    /** Assistant text already emitted for this process, in UTF-16 code units. */
+    /** Assistant text already emitted for this turn, in UTF-16 code units. */
     streamedLength?: number,
   ];
   /** The empty-model Default entry was labeled with the model from init. */
@@ -80,7 +84,7 @@ export interface ClaudeRuntime extends EventEmitter<ClaudeRuntimeEvents> {
   /** Initialize the runtime. Returns 0 (no server port). */
   start(): Promise<number>;
 
-  /** Spawn a Claude Code process for a new session. */
+  /** Register a session. The Claude Code process starts with its first turn. */
   spawnSession(options: {
     sessionId: string;
     claudeSessionId: string;
@@ -90,23 +94,28 @@ export interface ClaudeRuntime extends EventEmitter<ClaudeRuntimeEvents> {
     mcpServers?: import('../core/types.js').ClaudeMcpServer[];
   }): Promise<void>;
 
-  /** Update the provider-facing model used by subsequent per-turn CLI
-   *  processes without discarding the registered native session. */
+  /** Update the provider-facing model used from the next turn on, without
+   *  discarding the registered native session. */
   setSessionModel(sessionId: string, model: string | null): void;
 
-  /** Send a user message to Claude Code. */
+  /** Start a turn with a user message. */
   sendMessage(sessionId: string, content: string, options?: {
-    /** Per-turn `--permission-mode` value. Pass-through to the spawned
-     *  `claude -p` subprocess; null/undefined keeps Claude's default. */
+    /** Native permission mode for this turn; null/undefined keeps Claude's
+     *  default. */
     permissionMode?: PermissionMode | null;
-    /** Per-turn `--effort` value, validated against Claude CLI discovery. */
+    /** Effort for this turn, validated against Claude CLI discovery. */
     effort?: EffortLevel | null;
-    /** Session display name (SESSION-NAME-001). Applied as `--name` only on
-     *  the first (`--session-id`) spawn. */
+    /** Session display name (SESSION-NAME-001). Applied as `--name` only when
+     *  the native session is created. */
     displayName?: string | null;
     /** Session-owned attachment directories that Claude may read this turn. */
     additionalDirectories?: string[];
   }): Promise<void>;
+
+  /** Add a user message to the active turn. Claude folds it in at its next
+   *  step, or runs it right after if the turn was already finishing. Optional
+   *  so test doubles can omit it; then steering is not supported. */
+  steer?(sessionId: string, content: string): Promise<void>;
 
   /** Rotate the underlying Claude session id (used by Gian's `/clear`
    *  intercept to start a fresh conversation without losing the Gian
@@ -115,32 +124,35 @@ export interface ClaudeRuntime extends EventEmitter<ClaudeRuntimeEvents> {
 
   /** Respond to a permission request (allow / deny).
    *
-   *  `extra.updatedInput` is forwarded into the Claude Code SDK
-   *  approval_prompt response so the agent re-invokes the tool with the
-   *  modified input.
+   *  `extra.updatedInput` replaces the tool input on an allow, so the agent
+   *  runs the tool with the modified input.
    *
-   *  `extra.message` is forwarded as the SDK-shaped `message` on a deny
-   *  payload. Used by the AskUserQuestion bridge: claude CLI 1.0.90 doesn't
-   *  honor the `updatedInput.answers` short-circuit anymore, so the bridge
-   *  routes structured answers through deny+message instead. The model
-   *  reads the message as the tool's denial reason and treats the embedded
-   *  answers as the user's response. */
+   *  `extra.answers` answers an AskUserQuestion on an allow: they are merged
+   *  into the tool input as its `answers` field (question text → answer;
+   *  multi-select answers are comma-separated), which is how Claude Code
+   *  receives answers from an SDK host.
+   *
+   *  `extra.message` is the reason the model sees on a deny. */
   respondPermission(
     sessionId: string,
     requestId: string,
     behavior: 'allow' | 'deny',
-    extra?: { updatedInput?: Record<string, unknown>; message?: string },
+    extra?: {
+      updatedInput?: Record<string, unknown>;
+      answers?: Record<string, string | string[]>;
+      message?: string;
+    },
   ): Promise<void>;
 
-  /** Kill the Claude Code process and drop the registered session. */
+  /** Stop the Claude Code process and drop the registered session. */
   killSession(sessionId: string): void;
 
-  /** Stop the in-flight CLI without dropping the registered session.
-   *  The next sendMessage resumes the same Claude session id. Optional so
-   *  test doubles can keep using killSession as their only stop. */
+  /** Stop the active turn without dropping the registered session. The next
+   *  sendMessage continues the same Claude session id. Optional so test
+   *  doubles can keep using killSession as their only stop. */
   interruptActiveProcess?(sessionId: string): void;
 
-  /** Check whether a session's Claude Code process is alive. */
+  /** Check whether a session is registered with the runtime. */
   isSessionAlive(sessionId: string): boolean;
 
   /** Actual model id last reported by claude CLI's `system init` event for

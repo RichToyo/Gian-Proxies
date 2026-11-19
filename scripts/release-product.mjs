@@ -107,6 +107,8 @@ function validateBytes(certificate, directory) {
 async function build() {
   command('pnpm', ['--filter', '@gian/shared', 'build']);
   command('pnpm', ['--filter', '@gian/proxy-catalog-contract', 'build']);
+  // Kit-based Proxies bundle the kit into proxy.mjs, so it builds first.
+  command('pnpm', ['--filter', '@gian/proxy-kit', 'build']);
   if (shipping.some(definition => definition.id === 'dsh')) command('pnpm', ['--filter', '@gian/dsh-bridge', 'build']);
   for (const definition of shipping) command('pnpm', ['--filter', definition.packageName, 'build']);
   command('pnpm', ['exec', 'tsc', '-p', 'support/runtime-extractor/tsconfig.json']);
@@ -128,6 +130,7 @@ async function qualify() {
     command(process.execPath, ['--test', 'scripts/build-managed-runtime-candidates.test.mjs', 'scripts/build-antigravity-runtime.test.mjs', 'scripts/proxy-release-metadata.test.mjs',
       'scripts/catalog-docs-policy.test.mjs', 'scripts/runtime-qualification.test.mjs']);
     for (const definition of shipping) command('pnpm', ['--filter', definition.packageName, 'test']);
+    command('pnpm', ['--filter', '@gian/proxy-kit', 'test']);
     command('pnpm', ['--filter', '@gian/dsh-bridge', 'test']);
     command('pnpm', ['--filter', '@gian/proxy-catalog-contract', 'test']);
   });

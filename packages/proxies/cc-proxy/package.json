@@ -1,6 +1,6 @@
 {
   "name": "@gian/cc-proxy",
-  "version": "0.3.26",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "main": "./dist/src/cli/spawn.js",
@@ -13,7 +13,7 @@
     }
   },
   "scripts": {
-    "build": "pnpm run clean && tsc -p tsconfig.json",
+    "build": "pnpm --filter @gian/proxy-kit build && pnpm run clean && tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "node dist/src/cli/spawn.js",
@@ -26,9 +26,8 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@gian/proxy-kit": "workspace:*",
     "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz",
-    "@gian/shared": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.32.0",
-    "zod": "^4.3.6"
+    "@gian/shared": "workspace:*"
   }
 }

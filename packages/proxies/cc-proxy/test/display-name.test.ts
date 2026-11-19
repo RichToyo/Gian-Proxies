@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
-import { ClaudeMcpRuntime, sanitizeDisplayName } from '../src/runtime/claude-mcp-runtime.js';
+import { sanitizeDisplayName } from '../src/runtime/claude-discovery.js';
+import { ClaudeStreamRuntime } from '../src/runtime/claude-stream-runtime.js';
 
 // SESSION-NAME-001: the Claude CLI `--name` value is sanitized before it hits
 // the argv so a pasted multi-line name can't smuggle extra args / blow up the
@@ -33,23 +34,20 @@ test('sanitizeDisplayName preserves unicode', () => {
   assert.equal(sanitizeDisplayName('Séance 🚀'), 'Séance 🚀');
 });
 
-test('first fake Claude turn receives sanitized --name; resume never reasserts a stale name', async () => {
+test('the first launch receives sanitized --name; a resumed launch never reasserts a stale name', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'gian-claude-name-argv-'));
-  const fakeClaude = join(dir, 'claude');
-  const argvFile = join(dir, 'argv.json');
-  writeFileSync(fakeClaude, [
-    '#!/usr/bin/env node',
-    "require('node:fs').writeFileSync(process.env.GIAN_TEST_ARGV_FILE, JSON.stringify(process.argv.slice(2)));",
-    "console.log(JSON.stringify({ type: 'result', subtype: 'success', result: '' }));",
-  ].join('\n'));
-  chmodSync(fakeClaude, 0o755);
-
-  const previousClaudeBin = process.env.CLAUDE_BIN;
-  const previousArgvFile = process.env.GIAN_TEST_ARGV_FILE;
-  process.env.CLAUDE_BIN = fakeClaude;
-  process.env.GIAN_TEST_ARGV_FILE = argvFile;
-  const runtime = new ClaudeMcpRuntime();
+  const argvLog = join(dir, 'argv.jsonl');
+  const previous = {
+    CLAUDE_BIN: process.env.CLAUDE_BIN,
+    FAKE_CLAUDE_ARGV_LOG: process.env.FAKE_CLAUDE_ARGV_LOG,
+  };
+  process.env.CLAUDE_BIN = resolve('test/fixtures/fake-claude-runtime.mjs');
+  process.env.FAKE_CLAUDE_ARGV_LOG = argvLog;
+  // A short idle timeout stops the process between the two turns, so the
+  // second turn has to resume the native session in a new process.
+  const runtime = new ClaudeStreamRuntime({ idleTimeoutMs: 50 });
   const nativeSessionId = '00000000-0000-4000-8000-000000000031';
+  const launches = () => readFileSync(argvLog, 'utf8').trim().split('\n').map((line) => JSON.parse(line) as string[]);
 
   try {
     await runtime.spawnSession({
@@ -60,26 +58,38 @@ test('first fake Claude turn receives sanitized --name; resume never reasserts a
       isResume: false,
     });
 
-    let exited = new Promise<void>(resolve => runtime.once('processExited', () => resolve()));
+    let replied = new Promise<void>(resolve => runtime.once('channelReply', () => resolve()));
     await runtime.sendMessage('session-name-argv', 'first', {
       permissionMode: 'bypassPermissions',
       displayName: '  My\nClaude Session  ',
     });
-    await exited;
-    const firstArgs = JSON.parse(readFileSync(argvFile, 'utf8')) as string[];
+    await replied;
+    const firstArgs = launches()[0]!;
     assert.deepEqual(
       firstArgs.slice(firstArgs.indexOf('--session-id'), firstArgs.indexOf('--session-id') + 4),
       ['--session-id', nativeSessionId, '--name', 'My Claude Session'],
     );
     assert.equal(firstArgs.includes('--resume'), false);
+    assert.equal(firstArgs.includes('first'), false, 'the prompt never travels in argv');
 
-    exited = new Promise<void>(resolve => runtime.once('processExited', () => resolve()));
+    await new Promise<void>((resolve) => {
+      const onDebug = (message: string) => {
+        if (!/exited/.test(message)) return;
+        runtime.off('debug', onDebug);
+        resolve();
+      };
+      runtime.on('debug', onDebug);
+    });
+
+    replied = new Promise<void>(resolve => runtime.once('channelReply', () => resolve()));
     await runtime.sendMessage('session-name-argv', 'resume', {
       permissionMode: 'bypassPermissions',
       displayName: 'Stale Gian Name',
     });
-    await exited;
-    const resumeArgs = JSON.parse(readFileSync(argvFile, 'utf8')) as string[];
+    await replied;
+    const all = launches();
+    assert.equal(all.length, 2, 'the idle stop forced exactly one new launch');
+    const resumeArgs = all[1]!;
     assert.deepEqual(
       resumeArgs.slice(resumeArgs.indexOf('--resume'), resumeArgs.indexOf('--resume') + 2),
       ['--resume', nativeSessionId],
@@ -87,10 +97,10 @@ test('first fake Claude turn receives sanitized --name; resume never reasserts a
     assert.equal(resumeArgs.includes('--name'), false);
   } finally {
     await runtime.stop();
-    if (previousClaudeBin === undefined) delete process.env.CLAUDE_BIN;
-    else process.env.CLAUDE_BIN = previousClaudeBin;
-    if (previousArgvFile === undefined) delete process.env.GIAN_TEST_ARGV_FILE;
-    else process.env.GIAN_TEST_ARGV_FILE = previousArgvFile;
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -16,7 +16,7 @@ import {
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
-import { resolveClaudeSettingsPath } from '../runtime/claude-mcp-runtime.js';
+import { resolveClaudeSettingsPath } from '../runtime/claude-discovery.js';
 
 export interface ReplayEvent {
   method: string;
@@ -378,6 +378,35 @@ function toolActivity(
       },
     },
   };
+}
+
+/** The per-model running usage totals Claude saved for a session: the
+ *  `modelUsage` of its last `cost-state` record, or null when the transcript
+ *  has none. A resumed session continues counting from these totals. */
+export function readSavedClaudeModelUsage(
+  nativeSessionId: string,
+  cwd: string,
+  homeDir = homedir(),
+): Record<string, unknown> | null {
+  const path = sessionPath(nativeSessionId, cwd, homeDir);
+  if (!existsSync(path)) return null;
+  try {
+    const lines = readFileSync(path, 'utf8').split('\n');
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      const line = lines[index];
+      if (!line || !line.includes('"cost-state"')) continue;
+      let record: Record<string, unknown>;
+      try { record = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
+      if (record.type !== 'cost-state') continue;
+      const usage = record.modelUsage;
+      return usage && typeof usage === 'object' && !Array.isArray(usage)
+        ? usage as Record<string, unknown>
+        : null;
+    }
+  } catch {
+    // An unreadable transcript has no usable baseline.
+  }
+  return null;
 }
 
 /** Number of replayable user turns currently on disk. Live turn.start uses

@@ -99,37 +99,11 @@ export function buildPrompt(input: InputItem[]): string {
   return parts.join('\n\n');
 }
 
-/** Tools that always route through the approval MCP bridge: the permission
- *  card carries their entire UX (structured question picker / plan review),
- *  so their generic tool.use/tool.result events are suppressed. This matches
- *  the host's JSONL replay path, which never renders generic tool cards for
- *  them — and hides the deny+message answer tunnel, whose tool_result is
- *  always flagged is_error and would render as a bogus failure card. */
+/** Tools whose permission card carries their entire UX (structured question
+ *  picker / plan review), so their generic tool.use/tool.result events are
+ *  suppressed. This matches the host's JSONL replay path, which never renders
+ *  generic tool cards for them. */
 const APPROVAL_BRIDGED_TOOLS = new Set(['AskUserQuestion', 'ExitPlanMode']);
-
-/** Serialize the user's AskUserQuestion answers into the deny-message body
- *  the model sees when claude CLI relays the permission-prompt-tool denial.
- *  Single-select values come through as `string`, multi-select as `string[]`,
- *  free-text comes in as a string (caller is responsible for that). */
-export function formatQuestionAnswers(answers: Record<string, string | string[]>): string {
-  const lines: string[] = [
-    'The user answered your AskUserQuestion via the Gian web UI rather than letting the tool run. Use these answers and continue as if AskUserQuestion had returned them.',
-    '',
-  ];
-  for (const [question, value] of Object.entries(answers)) {
-    lines.push(`Q: ${question}`);
-    if (Array.isArray(value)) {
-      lines.push(`A: ${value.join('; ')}`);
-    } else {
-      lines.push(`A: ${value}`);
-    }
-    lines.push('');
-  }
-  // Drop the trailing blank line for a tidy payload — the model is happier
-  // when the deny message doesn't end with stray whitespace.
-  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
-  return lines.join('\n');
-}
 
 /** Older Claude CLI builds may omit `contextWindow`; only infer it when the
  * detected model id carries an explicit capacity marker. */
@@ -179,8 +153,16 @@ export class CcProxyService {
       this.handleAssistantReasoning(sessionId, text, itemId);
     });
 
+    this.runtime.on('turnFailed', (sessionId, errorDetail, streamedLength) => {
+      this.handleTurnFailed(sessionId, errorDetail, streamedLength);
+    });
+
     this.runtime.on('permissionRequest', (sessionId, requestId, toolName, description, inputPreview) => {
       this.handlePermissionRequest(sessionId, requestId, toolName, description, inputPreview);
+    });
+
+    this.runtime.on('permissionCancelled', (sessionId, requestId) => {
+      this.handlePermissionCancelled(sessionId, requestId);
     });
 
     this.runtime.on('toolUse', (sessionId, toolName, input, callId) => {
@@ -223,7 +205,7 @@ export class CcProxyService {
       this.emitEvent('catalog.refresh', {});
     });
 
-    // Start the MCP channel server.
+    // Start capability discovery.
     await this.runtime.start();
   }
 
@@ -383,11 +365,11 @@ export class CcProxyService {
     const input = normalizeInputItems(params.input, session.cwd);
     const prompt = buildPrompt(input);
 
-    // Gian-level `/clear` intercept. Claude CLI's native `/clear` is a no-op
-    // in `-p` mode (each turn spawns its own process). Instead we rotate the
-    // underlying claudeSessionId so the next turn uses `--session-id <new>`
-    // (fresh history) instead of `--resume <old>`. The Gian session id is
-    // unchanged — only the Claude-side persistence rotates.
+    // Gian-level `/clear` intercept. Instead of Claude's own `/clear` we
+    // rotate the underlying claudeSessionId, so the next turn starts a new
+    // process with `--session-id <new>` (fresh history) and the host can swap
+    // its native session reference. The Gian session id is unchanged — only
+    // the Claude-side persistence rotates.
     if (prompt.trim() === '/clear') {
       return this.handleClearIntercept(session, requestId);
     }
@@ -405,9 +387,9 @@ export class CcProxyService {
     // setSessionModel clears the init model id. Read it first so a Default
     // turn can still see the model Claude actually started.
     const detectedModelId = this.runtime.getDetectedModelId(session.id);
-    // ClaudeMcpRuntime keeps one registered session while spawning a fresh CLI
-    // process per turn. Keep its model synchronized even when ensureProcess()
-    // finds the session already registered and therefore does not spawn again.
+    // The runtime keeps one registered session across turns and applies the
+    // model to its running process. Keep it synchronized even when
+    // ensureProcess() finds the session already registered.
     this.runtime.setSessionModel(session.id, requestedModel);
 
     const turnId = randomId('turn');
@@ -514,9 +496,9 @@ export class CcProxyService {
       throw createAppError(409, 'INVALID_REQUEST', 'This session does not have an active turn.');
     }
 
-    // Keep the registered session so the next turn resumes it. killSession
-    // drops hasHadFirstTurn, and the replacement CLI then passes --session-id
-    // for an id that already exists and exits 0.
+    // Keep the registered session so the next turn continues it. killSession
+    // would forget that Claude already created the native session, and the
+    // replacement CLI would then pass --session-id for an existing id.
     if (this.runtime.interruptActiveProcess) {
       this.runtime.interruptActiveProcess(session.id);
     } else {
@@ -529,10 +511,26 @@ export class CcProxyService {
     const updated = this.updateSession(session, {
       activeTurnId: null,
       status: 'idle',
-      processAlive: false,
       lastError: null,
     });
     return { ok: true, session: this.serializeSession(updated) };
+  }
+
+  /** Add input to the active turn. Claude folds it in at its next step. */
+  async steerTurn(params: { sessionId: string; input: InputItem[] }) {
+    const session = this.requireSessionById(params.sessionId);
+    if (!session.activeTurnId) {
+      throw createAppError(409, 'INVALID_REQUEST', 'This session does not have an active turn.');
+    }
+    if (!this.runtime.steer) {
+      throw createAppError(400, 'CAPABILITY_NOT_SUPPORTED', 'This runtime cannot steer a running turn.');
+    }
+    const prompt = buildPrompt(normalizeInputItems(params.input, session.cwd));
+    if (!prompt.trim()) {
+      throw createAppError(400, 'INVALID_REQUEST', 'Steer input is empty.');
+    }
+    await this.runtime.steer(session.id, prompt);
+    return { ok: true, session: this.serializeSession(session) };
   }
 
   async respondApproval(params: ApprovalResponseParams) {
@@ -542,24 +540,17 @@ export class CcProxyService {
       throw createAppError(404, 'APPROVAL_NOT_FOUND', 'Approval not found.');
     }
 
-    // Every approval — including ExitPlanMode — routes through the approval
-    // MCP bridge. The Claude SDK has a live canUseTool callId waiting for a
-    // response; without it the process would hang forever.
-    //
-    // AskUserQuestion bridge: the previous implementation returned `allow`
-    // with `updatedInput: { answers }` and hoped claude CLI would short-
-    // circuit AskUserQuestion using the supplied answers. claude CLI 1.0.90
-    // no longer honors that — it executes the real tool, which has no UI in
-    // `-p` mode and errors out. We now force a `deny` and tunnel the answers
-    // through the deny `message`. The model reads "tool denied: <message>"
-    // and treats the embedded Q/A pairs as the user's response.
-    let effectiveBehavior: 'allow' | 'deny' = params.behavior;
-    let extra: { updatedInput?: Record<string, unknown>; message?: string } | undefined;
-    if (params.answers) {
-      effectiveBehavior = 'deny';
-      extra = { message: formatQuestionAnswers(params.answers) };
-    }
-    await this.runtime.respondPermission(session.id, approval.requestId, effectiveBehavior, extra);
+    // Every approval — including ExitPlanMode and AskUserQuestion — is a
+    // live `can_use_tool` request Claude waits on; without an answer the
+    // turn would never continue. AskUserQuestion answers go back on the
+    // allow, merged into the tool input, which is how Claude Code takes
+    // answers from an SDK host.
+    await this.runtime.respondPermission(
+      session.id,
+      approval.requestId,
+      params.behavior,
+      params.answers ? { answers: params.answers } : undefined,
+    );
 
     this.removeApproval(approval);
     const updatedSession = this.updateSession(session, {
@@ -959,26 +950,46 @@ export class CcProxyService {
       return;
     }
 
-    this.activeTurns.delete(sessionId);
-    this.unpublishedExits.delete(sessionId);
-    this.clearToolCallNames(sessionId);
+    this.failActiveTurn(
+      session,
+      claudeProcessExitFailure(code, signal, streamedLength ?? 0, errorDetail),
+      false,
+    );
+  }
 
-    // Clear all pending approvals (an MCP CallTool waiting on the dead
-    // process can never be answered). ExitPlanMode also routes through the
-    // MCP bridge now, so it's no exception.
-    const approvals = this.approvalsBySessionId.get(sessionId);
+  /** The turn ended with an error result; the process itself lives on. */
+  private handleTurnFailed(sessionId: string, errorDetail: string, streamedLength: number) {
+    const session = this.sessionsById.get(sessionId);
+    if (!session || session.activeTurnId === null) return;
+    this.failActiveTurn(session, {
+      message: errorDetail,
+      retryable: false,
+      details: { streamedLength },
+    }, true);
+  }
+
+  private failActiveTurn(
+    session: SessionRecord,
+    failure: { message: string; retryable: boolean; details: Record<string, unknown> },
+    processAlive: boolean,
+  ) {
+    const context = this.activeTurns.get(session.id);
+    this.activeTurns.delete(session.id);
+    this.unpublishedExits.delete(session.id);
+    this.clearToolCallNames(session.id);
+
+    // Clear all pending approvals: the turn they belonged to is over.
+    const approvals = this.approvalsBySessionId.get(session.id);
     if (approvals) {
       for (const id of approvals.keys()) {
         this.approvalsById.delete(id);
       }
-      this.approvalsBySessionId.delete(sessionId);
+      this.approvalsBySessionId.delete(session.id);
     }
-
-    const failure = claudeProcessExitFailure(code, signal, streamedLength ?? 0, errorDetail);
 
     const updated = this.updateSession(session, {
       activeTurnId: null,
-      processAlive: false,
+      processAlive,
       status: 'error',
       lastError: failure.message,
     });
@@ -995,6 +1006,27 @@ export class CcProxyService {
           details: failure.details,
         },
       },
+    });
+  }
+
+  /** Claude withdrew a pending approval (e.g. its turn was interrupted). */
+  private handlePermissionCancelled(sessionId: string, requestId: string) {
+    const session = this.sessionsById.get(sessionId);
+    if (!session) return;
+    const approval = [...(this.approvalsBySessionId.get(sessionId)?.values() ?? [])]
+      .find((candidate) => candidate.requestId === requestId);
+    if (!approval) return;
+    this.removeApproval(approval);
+    const updated = this.updateSession(session, {
+      status: session.activeTurnId ? 'running' : 'idle',
+    });
+    const context = this.activeTurns.get(sessionId);
+    // No behavior: the adapter resolves an unanswered interaction as cancelled.
+    this.emitEvent('approval.resolved', {
+      requestId: context?.requestId,
+      sessionId: updated.id,
+      turnId: context?.turnId ?? updated.activeTurnId ?? undefined,
+      data: { approvalId: approval.approvalId },
     });
   }
 

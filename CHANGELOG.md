@@ -1,5 +1,18 @@
 # Gian Proxies Changelog
 
+## Claude Proxy 0.4.0 candidate - 2026-11-19
+
+- Keep the official Claude Code 2.1.327 Runtime from 0.3.26, with exact artifact qualification required.
+- Run each session in one long-lived Claude Code process in streaming-input mode (the Agent SDK protocol) instead of a new `claude -p` process per turn. Prompts no longer travel in argv; text streams as it is generated.
+- Approvals, plan review and AskUserQuestion come back as `can_use_tool` control requests. The approval MCP server, its per-turn config file and the deny-with-message answer workaround are removed, and with them the `@modelcontextprotocol/sdk` and `zod` dependencies.
+- Interrupt stops the turn and keeps the process; queued steer input is cancelled with it. An interrupt Claude does not confirm within 10 s stops the process, and the next turn resumes the session.
+- Advertise `turn.steer`: input sent during a turn joins it.
+- Model, permission mode and effort change in the running process. Bypass, new attachment folders and a return to default effort restart it with `--resume`.
+- Idle processes stop after 10 minutes (`GIAN_CLAUDE_IDLE_TIMEOUT_MS`) and the next turn resumes the session.
+- Fix conversation token usage: Claude reports a running total, which 0.3.x passed on as each turn's usage, so resumed turns were counted again. Usage is now the change since the previous total, measured from the transcript's saved total after a resume.
+- A Claude that fails while starting fails the turn with its own error text.
+- Adopt `@gian/proxy-kit` for the gian.proxy/2 wire server.
+
 ## Grok Proxy 0.3.17 candidate - 2026-11-19
 
 - Target official Grok CLI 1.0.89 with exact hosted artifact qualification required.

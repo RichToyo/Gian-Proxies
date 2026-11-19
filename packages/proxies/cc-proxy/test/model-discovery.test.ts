@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  buildClaudeCliArgs,
   extractAnthropicBaseUrlFromScript,
   extractClaudeConfigDirFromScript,
   extractHomeFromScript,
@@ -15,8 +14,8 @@ import {
   parseSettingsModel,
   readMergedClaudeSettings,
   resolveClaudeSettingsPath,
-  ClaudeMcpRuntime,
-} from '../src/runtime/claude-mcp-runtime.js';
+} from '../src/runtime/claude-discovery.js';
+import { buildClaudeStreamArgs, ClaudeStreamRuntime } from '../src/runtime/claude-stream-runtime.js';
 import { parseClaudeNativeModels, probeClaudeNativeModels } from '../src/runtime/native-model-catalog.js';
 
 function makeTmpDir(): string {
@@ -416,7 +415,7 @@ async function discoverModelsWith(configDir: string | null, claudeScript?: strin
     rmSync(root, { recursive: true, force: true });
   };
 
-  const runtime = new ClaudeMcpRuntime();
+  const runtime = new ClaudeStreamRuntime();
   try {
     await runtime.start();
     await runtime.awaitModelDiscovery();
@@ -683,38 +682,49 @@ test('parseClaudePermissionModesFromHelp reads the CLI choices verbatim', () => 
   ]);
 });
 
-test('buildClaudeCliArgs isolates MCP config with --strict-mcp-config on the approval bridge', () => {
-  const args = buildClaudeCliArgs(
-    { mcpConfigPath: '/tmp/cc-proxy-mcp-session-1.json', hasHadFirstTurn: false, claudeSessionId: 'claude-1', model: null },
-    'hello',
-    { permissionMode: 'default' },
-  );
-  const mcpIndex = args.indexOf('--mcp-config');
-  assert.ok(mcpIndex >= 0, 'approval-bridge mcp-config must be passed');
-  assert.equal(args[mcpIndex + 2], '--strict-mcp-config');
-  assert.ok(args.includes('--permission-prompt-tool'));
+const STREAM_ARGS_BASE = {
+  claudeSessionId: 'claude-1',
+  resume: false,
+  model: null,
+  effort: null,
+  directories: [],
+  mcpConfigPath: null,
+} as const;
+
+test('buildClaudeStreamArgs runs streaming input with stdio permission prompts and isolated MCP', () => {
+  const args = buildClaudeStreamArgs({
+    ...STREAM_ARGS_BASE,
+    mcpConfigPath: '/tmp/cc-proxy-mcp-session-1.json',
+    permissionMode: 'default',
+  });
+  assert.deepEqual(args.slice(0, 5), ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json']);
+  assert.ok(args.includes('--include-partial-messages'));
+  assert.ok(args.includes('--replay-user-messages'));
+  assert.ok(args.includes('--strict-mcp-config'));
+  assert.equal(args[args.indexOf('--mcp-config') + 1], '/tmp/cc-proxy-mcp-session-1.json');
+  assert.equal(args[args.indexOf('--permission-prompt-tool') + 1], 'stdio');
+  assert.equal(args[args.indexOf('--session-id') + 1], 'claude-1');
+  assert.ok(!args.includes('hello'), 'the prompt never travels in argv');
 });
 
-test('buildClaudeCliArgs maps bypassPermissions to skip-permissions and still isolates MCP', () => {
-  const args = buildClaudeCliArgs(
-    { mcpConfigPath: '/tmp/cc-proxy-mcp-session-1.json', hasHadFirstTurn: true, claudeSessionId: 'claude-1', model: null },
-    'hello',
-    { permissionMode: 'bypassPermissions' },
-  );
+test('buildClaudeStreamArgs maps bypassPermissions to skip-permissions and still isolates MCP', () => {
+  const args = buildClaudeStreamArgs({
+    ...STREAM_ARGS_BASE,
+    resume: true,
+    mcpConfigPath: '/tmp/cc-proxy-mcp-session-1.json',
+    permissionMode: 'bypassPermissions',
+  });
   assert.ok(args.includes('--dangerously-skip-permissions'));
   assert.ok(args.includes('--strict-mcp-config'));
   assert.ok(args.includes('--mcp-config'));
   assert.ok(!args.includes('--permission-mode'));
   assert.ok(!args.includes('--permission-prompt-tool'));
+  assert.equal(args[args.indexOf('--resume') + 1], 'claude-1');
 });
 
-test('buildClaudeCliArgs passes discovered manual/acceptEdits modes through unchanged', () => {
+test('buildClaudeStreamArgs passes discovered manual/acceptEdits modes through unchanged', () => {
   for (const mode of ['manual', 'acceptEdits'] as const) {
-    const args = buildClaudeCliArgs(
-      { mcpConfigPath: null, hasHadFirstTurn: false, claudeSessionId: 'claude-1', model: null },
-      'hello',
-      { permissionMode: mode },
-    );
+    const args = buildClaudeStreamArgs({ ...STREAM_ARGS_BASE, permissionMode: mode });
     const modeIndex = args.indexOf('--permission-mode');
     assert.ok(modeIndex >= 0);
     assert.equal(args[modeIndex + 1], mode);
@@ -1037,7 +1047,7 @@ async function captureTurnError(options: {
   delete process.env.GIAN_ALLOW_CLAUDE_PRINT_PROBE;
   if (options.configDir) process.env.CLAUDE_CONFIG_DIR = options.configDir;
   else delete process.env.CLAUDE_CONFIG_DIR;
-  const runtime = new ClaudeMcpRuntime();
+  const runtime = new ClaudeStreamRuntime();
   const pending: { timer?: ReturnType<typeof setTimeout> } = {};
   const exited = new Promise<string | undefined>((resolve, reject) => {
     pending.timer = setTimeout(() => reject(new Error('Claude turn did not exit')), 5_000);

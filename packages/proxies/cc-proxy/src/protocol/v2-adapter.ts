@@ -243,6 +243,7 @@ const CAPABILITIES = {
   'session.fork.atTurn': 1,
   'integration.mcp.streamableHttp': 1,
   interaction: 1,
+  'turn.steer': 1,
   'event.reasoning': 1,
   'event.usage': 1,
 } as const;
@@ -651,8 +652,8 @@ export class ClaudeProtocolV2Adapter {
         case 'session.rename': return await this.renameSession(request.params);
         case 'session.native.list': return this.listNative(request.params);
         case 'session.replay': return this.replay(request.params);
+        case 'turn.steer': return await this.steerTurn(request.params);
         case 'session.native.delete':
-        case 'turn.steer':
           throw new ClaudeProtocolError(
             'CAPABILITY_NOT_SUPPORTED',
             `${request.method} is not advertised by Claude Proxy.`,
@@ -1644,6 +1645,26 @@ export class ClaudeProtocolV2Adapter {
     this.clearTurn(session.id, turnId);
     this.historyWatchers.get(session.id)?.resume();
     this.rebaseHistory(session);
+    return { accepted: true as const, turnId };
+  }
+
+  private async steerTurn(params: Record<string, unknown>) {
+    const sessionId = nonEmptyString(params.sessionId);
+    const streamId = nonEmptyString(params.streamId);
+    const turnId = nonEmptyString(params.turnId);
+    if (!sessionId || !streamId || !turnId) {
+      throw new ClaudeProtocolError('INVALID_PARAMS', 'sessionId, streamId, and turnId are required.');
+    }
+    const session = this.requireAttached(sessionId, streamId);
+    this.requireActiveTurn(session.id, turnId);
+    const input = Array.isArray(params.input) ? params.input : [];
+    if (input.length === 0) throw new ClaudeProtocolError('INVALID_PARAMS', 'input is required.');
+    const serviceInput = this.claudeInput(input);
+    try {
+      await this.service.steerTurn({ sessionId: session.serviceSessionId, input: serviceInput });
+    } catch (error) {
+      throw standardError(error);
+    }
     return { accepted: true as const, turnId };
   }
 

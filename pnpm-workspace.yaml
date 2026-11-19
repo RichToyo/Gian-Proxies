@@ -9,6 +9,7 @@
     "packages/proxies/kimi-proxy",
     "packages/proxies/zcode-proxy",
     "packages/proxy-catalog-contract",
+    "packages/proxy-kit",
     "packages/shared"
   ],
   "ignoredBuiltDependencies": [
@@ -24,7 +25,6 @@
     "cacheable-request>http-cache-semantics": "4.3.0",
     "express-rate-limit@8>ip-address": "10.7.1",
     "express@5>body-parser": "2.4.0",
-    "@gian/cc-proxy>zod": "4.6.6",
     "@gian/proxy-protocol>zod": "4.6.6",
     "@gian/remote-protocol>zod": "4.6.6",
     "@gian/remote-web>zod": "4.6.6",

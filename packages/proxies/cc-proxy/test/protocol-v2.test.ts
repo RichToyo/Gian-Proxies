@@ -7,12 +7,13 @@ import test from 'node:test';
 
 import { catalogResultSchema, proxyNotificationSchema, resultSchemas, sessionSchema } from '@gian/proxy-protocol';
 import { CcProxyService } from '../src/core/service.js';
-import { ClaudeProtocolError, jsonRpcError, parseRequestLine } from '../src/transport/protocol.js';
+import { parseWireRequest, WireRequestError } from '@gian/proxy-kit';
+import { ClaudeProtocolError, jsonRpcError } from '../src/transport/protocol.js';
 import { ClaudeProtocolV2Adapter, readTurnFailure, type WireRequest } from '../src/protocol/v2-adapter.js';
 import type { ModelCapabilities } from '../src/core/types.js';
 import type { ClaudeRuntime, ClaudeRuntimeEvents } from '../src/runtime/types.js';
 import { claudeHistoryProjectDir } from '../src/protocol/native-history.js';
-import { labelDefaultModel } from '../src/runtime/claude-mcp-runtime.js';
+import { labelDefaultModel } from '../src/runtime/claude-discovery.js';
 
 class FakeRuntime extends EventEmitter<ClaudeRuntimeEvents> implements ClaudeRuntime {
   readonly messages: Array<{
@@ -30,6 +31,7 @@ class FakeRuntime extends EventEmitter<ClaudeRuntimeEvents> implements ClaudeRun
   }> = [];
   readonly spawns: Array<Parameters<ClaudeRuntime['spawnSession']>[0]> = [];
   readonly modelUpdates: Array<{ sessionId: string; model: string | null }> = [];
+  readonly steers: Array<{ sessionId: string; content: string }> = [];
   failInterrupt = false;
   onSendMessage?: (sessionId: string) => void;
   private readonly alive = new Set<string>();
@@ -76,17 +78,20 @@ class FakeRuntime extends EventEmitter<ClaudeRuntimeEvents> implements ClaudeRun
     });
     this.onSendMessage?.(sessionId);
   }
+  async steer(sessionId: string, content: string): Promise<void> {
+    this.steers.push({ sessionId, content });
+  }
   resetClaudeSessionId(): void {}
   async respondPermission(
     _sessionId: string,
     requestId: string,
     behavior: 'allow' | 'deny',
-    extra?: { updatedInput?: Record<string, unknown>; message?: string },
+    extra?: { updatedInput?: Record<string, unknown>; answers?: Record<string, string | string[]>; message?: string },
   ): Promise<void> {
     this.permissionResponses.push({
       requestId,
       behavior,
-      ...(extra?.message ? { answers: { message: extra.message } } : {}),
+      ...(extra?.answers ? { answers: extra.answers } : {}),
     });
   }
   killSession(sessionId: string): void {
@@ -1264,17 +1269,50 @@ test('cc-proxy JSON-RPC transport uses standard numeric error codes', () => {
   assert.equal(domain.data.domainCode, 'SESSION_NOT_FOUND');
 });
 
-test('cc-proxy parseRequestLine rejects malformed JSON and JSON-RPC batches', () => {
+test('cc-proxy request parsing rejects malformed JSON and JSON-RPC batches', () => {
   assert.throws(
-    () => parseRequestLine('{not-json'),
-    (error: unknown) => error instanceof ClaudeProtocolError && error.domainCode === 'PARSE_ERROR',
+    () => parseWireRequest('{not-json'),
+    (error: unknown) => error instanceof WireRequestError && error.code === -32700,
   );
   assert.throws(
-    () => parseRequestLine('[]'),
-    (error: unknown) => error instanceof ClaudeProtocolError && error.domainCode === 'INVALID_REQUEST',
+    () => parseWireRequest('[]'),
+    (error: unknown) => error instanceof WireRequestError && error.code === -32600,
   );
   assert.throws(
-    () => parseRequestLine('{"jsonrpc":"2.0","id":"","method":"initialize","params":{}}'),
-    (error: unknown) => error instanceof ClaudeProtocolError && error.domainCode === 'INVALID_REQUEST',
+    () => parseWireRequest('{"jsonrpc":"2.0","id":"","method":"initialize","params":{}}'),
+    (error: unknown) => error instanceof WireRequestError && error.code === -32600,
   );
+});
+
+test('Claude gian.proxy/2 steers only the active turn and answers with its turnId', async () => {
+  const { runtime, service, adapter, streamId } = await setup();
+  try {
+    await adapter.handle(request('3', 'turn.start', {
+      sessionId: 'host-session',
+      streamId,
+      turnId: 'host-turn',
+      input: [{ type: 'text', text: 'start' }],
+      config: {},
+    }));
+    adapter.flushDeferredNotifications();
+    await assert.rejects(
+      adapter.handle(request('4', 'turn.steer', {
+        sessionId: 'host-session',
+        streamId,
+        turnId: 'other-turn',
+        input: [{ type: 'text', text: 'wrong turn' }],
+      })),
+      (error: unknown) => (error as { domainCode?: string }).domainCode === 'TURN_NOT_FOUND',
+    );
+    const steered = await adapter.handle(request('5', 'turn.steer', {
+      sessionId: 'host-session',
+      streamId,
+      turnId: 'host-turn',
+      input: [{ type: 'text', text: 'also check the tests' }],
+    }));
+    assert.deepEqual(resultSchemas['turn.steer'].parse(steered), { accepted: true, turnId: 'host-turn' });
+    assert.deepEqual(runtime.steers.map((item) => item.content), ['also check the tests']);
+  } finally {
+    await service.close();
+  }
 });

@@ -7,9 +7,9 @@ import { join } from 'node:path';
 
 import { proxyNotificationSchema } from '@gian/proxy-protocol';
 
-import { CcProxyService, formatQuestionAnswers } from '../src/core/service.js';
+import { CcProxyService } from '../src/core/service.js';
 import { AppError } from '../src/core/errors.js';
-import { ClaudeMcpRuntime } from '../src/runtime/claude-mcp-runtime.js';
+import { ClaudeStreamRuntime } from '../src/runtime/claude-stream-runtime.js';
 import { ClaudeProtocolV2Adapter, type WireRequest } from '../src/protocol/v2-adapter.js';
 import type { ClaudeRuntime, ClaudeRuntimeEvents } from '../src/runtime/types.js';
 import {
@@ -20,7 +20,7 @@ import {
   shouldRetryWithoutNoSessionPersistence,
   classifyClaudeStreamEvent,
   unknownClaudeEventKey,
-} from '../src/runtime/claude-mcp-runtime.js';
+} from '../src/runtime/claude-discovery.js';
 import type { ModelCapabilities } from '../src/core/types.js';
 import {
   CLAUDE_STREAM_JSON_MALFORMED_MODEL_USAGE_V1,
@@ -52,7 +52,7 @@ class FakeRuntime extends EventEmitter<ClaudeRuntimeEvents> implements ClaudeRun
     sessionId: string;
     requestId: string;
     behavior: 'allow' | 'deny';
-    extra?: { updatedInput?: Record<string, unknown>; message?: string };
+    extra?: { updatedInput?: Record<string, unknown>; answers?: Record<string, string | string[]>; message?: string };
   }> = [];
   readonly resetCalls: Array<{ sessionId: string; newClaudeSessionId: string }> = [];
   models: ModelCapabilities[] = [];
@@ -114,7 +114,7 @@ class FakeRuntime extends EventEmitter<ClaudeRuntimeEvents> implements ClaudeRun
     sessionId: string,
     requestId: string,
     behavior: 'allow' | 'deny',
-    extra?: { updatedInput?: Record<string, unknown>; message?: string },
+    extra?: { updatedInput?: Record<string, unknown>; answers?: Record<string, string | string[]>; message?: string },
   ): Promise<void> {
     // Only include `extra` on the recorded row when present so existing
     // tests that deepEqual against `{sessionId, requestId, behavior}` keep
@@ -123,7 +123,7 @@ class FakeRuntime extends EventEmitter<ClaudeRuntimeEvents> implements ClaudeRun
       sessionId: string;
       requestId: string;
       behavior: 'allow' | 'deny';
-      extra?: { updatedInput?: Record<string, unknown>; message?: string };
+      extra?: { updatedInput?: Record<string, unknown>; answers?: Record<string, string | string[]>; message?: string };
     } = { sessionId, requestId, behavior };
     if (extra !== undefined) entry.extra = extra;
     this.permissionResponses.push(entry);
@@ -187,7 +187,7 @@ test('Claude stream result keeps OAuth API errors out of the success channel', a
 
   const oldClaudeBin = process.env.CLAUDE_BIN;
   process.env.CLAUDE_BIN = fakeClaude;
-  const runtime = new ClaudeMcpRuntime();
+  const runtime = new ClaudeStreamRuntime();
   const replies: string[] = [];
   runtime.on('channelReply', (_sessionId, text) => replies.push(text));
   const exited = new Promise<ClaudeRuntimeEvents['processExited']>((resolve) => {
@@ -230,7 +230,7 @@ test('Claude non-zero exits surface bounded stderr as the runtime error detail',
 
   const oldClaudeBin = process.env.CLAUDE_BIN;
   process.env.CLAUDE_BIN = fakeClaude;
-  const runtime = new ClaudeMcpRuntime();
+  const runtime = new ClaudeStreamRuntime();
   const exited = new Promise<ClaudeRuntimeEvents['processExited']>((resolve) => {
     runtime.once('processExited', (...args) => resolve(args));
   });
@@ -261,18 +261,30 @@ test('manual stop isolates late child exits from a replacement session turn', as
   const dir = mkdtempSync(join(tmpdir(), 'cc-proxy-stale-exit-'));
   const fakeClaude = join(dir, 'claude');
   const counterPath = join(dir, 'spawn-count');
+  // Launches 1 and 2 never finish their turn and exit only 100ms after
+  // SIGTERM, even with stdin closed; launch 3 completes its turn.
   writeFileSync(fakeClaude, [
     '#!/usr/bin/env node',
     "const fs = require('node:fs');",
+    "const { createInterface } = require('node:readline');",
     "const path = process.env.CLAUDE_STALE_EXIT_COUNTER;",
     "const count = Number(fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '0') + 1;",
     "fs.writeFileSync(path, String(count));",
+    "const write = (value) => console.log(JSON.stringify(value));",
     "if (count < 3) {",
     "  process.on('SIGTERM', () => setTimeout(() => process.exit(0), 100));",
     "  setInterval(() => undefined, 1_000);",
-    "} else {",
-    "  setTimeout(() => console.log(JSON.stringify({ type: 'result', subtype: 'success', result: 'replacement completed' })), 50);",
     "}",
+    "createInterface({ input: process.stdin }).on('line', (line) => {",
+    "  const frame = JSON.parse(line);",
+    "  if (frame.type === 'control_request') {",
+    "    write({ type: 'control_response', response: { subtype: 'success', request_id: frame.request_id, response: {} } });",
+    "    return;",
+    "  }",
+    "  if (frame.type !== 'user') return;",
+    "  write({ type: 'user', isReplay: true, uuid: frame.uuid, message: frame.message });",
+    "  if (count >= 3) setTimeout(() => write({ type: 'result', subtype: 'success', result: 'replacement completed' }), 50);",
+    "}).on('close', () => { if (count >= 3) process.exit(0); });",
   ].join('\n'));
   chmodSync(fakeClaude, 0o755);
 
@@ -280,7 +292,7 @@ test('manual stop isolates late child exits from a replacement session turn', as
   const oldCounter = process.env.CLAUDE_STALE_EXIT_COUNTER;
   process.env.CLAUDE_BIN = fakeClaude;
   process.env.CLAUDE_STALE_EXIT_COUNTER = counterPath;
-  const runtime = new ClaudeMcpRuntime();
+  const runtime = new ClaudeStreamRuntime();
   const exits: Array<ClaudeRuntimeEvents['processExited']> = [];
   runtime.on('processExited', (...args) => exits.push(args));
   const sessionId = 'session-stale-exit';
@@ -324,23 +336,22 @@ test('manual stop isolates late child exits from a replacement session turn', as
     assert.deepEqual(exits, [], 'a removed replacement registration also owns no later exit event');
 
     await spawn();
-    const activeExit = new Promise<ClaudeRuntimeEvents['processExited']>((resolve, reject) => {
+    const completed = new Promise<string>((resolve, reject) => {
       const timer = setTimeout(
-        () => reject(new Error('active Claude child did not emit processExited')),
+        () => reject(new Error('active Claude child did not complete its turn')),
         1_000,
       );
-      runtime.once('processExited', (...args) => {
+      runtime.once('channelReply', (completedSessionId) => {
         clearTimeout(timer);
-        resolve(args);
+        resolve(completedSessionId);
       });
     });
     await runtime.sendMessage(sessionId, 'ordinary completed turn', {
       permissionMode: 'bypassPermissions',
     });
     await waitForSpawnCount(3);
-    const exit = await activeExit;
-    assert.equal(exit[0], sessionId);
-    assert.equal(exits.length, 1, 'the active registered child still emits one terminal signal');
+    assert.equal(await completed, sessionId);
+    assert.deepEqual(exits, [], 'a completed turn is not a process exit: the process stays for the next turn');
   } finally {
     await runtime.stop();
     if (oldClaudeBin === undefined) delete process.env.CLAUDE_BIN;
@@ -368,22 +379,19 @@ test('Claude auto-compaction clears the pre-boundary context before result parsi
     CLAUDE_STREAM_JSON_V1_COMPACTION.boundary,
     CLAUDE_STREAM_JSON_V1_COMPACTION.postBoundary,
   ];
-  writeFileSync(fakeClaude, [
-    '#!/usr/bin/env node',
-    ...frames.map(frame => `console.log(${JSON.stringify(JSON.stringify(frame))});`),
-  ].join('\n'));
+  writeFileSync(fakeClaude, streamingFakeClaude(
+    frames.map(frame => `console.log(${JSON.stringify(JSON.stringify(frame))});`),
+  ));
   chmodSync(fakeClaude, 0o755);
 
   const oldClaudeBin = process.env.CLAUDE_BIN;
   process.env.CLAUDE_BIN = fakeClaude;
-  const runtime = new ClaudeMcpRuntime();
+  const runtime = new ClaudeStreamRuntime();
   const usageEvents: Array<Record<string, unknown>> = [];
   runtime.on('tokenUsage', (_sessionId, usage) => {
     usageEvents.push(usage as unknown as Record<string, unknown>);
   });
-  const exited = new Promise<void>((resolve) => {
-    runtime.once('processExited', () => resolve());
-  });
+  const exited = nextTurnEnd(runtime);
 
   try {
     await runtime.spawnSession({
@@ -422,21 +430,20 @@ test('Claude auto-compaction clears the pre-boundary context before result parsi
   }
 });
 
-test('Claude -p native task lifecycle keeps Agent tool id and terminal summary', async () => {
+test('Claude native task lifecycle keeps Agent tool id and terminal summary', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'cc-proxy-agent-task-'));
   const fakeClaude = join(dir, 'claude');
-  writeFileSync(fakeClaude, [
-    '#!/usr/bin/env node',
+  writeFileSync(fakeClaude, streamingFakeClaude([
     "console.log(JSON.stringify({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'tool_use', id: 'tool-agent-1', name: 'Agent', input: { description: 'Inspect tests', prompt: 'Read tests' } }] } }));",
     "console.log(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'task-1', tool_use_id: 'tool-agent-1', description: 'Inspect tests', subagent_type: 'general-purpose' }));",
     "console.log(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'task-1', tool_use_id: 'tool-agent-1', status: 'completed', summary: 'Tests are clean.', output_file: '/tmp/task-1.output' }));",
     "console.log(JSON.stringify({ type: 'result', subtype: 'success', result: '' }));",
-  ].join('\n'));
+  ]));
   chmodSync(fakeClaude, 0o755);
 
   const oldClaudeBin = process.env.CLAUDE_BIN;
   process.env.CLAUDE_BIN = fakeClaude;
-  const runtime = new ClaudeMcpRuntime();
+  const runtime = new ClaudeStreamRuntime();
   const toolUses: Array<{ name: string; callId: string }> = [];
   const agentUpdates: Array<Record<string, unknown>> = [];
   runtime.on('toolUse', (_sessionId, name, _input, callId) => {
@@ -445,7 +452,7 @@ test('Claude -p native task lifecycle keeps Agent tool id and terminal summary',
   runtime.on('agentTask', (_sessionId, update) => {
     agentUpdates.push(update as unknown as Record<string, unknown>);
   });
-  const exited = new Promise<void>(resolve => runtime.once('processExited', () => resolve()));
+  const exited = nextTurnEnd(runtime);
 
   try {
     await runtime.spawnSession({
@@ -530,20 +537,19 @@ test('Claude thinking_tokens flood does not emit unknown activities; unknown typ
     { type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'done' }] } },
     { type: 'result', subtype: 'success', result: 'done' },
   ];
-  writeFileSync(fakeClaude, [
-    '#!/usr/bin/env node',
-    ...frames.map(frame => `console.log(${JSON.stringify(JSON.stringify(frame))});`),
-  ].join('\n'));
+  writeFileSync(fakeClaude, streamingFakeClaude(
+    frames.map(frame => `console.log(${JSON.stringify(JSON.stringify(frame))});`),
+  ));
   chmodSync(fakeClaude, 0o755);
 
   const oldClaudeBin = process.env.CLAUDE_BIN;
   process.env.CLAUDE_BIN = fakeClaude;
-  const runtime = new ClaudeMcpRuntime();
+  const runtime = new ClaudeStreamRuntime();
   const unknown: Array<Record<string, unknown>> = [];
   runtime.on('unknownClaudeEvent', (_sessionId, event) => {
     unknown.push(event);
   });
-  const exited = new Promise<void>(resolve => runtime.once('processExited', () => resolve()));
+  const exited = nextTurnEnd(runtime);
 
   try {
     await runtime.spawnSession({
@@ -710,7 +716,7 @@ test('capabilities discovery never submits a prompt or user frame without opting
   delete process.env.CLAUDE_CONFIG_DIR;
   process.env.HOME = dir;
 
-  const service = new CcProxyService({ runtime: new ClaudeMcpRuntime() });
+  const service = new CcProxyService({ runtime: new ClaudeStreamRuntime() });
   try {
     await service.initialize();
     const caps = await service.listCapabilities();
@@ -1274,7 +1280,7 @@ test('/clear intercept rotates claudeSessionId and emits session.rotated notific
   });
 });
 
-test('respondApproval with `answers` routes to deny+message (AskUserQuestion bridge)', async () => {
+test('respondApproval with `answers` allows AskUserQuestion with the answers', async () => {
   await withService(async ({ runtime, service, events }) => {
     const created = await service.createSession({ cwd: '/tmp' });
 
@@ -1297,7 +1303,7 @@ test('respondApproval with `answers` routes to deny+message (AskUserQuestion bri
     const approvalId = (reqEvent!.params.data as { approvalId: string }).approvalId;
 
     // Web sends `allow_once` (host translates to behavior='allow') plus the
-    // structured answers. Bridge must rewrite the SDK call to deny+message.
+    // structured answers; the runtime merges them into the tool input.
     await service.respondApproval({
       sessionId: created.session.id,
       approvalId,
@@ -1307,15 +1313,11 @@ test('respondApproval with `answers` routes to deny+message (AskUserQuestion bri
 
     assert.equal(runtime.permissionResponses.length, 1);
     const recorded = runtime.permissionResponses[0]!;
-    assert.equal(recorded.behavior, 'deny', 'SDK call must be deny when answers present');
-    assert.equal(recorded.extra?.updatedInput, undefined, 'no updatedInput on the deny path');
-    const msg = recorded.extra?.message ?? '';
-    assert.match(msg, /Which color\?/, 'message contains the question');
-    assert.match(msg, /A: red/, 'message contains the user answer');
-    assert.match(msg, /AskUserQuestion/, 'message explains the bridge to the model');
+    assert.equal(recorded.behavior, 'allow');
+    assert.deepEqual(recorded.extra?.answers, { 'Which color?': 'red' });
+    assert.equal(recorded.extra?.message, undefined);
 
-    // The emitted `approval.resolved` still reflects the user's original
-    // intent (allow), not the SDK-level deny — UI rendering depends on this.
+    // The emitted `approval.resolved` reflects the user's intent (allow).
     const resolved = events.find((e) => e.method === 'approval.resolved');
     assert.ok(resolved);
     assert.equal((resolved!.params.data as { behavior: string }).behavior, 'allow');
@@ -1328,6 +1330,50 @@ async function waitFor(predicate: () => boolean, label: string): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   throw new Error(label);
+}
+
+/** A fake `claude` speaking the streaming-input protocol. It answers every
+ *  control request with success, echoes each user message, and runs
+ *  `turnBody` (JS lines; `turn` is the 1-based message count and `frame` the
+ *  user frame) for every message. `onStart` lines run once at launch. It exits
+ *  when stdin ends, like the real CLI. */
+function streamingFakeClaude(turnBody: string[], options: { onStart?: string[] } = {}): string {
+  return [
+    '#!/usr/bin/env node',
+    "const { createInterface } = require('node:readline');",
+    "if (process.argv.includes('--help')) process.exit(0);",
+    ...(options.onStart ?? []),
+    'let turn = 0;',
+    "createInterface({ input: process.stdin }).on('line', (line) => {",
+    '  const frame = JSON.parse(line);',
+    "  if (frame.type === 'control_request') {",
+    "    console.log(JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: frame.request_id, response: {} } }));",
+    '    return;',
+    '  }',
+    "  if (frame.type !== 'user') return;",
+    "  console.log(JSON.stringify({ type: 'user', isReplay: true, uuid: frame.uuid, message: frame.message }));",
+    '  turn += 1;',
+    ...turnBody.map((line) => `  ${line}`),
+    "}).on('close', () => process.exit(0));",
+  ].join('\n');
+}
+
+/** Resolves when the runtime ends a turn: completed, failed, or process died. */
+function nextTurnEnd(runtime: ClaudeRuntime): Promise<'completed' | 'failed' | 'exited'> {
+  return new Promise((resolve) => {
+    const settle = (outcome: 'completed' | 'failed' | 'exited') => () => {
+      runtime.off('channelReply', onReply);
+      runtime.off('turnFailed', onFailed);
+      runtime.off('processExited', onExited);
+      resolve(outcome);
+    };
+    const onReply = settle('completed');
+    const onFailed = settle('failed');
+    const onExited = settle('exited');
+    runtime.on('channelReply', onReply);
+    runtime.on('turnFailed', onFailed);
+    runtime.on('processExited', onExited);
+  });
 }
 
 function flagValue(args: string[], flag: string): string | undefined {
@@ -1360,211 +1406,185 @@ async function withHermeticClaude(run: (dir: string) => Promise<void>): Promise<
   }
 }
 
-test('interrupt resumes the same Claude session instead of exiting 0', async () => {
-  await withHermeticClaude(async (dir) => {
-    const argvLog = join(dir, 'argv.log');
-    const marker = join(dir, 'session-created');
-    process.env.CLAUDE_ARGV_LOG = argvLog;
-    process.env.CLAUDE_SESSION_MARKER = marker;
-    const fake = join(dir, 'claude');
-    writeFileSync(fake, [
-      '#!/usr/bin/env node',
-      "const fs = require('node:fs');",
-      'const args = process.argv.slice(2);',
-      "if (args.includes('--help')) {",
-      "  console.log('Options:');",
-      "  console.log('  --effort <level>                      Effort level for the current session');",
-      "  console.log('                                        (low, high)');",
-      '  process.exit(0);',
-      '}',
-      // The native model-catalog discovery probe (--input-format stream-json +
-      // an initialize control frame) is metadata-only: answer it without
-      // touching the argv log or the session marker, so only real turn spawns
-      // count there.
-      "if (args.includes('--input-format')) {",
-      "  const rl = require(\"node:readline\").createInterface({ input: process.stdin });",
-      "  rl.on(\"line\", (line) => {",
-      '    try {',
-      '      const request = JSON.parse(line);',
-      "      if (request.type === \"control_request\" && request.request?.subtype === \"initialize\") {",
-      "        process.stdout.write(JSON.stringify({ type: \"control_response\", response: { subtype: \"success\", request_id: request.request_id, response: { models: [",
-      "          { value: \"opus\", displayName: \"Opus\", description: \"Opus model\", supportsEffort: true, supportedEffortLevels: [\"low\", \"high\"] },",
-      "        ] } } }) + \"\\n\");",
-      '      }',
-      '    } catch { /* ignore malformed probe input */ }',
-      '  });',
-      "  rl.on(\"close\", () => process.exit(0));",
-      '} else {',
-      'const log = process.env.CLAUDE_ARGV_LOG;',
-      "if (log) fs.appendFileSync(log, args.join('\\0') + '\\n');",
-      "fs.writeSync(1, JSON.stringify({ type: 'system', subtype: 'init', model: 'opus' }) + '\\n');",
-      "process.on('SIGTERM', () => { setTimeout(() => process.exit(0), 50); });",
-      'const marker = process.env.CLAUDE_SESSION_MARKER;',
-      'const seen = marker ? fs.existsSync(marker) : false;',
-      "if (marker) fs.writeFileSync(marker, '1');",
-      "if (args.includes('--session-id') && seen) process.exit(0);",
-      "if (args.includes('--resume')) {",
-      "  const text = 'resumed';",
-      '  console.log(JSON.stringify({ type: \'assistant\', message: { id: \'m1\', content: [{ type: \'text\', text }] } }));',
-      '  console.log(JSON.stringify({ type: \'result\', subtype: \'success\', result: text }));',
-      '  process.exit(0);',
-      '}',
-      'setInterval(() => undefined, 1000);',
-      '}',
-      '',
-    ].join('\n'));
-    chmodSync(fake, 0o755);
-    process.env.CLAUDE_BIN = fake;
+/** A streaming fake for the interrupt tests. The message `first` starts a
+ *  turn that never finishes on its own; any other message completes with
+ *  `resumed`. Interrupts are confirmed (ending the hung turn with Claude's
+ *  aborted result) unless FAKE_IGNORE_INTERRUPT=1. FAKE_NO_INIT=1 hangs before
+ *  `system init`, i.e. before Claude has created the native session. Runtime
+ *  launches append their argv to CLAUDE_ARGV_LOG; the `--print` catalog probe
+ *  only answers initialize with an opus model. */
+function interruptFakeClaude(): string {
+  return [
+    '#!/usr/bin/env node',
+    "const fs = require('node:fs');",
+    "const { createInterface } = require('node:readline');",
+    'const args = process.argv.slice(2);',
+    "if (args.includes('--help')) {",
+    "  console.log('Options:');",
+    "  console.log('  --effort <level>                      Effort level for the current session');",
+    "  console.log('                                        (low, high)');",
+    '  process.exit(0);',
+    '}',
+    'const write = (value) => console.log(JSON.stringify(value));',
+    "const runtimeLaunch = args.includes('-p');",
+    "if (runtimeLaunch && process.env.CLAUDE_ARGV_LOG) fs.appendFileSync(process.env.CLAUDE_ARGV_LOG, args.join('\\0') + '\\n');",
+    "process.on('SIGTERM', () => { setTimeout(() => process.exit(0), 50); });",
+    'let hanging = false;',
+    "createInterface({ input: process.stdin }).on('line', (line) => {",
+    '  const frame = JSON.parse(line);',
+    "  if (frame.type === 'control_request') {",
+    '    const subtype = frame.request && frame.request.subtype;',
+    "    if (subtype === 'interrupt' && process.env.FAKE_IGNORE_INTERRUPT === '1') return;",
+    "    const response = subtype === 'initialize' && !runtimeLaunch",
+    "      ? { models: [{ value: 'opus', displayName: 'Opus', description: 'Opus model', supportsEffort: true, supportedEffortLevels: ['low', 'high'] }] }",
+    '      : {};',
+    "    write({ type: 'control_response', response: { subtype: 'success', request_id: frame.request_id, response } });",
+    "    if (subtype === 'interrupt' && hanging) {",
+    '      hanging = false;',
+    "      write({ type: 'result', subtype: 'error_during_execution', is_error: true, result: '' });",
+    '    }',
+    '    return;',
+    '  }',
+    "  if (frame.type !== 'user') return;",
+    "  write({ type: 'user', isReplay: true, uuid: frame.uuid, message: frame.message });",
+    "  if (frame.message.content === 'first') {",
+    "    if (process.env.FAKE_NO_INIT !== '1') write({ type: 'system', subtype: 'init', model: 'opus' });",
+    '    hanging = true;',
+    "    if (process.env.CLAUDE_SESSION_MARKER) fs.writeFileSync(process.env.CLAUDE_SESSION_MARKER, '1');",
+    '    return;',
+    '  }',
+    "  write({ type: 'system', subtype: 'init', model: 'opus' });",
+    "  write({ type: 'assistant', message: { id: 'm2', content: [{ type: 'text', text: 'resumed' }] } });",
+    "  write({ type: 'result', subtype: 'success', result: 'resumed' });",
+    "}).on('close', () => process.exit(0));",
+    '',
+  ].join('\n');
+}
 
-    const events: Array<{ method: string; params: Record<string, unknown> }> = [];
-    const runtime = new ClaudeMcpRuntime();
-    const service = new CcProxyService({
-      runtime,
-      emitEvent(method, params) {
-        events.push({ method, params });
-      },
+function readArgvLog(path: string): string[][] {
+  return readFileSync(path, 'utf8')
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => line.split('\0'));
+}
+
+/** Two turns through the service around an interrupt; returns the events,
+ *  the runtime launches and the native session id. */
+async function interruptThenContinue(
+  dir: string,
+  options: { waitFor: 'init' | 'boot'; interruptTimeoutMs?: number },
+): Promise<{
+  events: Array<{ method: string; params: Record<string, unknown> }>;
+  launches: string[][];
+  nativeId: string;
+}> {
+  const argvLog = join(dir, 'argv.log');
+  const marker = join(dir, 'turn-started');
+  process.env.CLAUDE_ARGV_LOG = argvLog;
+  process.env.CLAUDE_SESSION_MARKER = marker;
+  const fake = join(dir, 'claude');
+  writeFileSync(fake, interruptFakeClaude());
+  chmodSync(fake, 0o755);
+  process.env.CLAUDE_BIN = fake;
+
+  const events: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const runtime = new ClaudeStreamRuntime(
+    options.interruptTimeoutMs === undefined ? {} : { interruptTimeoutMs: options.interruptTimeoutMs },
+  );
+  const service = new CcProxyService({
+    runtime,
+    emitEvent(method, params) {
+      events.push({ method, params });
+    },
+  });
+  try {
+    await service.initialize();
+    const created = await service.createSession({ cwd: dir });
+    const turn = (text: string) => service.startTurn({
+      sessionId: created.session.id,
+      model: 'opus',
+      thinking: 'high',
+      permissionMode: 'bypassPermissions',
+      input: [{ type: 'text', text }],
     });
+    await turn('first');
+    await waitFor(
+      () => existsSync(marker)
+        && (options.waitFor === 'boot' || runtime.getDetectedModelId(created.session.id) !== null),
+      'the first turn did not start before the interrupt',
+    );
+    if (options.waitFor === 'boot') assert.equal(runtime.getDetectedModelId(created.session.id), null);
+    await service.interruptTurn({ sessionId: created.session.id });
+    await turn('second');
+    await waitFor(
+      () => events.some((event) => event.method === 'turn.completed' || event.method === 'turn.failed'),
+      'the turn after the interrupt did not end',
+    );
+    // Room for a late result of the stopped turn to arrive.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    return { events, launches: readArgvLog(argvLog), nativeId: created.session.claudeSessionId };
+  } finally {
+    await service.close();
+  }
+}
+
+test('a confirmed interrupt keeps the Claude process: the next turn runs in it', async () => {
+  await withHermeticClaude(async (dir) => {
+    const { events, launches, nativeId } = await interruptThenContinue(dir, { waitFor: 'init' });
+    assert.equal(events.some((event) => event.method === 'turn.failed'), false);
+    assert.equal(
+      events.filter((event) => event.method === 'turn.completed').length,
+      1,
+      'the stopped turn result must not complete the next turn',
+    );
+    assert.equal(launches.length, 1, 'both turns ran in one process');
+    assert.equal(flagValue(launches[0]!, '--session-id'), nativeId);
+    assert.equal(flagValue(launches[0]!, '--model'), 'opus');
+    assert.equal(flagValue(launches[0]!, '--effort'), 'high');
+    assert.equal(launches[0]!.includes('--resume'), false);
+  });
+});
+
+test('an interrupt Claude does not confirm stops the process; the next turn resumes the session', async () => {
+  await withHermeticClaude(async (dir) => {
+    process.env.FAKE_IGNORE_INTERRUPT = '1';
     try {
-      await service.initialize();
-      const created = await service.createSession({ cwd: dir });
-      await service.startTurn({
-        sessionId: created.session.id,
-        model: 'opus',
-        thinking: 'high',
-        permissionMode: 'bypassPermissions',
-        input: [{ type: 'text', text: 'first' }],
+      const { events, launches, nativeId } = await interruptThenContinue(dir, {
+        waitFor: 'init',
+        interruptTimeoutMs: 200,
       });
-      await waitFor(
-        () => existsSync(marker) && runtime.getDetectedModelId(created.session.id) !== null,
-        'claude did not acknowledge the session before interrupt',
-      );
-      await service.interruptTurn({ sessionId: created.session.id });
-      await service.startTurn({
-        sessionId: created.session.id,
-        model: 'opus',
-        thinking: 'high',
-        permissionMode: 'bypassPermissions',
-        input: [{ type: 'text', text: 'second' }],
-      });
-      await waitFor(
-        () => events.some((event) => event.method === 'turn.completed'),
-        'resumed turn did not complete',
-      );
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      assert.equal(
-        events.some((event) => event.method === 'turn.failed'),
-        false,
-        'a resumed turn must not fail with Claude Code process exited (code=0)',
-      );
-      const lines = readFileSync(argvLog, 'utf8')
-        .split('\n')
-        .filter((line) => line.length > 0)
-        .map((line) => line.split('\0'));
-      assert.equal(lines.length, 2);
-      const nativeId = created.session.claudeSessionId;
-      assert.equal(flagValue(lines[0]!, '--session-id'), nativeId);
-      assert.equal(flagValue(lines[0]!, '--model'), 'opus');
-      assert.equal(flagValue(lines[0]!, '--effort'), 'high');
-      assert.equal(lines[0]!.includes('--resume'), false);
-      assert.equal(flagValue(lines[1]!, '--resume'), nativeId);
-      assert.equal(flagValue(lines[1]!, '--model'), 'opus');
-      assert.equal(flagValue(lines[1]!, '--effort'), 'high');
-      assert.equal(lines[1]!.includes('--session-id'), false);
+      assert.equal(events.some((event) => event.method === 'turn.failed'), false);
+      assert.equal(events.filter((event) => event.method === 'turn.completed').length, 1);
+      assert.equal(launches.length, 2);
+      assert.equal(flagValue(launches[0]!, '--session-id'), nativeId);
+      assert.equal(launches[0]!.includes('--resume'), false);
+      assert.equal(flagValue(launches[1]!, '--resume'), nativeId);
+      assert.equal(flagValue(launches[1]!, '--model'), 'opus');
+      assert.equal(flagValue(launches[1]!, '--effort'), 'high');
+      assert.equal(launches[1]!.includes('--session-id'), false);
     } finally {
-      await service.close();
+      delete process.env.FAKE_IGNORE_INTERRUPT;
     }
   });
 });
 
-test('interrupt before Claude init keeps --session-id for the next turn', async () => {
+test('an unconfirmed interrupt before Claude init keeps --session-id for the next turn', async () => {
   await withHermeticClaude(async (dir) => {
-    const argvLog = join(dir, 'argv.log');
-    const marker = join(dir, 'booted');
-    process.env.CLAUDE_ARGV_LOG = argvLog;
-    process.env.CLAUDE_SESSION_MARKER = marker;
-    const fake = join(dir, 'claude');
-    writeFileSync(fake, [
-      '#!/usr/bin/env node',
-      "const fs = require('node:fs');",
-      'const args = process.argv.slice(2);',
-      "if (args.includes('--help')) {",
-      "  console.log('Options:');",
-      "  console.log('  --effort <level>                      Effort level for the current session');",
-      "  console.log('                                        (low, high)');",
-      '  process.exit(0);',
-      '}',
-      // Same metadata-only discovery-probe branch as the companion test: the
-      // native catalog handshake must not create the boot marker or an argv
-      // record; only real turn spawns may.
-      "if (args.includes('--input-format')) {",
-      "  const rl = require(\"node:readline\").createInterface({ input: process.stdin });",
-      "  rl.on(\"line\", (line) => {",
-      '    try {',
-      '      const request = JSON.parse(line);',
-      "      if (request.type === \"control_request\" && request.request?.subtype === \"initialize\") {",
-      "        process.stdout.write(JSON.stringify({ type: \"control_response\", response: { subtype: \"success\", request_id: request.request_id, response: { models: [",
-      "          { value: \"opus\", displayName: \"Opus\", description: \"Opus model\", supportsEffort: true, supportedEffortLevels: [\"low\", \"high\"] },",
-      "        ] } } }) + \"\\n\");",
-      '      }',
-      '    } catch { /* ignore malformed probe input */ }',
-      '  });',
-      "  rl.on(\"close\", () => process.exit(0));",
-      '} else {',
-      'const log = process.env.CLAUDE_ARGV_LOG;',
-      "if (log) fs.appendFileSync(log, args.join('\\0') + '\\n');",
-      "process.on('SIGTERM', () => { setTimeout(() => process.exit(0), 50); });",
-      'const marker = process.env.CLAUDE_SESSION_MARKER;',
-      "if (marker) fs.writeFileSync(marker, '1');",
-      'setInterval(() => undefined, 1000);',
-      '}',
-      '',
-    ].join('\n'));
-    chmodSync(fake, 0o755);
-    process.env.CLAUDE_BIN = fake;
-
-    const runtime = new ClaudeMcpRuntime();
-    const service = new CcProxyService({ runtime });
+    process.env.FAKE_IGNORE_INTERRUPT = '1';
+    process.env.FAKE_NO_INIT = '1';
     try {
-      await service.initialize();
-      const created = await service.createSession({ cwd: dir });
-      await service.startTurn({
-        sessionId: created.session.id,
-        model: 'opus',
-        thinking: 'high',
-        permissionMode: 'bypassPermissions',
-        input: [{ type: 'text', text: 'first' }],
+      const { launches, nativeId } = await interruptThenContinue(dir, {
+        waitFor: 'boot',
+        interruptTimeoutMs: 200,
       });
-      await waitFor(
-        () => existsSync(marker),
-        'claude did not boot before the early interrupt',
-      );
-      assert.equal(runtime.getDetectedModelId(created.session.id), null);
-      await service.interruptTurn({ sessionId: created.session.id });
-      await service.startTurn({
-        sessionId: created.session.id,
-        model: 'opus',
-        thinking: 'high',
-        permissionMode: 'bypassPermissions',
-        input: [{ type: 'text', text: 'second' }],
-      });
-      await waitFor(
-        () => {
-          if (!existsSync(argvLog)) return false;
-          return readFileSync(argvLog, 'utf8').split('\n').filter((line) => line.length > 0).length >= 2;
-        },
-        'the second turn did not record its argv',
-      );
-      const lines = readFileSync(argvLog, 'utf8')
-        .split('\n')
-        .filter((line) => line.length > 0)
-        .map((line) => line.split('\0'));
-      const nativeId = created.session.claudeSessionId;
-      assert.equal(flagValue(lines[0]!, '--session-id'), nativeId);
-      assert.equal(lines[0]!.includes('--resume'), false);
-      assert.equal(flagValue(lines[1]!, '--session-id'), nativeId);
-      assert.equal(lines[1]!.includes('--resume'), false);
+      assert.equal(launches.length, 2);
+      assert.equal(flagValue(launches[0]!, '--session-id'), nativeId);
+      assert.equal(launches[0]!.includes('--resume'), false);
+      assert.equal(flagValue(launches[1]!, '--session-id'), nativeId);
+      assert.equal(launches[1]!.includes('--resume'), false);
     } finally {
-      await service.close();
+      delete process.env.FAKE_IGNORE_INTERRUPT;
+      delete process.env.FAKE_NO_INIT;
     }
   });
 });
@@ -1575,28 +1595,18 @@ test('an in-progress CLI exit emits structured turn.failed with the streamed len
     process.env.CLAUDE_PID_FILE = pidFile;
     const streamed = 'partial answer';
     const fake = join(dir, 'claude');
-    writeFileSync(fake, [
-      '#!/usr/bin/env node',
-      "const fs = require('node:fs');",
-      'const args = process.argv.slice(2);',
-      "if (args.includes('--help')) {",
-      "  console.log('Options:');",
-      "  console.log('  --effort <level>                      Effort level for the current session');",
-      "  console.log('                                        (low, high)');",
-      '  process.exit(0);',
-      '}',
+    // Streams part of an answer, then never finishes the turn.
+    writeFileSync(fake, streamingFakeClaude([
       `const text = ${JSON.stringify(streamed)};`,
       'console.log(JSON.stringify({ type: \'assistant\', message: { id: \'m1\', content: [{ type: \'text\', text }] } }));',
       'const pidFile = process.env.CLAUDE_PID_FILE;',
-      "if (pidFile) fs.writeFileSync(pidFile, String(process.pid));",
-      'setInterval(() => undefined, 1000);',
-      '',
-    ].join('\n'));
+      "if (pidFile) require('node:fs').writeFileSync(pidFile, String(process.pid));",
+    ]));
     chmodSync(fake, 0o755);
     process.env.CLAUDE_BIN = fake;
 
     const notifications: Array<{ method: string; params: Record<string, unknown> }> = [];
-    const service = new CcProxyService({ runtime: new ClaudeMcpRuntime() });
+    const service = new CcProxyService({ runtime: new ClaudeStreamRuntime() });
     const adapter = new ClaudeProtocolV2Adapter(service, '0.3.3-Dev', (method, params) => {
       notifications.push({ method, params });
     });
@@ -1663,21 +1673,3 @@ test('an in-progress CLI exit emits structured turn.failed with the streamed len
   });
 });
 
-test('formatQuestionAnswers serializes single, multi, and multi-question payloads', () => {
-  // Single-select answer.
-  const single = formatQuestionAnswers({ 'Pick one?': 'A' });
-  assert.match(single, /^The user answered your AskUserQuestion/);
-  assert.match(single, /Q: Pick one\?\nA: A$/);
-
-  // Multi-select serializes with `; ` separator so the model sees one line.
-  const multi = formatQuestionAnswers({ 'Pick many?': ['X', 'Y', 'Z'] });
-  assert.match(multi, /A: X; Y; Z/);
-
-  // Two questions in one payload — blank line between, no trailing whitespace.
-  const both = formatQuestionAnswers({ 'Q1?': 'a1', 'Q2?': ['b1', 'b2'] });
-  const lines = both.split('\n');
-  assert.equal(lines[lines.length - 1], 'A: b1; b2', 'no trailing blank line');
-  assert.ok(lines.includes('Q: Q1?'));
-  assert.ok(lines.includes('A: a1'));
-  assert.ok(lines.includes('Q: Q2?'));
-});

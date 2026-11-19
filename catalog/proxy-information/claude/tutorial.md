@@ -12,7 +12,8 @@ This is neither a generic HTTP chat client nor a wrapper around the Claude websi
 - Supports renaming, native session discovery and history replay, questions and permission interactions.
 - Supports Sidechat, session forks and forks at available Turn boundaries. Availability also depends on the current session, active Turns and pending interactions.
 - Supports reasoning, usage events and protocol 2.3 read-only customization inventory. Model, thinking and mode choices come from the current Proxy/CLI rather than a fixed list in this guide.
-- Does not declare native-history deletion or turn.steer. Undeclared operations cannot be supplied by inventing a button or command.
+- Supports turn.steer: input sent during an active Turn joins that Turn.
+- Does not declare native-history deletion. Undeclared operations cannot be supplied by inventing a button or command.
 
 Claude Code permissions still govern tool execution, including automation behind the UI. Gian does not guarantee full Claude Code compatibility for third-party model endpoints.
 
@@ -21,11 +22,11 @@ Claude Code permissions still govern tool execution, including automation behind
 ```text
 Gian Host
   -> Claude Proxy for this Gian Session
-      -> claude -p child process for this Turn
+      -> long-lived Claude Code process for this Session (streaming input)
           -> configured model service
 ```
 
-The Proxy has session scope. It uses structured requests and events, not terminal-screen scraping. Each Turn starts a structured CLI child process; later Turns resume the saved vendor session identity. Sidechat and forks use separate native-session boundaries, not temporary writes into the parent conversation.
+The Proxy has session scope. It uses structured requests and events, not terminal-screen scraping. Each Session keeps one structured CLI child process across Turns. The process stops after an idle period or a setting that requires a restart, and the next Turn resumes the saved vendor session identity. Sidechat and forks use separate native-session boundaries, not temporary writes into the parent conversation.
 
 The CLI maintenance terminal is for vendor login and configuration, not a Session TTY runtime. Billing follows the vendor's rules; website or interactive-terminal subscription coverage is not promised.
 
