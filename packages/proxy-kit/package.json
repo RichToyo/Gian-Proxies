@@ -19,6 +19,6 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.4/gian-proxy-protocol-1.0.4.tgz"
+    "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.5/gian-proxy-protocol-1.0.5.tgz"
   }
 }
