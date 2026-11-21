@@ -10,7 +10,7 @@ import { ClaudeStreamRuntime } from '../runtime/claude-stream-runtime.js';
 import { discoverClaudeRuntimes, probeClaudeRuntime } from '../runtime/discover.js';
 import { jsonRpcError } from '../transport/protocol.js';
 
-const PLUGIN_VERSION = readPluginVersion(import.meta.url, '0.4.0');
+const PLUGIN_VERSION = readPluginVersion(import.meta.url, '0.4.1');
 
 // Customization scans are pipelined (never await each other) so every kind
 // of an aggregate inspection is answered within its own bound: a slow kind

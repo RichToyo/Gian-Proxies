@@ -20,17 +20,27 @@ test('the real standalone verifier imports without Host and retains the package-
   assert.ok(existsSync(new URL('./build-antigravity-runtime.mjs', builderUrl)));
 });
 
-test('the Claude 0.4.0 batch selects only Claude on signed RichToyo Catalog 70', () => {
+test('the Claude 0.4.1 batch selects only Claude on signed RichToyo Catalog 70', () => {
   const selection = JSON.parse(readFileSync(new URL('../release-selection.json', import.meta.url), 'utf8'));
   const providers = ['claude'];
   assert.deepEqual(selection, { schema: 1, providers, baseCatalogRepository: 'RichToyo/Gian-Proxies', baseCatalogTag: 'catalog-v1.70.0' });
   const selected = selectReleaseDefinitions(proxyDefinitions, selection);
   assert.deepEqual(selected.map(item => item.id), providers);
   assert.deepEqual(selectRuntimeProviders(providers), providers);
-  assert.deepEqual(selected.map(item => item.pluginVersion), ['0.4.0']);
+  assert.deepEqual(selected.map(item => item.pluginVersion), ['0.4.1']);
   assert.deepEqual(selected.map(item => item.runtime.verifiedCliVersions), [['2.1.327']]);
   assert.equal(selected.some(item => item.id === 'zcode'), false);
   for (const id of ['claude', 'codex', 'kimi', 'grok', 'dsh', 'zcode', 'antigravity']) assert.ok(proxyDefinitions.some(item => item.id === id));
+});
+
+test('no selected Proxy reuses a withdrawn version', () => {
+  const selection = JSON.parse(readFileSync(new URL('../release-selection.json', import.meta.url), 'utf8'));
+  const docs = new URL(standalone ? '../catalog/proxy-information/' : '../../../catalog/proxy-information/', import.meta.url);
+  for (const item of selectReleaseDefinitions(proxyDefinitions, selection)) {
+    const history = JSON.parse(readFileSync(new URL(`${item.manifest.id}/changelog.json`, docs), 'utf8'));
+    assert.ok(!history.withdrawnVersions.some(entry => entry.version === item.pluginVersion),
+      `${item.id} ${item.pluginVersion} is a withdrawn version and must never be published again`);
+  }
 });
 
 test('Runtime publication derives its URL and preserves actual candidate digest/size, not invented evidence', () => {

@@ -1,6 +1,8 @@
 # Gian Proxies Changelog
 
-## Claude Proxy 0.4.0 candidate - 2026-11-19
+## Claude Proxy 0.4.1 candidate - 2026-11-21
+
+0.4.0 is a withdrawn Claude Proxy version (the unified 0.4.0 bump of 2026-09-20) and is never reused. It was published in error on 2026-11-20 and never entered a signed Catalog; 0.4.1 is the same code.
 
 - Keep the official Claude Code 2.1.327 Runtime from 0.3.26, with exact artifact qualification required.
 - Run each session in one long-lived Claude Code process in streaming-input mode (the Agent SDK protocol) instead of a new `claude -p` process per turn. Prompts no longer travel in argv; text streams as it is generated.
