@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "claude",
-  "currentVersion": "0.3.26",
+  "currentVersion": "0.4.1",
   "entries": [
+    {
+      "version": "0.4.1",
+      "firstPublishedAt": "2026-11-21T04:55:06Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-claude-v0.4.1",
+          "publishedAt": "2026-11-21T04:55:06Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.4.1",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.4.1/gian-proxy-claude-0.4.1-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "20725ab5c0ba45555dd7ce3f291bd9b60c844ac7095cfc0d7139b71aa63462b9",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.4.1/gian-proxy-claude-0.4.1-darwin-arm64.tar.gz",
+            "sha256": "e1f7a36e7cbd6d91b4035a1e1fdff5ac7c21763d4c42b6776e2bcdc2260157d7",
+            "size": 278838
+          },
+          "runtimeDeclaration": {
+            "id": "claude",
+            "versions": [
+              "2.1.327"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Run each session in one long-lived Claude Code process in streaming-input mode instead of a new process per Turn. Approvals, plan review and questions arrive as native control requests, so the approval MCP server and its MCP SDK and Zod dependencies are removed. Advertise turn.steer, change model, permission mode and effort in place, stop idle processes after ten minutes, and report per-Turn token usage as the change in the running total. Retain the managed Claude Code Runtime 2.1.327. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.4.1",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-claude-v0.4.1/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.26",
       "firstPublishedAt": "2026-11-18T18:50:02Z",

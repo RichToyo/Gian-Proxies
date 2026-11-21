@@ -1,32 +1,32 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.70.0",
-  "sequence": 70,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.72.0",
+  "sequence": 72,
   "sourceId": "gian-official",
   "plugins": [
     {
       "id": "claude",
       "displayName": "Claude Code",
-      "version": "0.3.26",
+      "version": "0.4.1",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "session",
       "combination": {
         "certificate": {
-          "id": "proxies-e5cac0deb9686bf85bfeac8e2fe0c9852a06908d-44371197950-1",
-          "sha256": "62e2c3edf8dffce1b563ef851c019464786c865dd35cdfa57e0b4cd6835f0a55"
+          "id": "proxies-b45c8f7bffe88d16eea5b4a1c1f0ba8289ab6de1-44867959816-1",
+          "sha256": "38991fb3d62772d1921f200a35a6f670771704767d2e4c725043c8991c4d352a"
         },
         "companions": [],
-        "generationId": "claude-0.3.26-runtime-2.1.327",
+        "generationId": "claude-0.4.1-runtime-2.1.327",
         "runtime": {
-          "asset": {
-            "sha256": "76d48205c926c8a6978cfc2171b631bcd01e20bbadd085638bb2ec57bea91c5b",
-            "size": 354515104,
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.3.26/claude-2.1.327-darwin-arm64"
-          },
-          "entryRelativePath": "bin/claude",
-          "format": "raw",
           "kind": "native-binary",
           "runtimeId": "claude",
-          "version": "2.1.327"
+          "version": "2.1.327",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.4.1/claude-2.1.327-darwin-arm64",
+            "sha256": "76d48205c926c8a6978cfc2171b631bcd01e20bbadd085638bb2ec57bea91c5b",
+            "size": 354515104
+          },
+          "format": "raw",
+          "entryRelativePath": "bin/claude"
         }
       }
     },
@@ -152,16 +152,16 @@
         "companions": [],
         "generationId": "grok-0.3.17-runtime-1.0.89",
         "runtime": {
+          "asset": {
+            "sha256": "f149e6ad81339491f8d6e0c5fd712f2813042c0dfbb595c28d5767e4567c17a1",
+            "size": 190386368,
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.17/grok-1.0.89-darwin-arm64"
+          },
+          "entryRelativePath": "bin/grok",
+          "format": "raw",
           "kind": "native-binary",
           "runtimeId": "grok",
-          "version": "1.0.89",
-          "asset": {
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.17/grok-1.0.89-darwin-arm64",
-            "sha256": "f149e6ad81339491f8d6e0c5fd712f2813042c0dfbb595c28d5767e4567c17a1",
-            "size": 190386368
-          },
-          "format": "raw",
-          "entryRelativePath": "bin/grok"
+          "version": "1.0.89"
         }
       }
     },
