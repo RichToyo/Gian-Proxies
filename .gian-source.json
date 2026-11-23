@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichToyo/Gian-Dev",
-  "sourceCommit": "d38d531b1d1e8301c316db9a448d2ad081365f88",
+  "sourceCommit": "12c1fd14151c90705d37e959e0239507854cef6f",
   "workingTree": false,
   "externalPackages": [
     {
@@ -256,7 +256,7 @@
     {
       "source": "catalog/official-source/plugins/io.gian.antigravity/overview.md",
       "path": "catalog/official-source/plugins/io.gian.antigravity/overview.md",
-      "sha256": "54d0f01feb527708085f9a15c2c85f17c48b3ed0a8f24cadf4a5e1917aca23fa"
+      "sha256": "4c803f3a2eb41867695382e394fa23d1b76f3f5f4e17a5f344f0a0c47b6439be"
     },
     {
       "source": "catalog/official-source/plugins/io.gian.antigravity/setup.md",
@@ -3598,7 +3598,7 @@
     {
       "path": "catalog/official-source/plugins/io.gian.antigravity/overview.md",
       "mode": 420,
-      "sha256": "54d0f01feb527708085f9a15c2c85f17c48b3ed0a8f24cadf4a5e1917aca23fa"
+      "sha256": "4c803f3a2eb41867695382e394fa23d1b76f3f5f4e17a5f344f0a0c47b6439be"
     },
     {
       "path": "catalog/official-source/plugins/io.gian.antigravity/setup.md",

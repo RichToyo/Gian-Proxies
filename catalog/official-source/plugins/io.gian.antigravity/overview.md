@@ -18,9 +18,10 @@ replay, multimedia input and billing-token totals are not advertised. Native
 global MCP configuration can supplement Gian's per-session MCP descriptors;
 this is not an isolation guarantee.
 
-Installable Proxy/Runtime URLs, digests and certificate identity come from
-hosted qualification and the signed Catalog. App/Desktop and authenticated
-model acceptance are separate.
+This source describes a release candidate, not a successful qualification
+or publication. Installable Proxy/Runtime URLs, digests and certificate
+identity come from hosted qualification and the signed Catalog. App/Desktop
+and authenticated model acceptance are separate.
 
 The logo identifies Google's upstream product. The Proxy is maintained by
 Gian, not Google. See the [Antigravity CLI guide](https://antigravity.google/docs/cli/getting-started).
