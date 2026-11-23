@@ -1,5 +1,11 @@
 # Gian Proxies Changelog
 
+## Claude Proxy 0.4.2 candidate - 2026-11-23
+
+- Upgrade the managed Claude Code Runtime from 2.1.327 to official 2.1.330 (`f7c5093b…`, 363855808 bytes, from Anthropic's release manifest). Upstream fixes include a multi-minute freeze after compacting a very long conversation, `--resume` failing when the last saved message has an invalid timestamp, lower memory use in long SDK sessions, and background agents left waiting after an interrupt.
+- No Proxy code change: the streaming-input mode, native control requests and `turn.steer` from 0.4.1 are unchanged.
+- Exact-artifact hosted qualification and publication remain required.
+
 ## Antigravity Proxy 0.1.0 candidate - 2026-11-22
 
 - Run sessions through the ACP server built into the agy CLI (`agy acp`, 1.5.9 or later) instead of the standalone `agy_acp_server.par`. Sessions, the model list and quota now use the user's own agy sign-in; one `agy` login in Terminal is enough. A signed-out CLI reports `RUNTIME_AUTH_REQUIRED` with sign-in instructions for sessions and the model list.
