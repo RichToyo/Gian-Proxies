@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "pluginId": "io.gian.antigravity",
   "displayName": "Antigravity",
-  "tagline": "Gemini sessions through the official Antigravity ACP Server.",
+  "tagline": "Gemini sessions through the official Antigravity CLI.",
   "featuredOrder": 70,
   "documentation": {
     "overview": "overview.md",
@@ -22,7 +22,7 @@
   },
   "channels": {
     "stable": {
-      "pluginVersion": "0.0.9"
+      "pluginVersion": "0.1.0"
     }
   }
 }

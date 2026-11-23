@@ -1562,8 +1562,27 @@ function positiveInteger(value: number | undefined, fallback: number, name: stri
   return value;
 }
 
+/** ACP reserves this JSON-RPC code for "Authentication required" (`RequestError.authRequired`). */
+const ACP_AUTH_REQUIRED_CODE = -32000;
+const RUNTIME_AUTH_REQUIRED_MESSAGE = 'Antigravity is not signed in. Run `agy` once in a terminal, '
+  + 'or run `agy acp --login`, then retry.';
+
+/**
+ * ACP `-32000`, either on an SDK `RequestError` or on a plain `{ code, message }`
+ * rejection, or an "Authentication required" message without a code.
+ */
+function isAuthRequired(error: unknown): boolean {
+  if (error === null || typeof error !== 'object') return false;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  if (code === ACP_AUTH_REQUIRED_CODE) return true;
+  return typeof message === 'string' && /authentication required/i.test(message);
+}
+
 function wrapRuntime(error: unknown, fallback: string): AntigravityProxyError {
   if (error instanceof AntigravityProxyError) return error;
+  if (isAuthRequired(error)) {
+    return new AntigravityProxyError('RUNTIME_AUTH_REQUIRED', RUNTIME_AUTH_REQUIRED_MESSAGE, false, { resent: false });
+  }
   const message = error instanceof Error && error.message ? error.message : fallback;
   return new AntigravityProxyError('RUNTIME_ERROR', message, false, { resent: false });
 }

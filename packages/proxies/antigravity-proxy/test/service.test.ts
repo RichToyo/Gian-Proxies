@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { RequestError } from '@agentclientprotocol/sdk';
 import type {
   AuthenticateResponse,
   ContentBlock,
@@ -1015,6 +1016,43 @@ test('invalid input and a failed dispatch do not leave a busy turn', async () =>
   await h.service.startTurn({ sessionId: 'gian-1', turnId: 'turn-ok', prompt: prompt('hello') });
   assert.equal(h.runtime.prompts.length, 1);
   assert.equal(countKind(h.events, 'turn.started'), 1);
+});
+
+test('ACP authentication required maps to RUNTIME_AUTH_REQUIRED with a sign-in hint', async () => {
+  const h = harness();
+  const session = await attach(h, 'gian-1');
+  const authRequired = (error: unknown): boolean => {
+    const proxyError = proxy(error);
+    assert.equal(proxyError.domainCode, 'RUNTIME_AUTH_REQUIRED');
+    assert.equal(proxyError.retryable, false);
+    assert.equal(proxyError.details?.resent, false);
+    assert.match(proxyError.message, /Run `agy` once in a terminal, or run `agy acp --login`, then retry\./);
+    return true;
+  };
+  // SDK RequestError (-32000), then the message alone without a code.
+  for (const [turnId, failure] of [
+    ['turn-sdk', RequestError.authRequired()],
+    ['turn-text', new Error('Authentication required: no cached credential')],
+  ] as const) {
+    h.runtime.dispatchError = failure;
+    await assert.rejects(() => h.service.startTurn({ sessionId: 'gian-1', turnId, prompt: prompt('hello') }), authRequired);
+  }
+  h.runtime.dispatchError = Object.assign(new Error('Internal error'), { code: -32603 });
+  await assert.rejects(
+    () => h.service.startTurn({ sessionId: 'gian-1', turnId: 'turn-other', prompt: prompt('hello') }),
+    (error: unknown) => proxy(error).domainCode === 'RUNTIME_ERROR',
+  );
+  h.runtime.dispatchError = null;
+  assert.equal(h.runtime.prompts.length, 0);
+  // A plain `{ code, message }` rejection of a dispatched prompt.
+  await h.service.startTurn({ sessionId: 'gian-1', turnId: 'turn-plain', prompt: prompt('hello') });
+  h.runtime.rejectPrompt(session.nativeSessionId, { code: -32000, message: 'native' } as unknown as Error);
+  await new Promise((resolve) => { setTimeout(resolve, 0); });
+  const failed = h.events.find((event) => event.kind === 'turn.failed');
+  assert.ok(failed && failed.kind === 'turn.failed');
+  assert.equal(authRequired(failed.error), true);
+  assert.equal(h.runtime.prompts.length, 1);
+  assert.equal(h.runtime.calls.includes('authenticate'), false);
 });
 
 test('getSession returns an isolated snapshot', async () => {

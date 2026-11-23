@@ -5,7 +5,7 @@ import { runtimeInstallPlanParamsSchema } from '@gian/proxy-protocol';
 
 import {
   ANTIGRAVITY_CLIENT_INFO,
-  PAIRED_PRODUCT_ARCHIVE_ENTRIES,
+  MANAGED_PRODUCT_ARCHIVE_ENTRIES,
   planRuntimeInstallation,
 } from '../src/runtime/index.js';
 import {
@@ -43,37 +43,39 @@ test('locks the manifest identity the Host compares exactly', () => {
   assert.equal(ANTIGRAVITY_CLIENT_INFO.name, 'gian-antigravity-proxy');
 });
 
-test('plans a closed tar.gz layout and does not invent bytes', () => {
-  assert.deepEqual(PAIRED_PRODUCT_ARCHIVE_ENTRIES, ['agy_acp_server.par', 'localharness_external']);
-  const plan = planRuntimeInstallation(managed('tar.gz', 'agy_acp_server.par'));
+test('plans the managed agy CLI as a closed tar.gz layout and does not invent bytes', () => {
+  assert.deepEqual(MANAGED_PRODUCT_ARCHIVE_ENTRIES, ['agy']);
+  const plan = planRuntimeInstallation(managed('tar.gz', 'agy'));
   assert.deepEqual(plan.operation, {
     kind: 'managed',
     directory: `antigravity-acp/1.4.3/${sha}`,
     candidates: [],
     format: 'tar.gz',
-    entryRelativePath: 'agy_acp_server.par',
+    entryRelativePath: 'agy',
   });
 });
 
-test('rejects raw, wrong entry, and a non-tar format at the schema', () => {
+test('rejects raw, wrong entry, the legacy pair, and a non-tar format at the schema', () => {
   assert.throws(
-    () => planRuntimeInstallation(managed('raw', 'agy_acp_server.par')),
+    () => planRuntimeInstallation(managed('raw', 'agy')),
     /Runtime artifact layout is not supported by this Proxy version\./,
   );
-  assert.throws(
-    () => planRuntimeInstallation(managed('tar.gz', 'agy_acp_server.exe')),
-    /Runtime artifact layout is not supported by this Proxy version\./,
-  );
+  for (const entry of ['agy_acp_server.par', 'antigravity', 'agy.exe']) {
+    assert.throws(
+      () => planRuntimeInstallation(managed('tar.gz', entry)),
+      /Runtime artifact layout is not supported by this Proxy version\./,
+    );
+  }
   assert.throws(
     () => planRuntimeInstallation({
-      ...managed('tar.gz', 'agy_acp_server.par'),
+      ...managed('tar.gz', 'agy'),
       runtimeId: 'other-runtime',
     }),
     /Runtime installation recipe does not match the certified distribution\./,
   );
   const zip = runtimeInstallPlanParamsSchema.safeParse({
-    ...managed('tar.gz', 'agy_acp_server.par'),
-    distribution: { kind: 'managed', format: 'zip', entryRelativePath: 'agy_acp_server.par' },
+    ...managed('tar.gz', 'agy'),
+    distribution: { kind: 'managed', format: 'zip', entryRelativePath: 'agy' },
   });
   assert.equal(zip.success, false);
 });

@@ -1,6 +1,5 @@
 import {
   DOMAIN_CODES,
-  MAX_NDJSON_LINE_BYTES,
   proxyRequestSchema,
 } from '@gian/proxy-protocol';
 
@@ -57,6 +56,11 @@ export function parseRequestLine(line: string): WireRequest {
   let value: unknown;
   try { value = JSON.parse(line); }
   catch { throw new RpcError(-32700, 'Request is not valid JSON.'); }
+  return validateRequest(value);
+}
+
+/** Check a parsed request against the Gian Proxy contract. */
+export function validateRequest(value: unknown): WireRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new RpcError(-32600, 'Request must be a JSON-RPC object.');
   }
@@ -68,19 +72,4 @@ export function parseRequestLine(line: string): WireRequest {
   const parsed = proxyRequestSchema.safeParse(value);
   if (!parsed.success) throw new RpcError(-32602, 'Request does not match the Gian Proxy contract.');
   return parsed.data as WireRequest;
-}
-
-export function createProtocolWriter(output: NodeJS.WritableStream) {
-  const write = (value: unknown) => {
-    const line = `${JSON.stringify(value)}\n`;
-    if (Buffer.byteLength(line) > MAX_NDJSON_LINE_BYTES) {
-      throw new ProtocolError('RUNTIME_ERROR', 'Proxy output exceeds the negotiated frame limit.');
-    }
-    output.write(line);
-  };
-  return {
-    result(id: string, result: unknown) { write({ jsonrpc: '2.0', id, result }); },
-    error(id: string | null, error: unknown) { write({ jsonrpc: '2.0', id, error: standardError(error) }); },
-    notification(method: string, params: JsonRecord) { write({ jsonrpc: '2.0', method, params }); },
-  };
 }

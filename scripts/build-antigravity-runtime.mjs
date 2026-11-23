@@ -11,210 +11,132 @@ import {
   utimes,
   writeFile,
 } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { crc32, inflateRawSync } from 'node:zlib';
+import { gunzipSync } from 'node:zlib';
 
 const execFileAsync = promisify(execFile);
 const MAX_RUNTIME_ASSET_BYTES = 512 * 1024 * 1024;
-const MAX_MEMBER_UNCOMPRESSED_BYTES = 512 * 1024 * 1024;
-const MAX_PAIR_UNCOMPRESSED_BYTES = 700 * 1024 * 1024;
-const LOCAL_HEADER = 0x04034b50;
-const CENTRAL_HEADER = 0x02014b50;
-const EOCD_HEADER = 0x06054b50;
-const S_IFMT = 0o170000;
-const S_IFREG = 0o100000;
-const S_IFLNK = 0o120000;
+const TAR_BLOCK = 512;
 
 /**
- * Pinned official ACP registry binary for the Dev darwin-arm64 target.
- * Registry platform id is `darwin-aarch64`; Gian's existing Runtime
- * candidates call that target `darwin-arm64`. The ZIP is source provenance.
- * The product asset is a byte-preserving tar.gz and is not a Gian release URL.
- * https://github.com/agentclientprotocol/registry/blob/main/antigravity-acp/agent.json
+ * Pinned official Antigravity CLI (`agy`) for the darwin-arm64 target.
+ * Google's release manifest
+ * https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/darwin_arm64.json
+ * (the one the official installer https://antigravity.google/cli/install.sh
+ * reads) names the version, the URL and the SHA-512 below. The archive holds
+ * one file, `antigravity`, which the installer installs as `agy`. The product
+ * asset repacks exactly those bytes as `agy`, the basename the Proxy launches
+ * as `agy acp`; the Runtime id and display name stay the shipped ones.
  */
 export const antigravityRuntimeSource = Object.freeze({
   schemaVersion: 1,
-  kind: 'antigravity-pair',
+  kind: 'antigravity-cli',
   provider: 'antigravity',
   pluginId: 'io.gian.antigravity',
   runtimeId: 'antigravity-acp',
-  version: '1.5.0',
+  version: '1.5.14',
   platform: 'darwin-arm64',
-  registryPlatform: 'darwin-aarch64',
+  upstreamPlatform: 'darwin_arm64',
   format: 'tar.gz',
-  entryRelativePath: 'agy_acp_server.par',
-  harnessRelativePath: 'localharness_external',
-  members: Object.freeze([
-    Object.freeze({ name: 'agy_acp_server.par', mode: 0o755 }),
-    Object.freeze({ name: 'localharness_external', mode: 0o555 }),
-  ]),
-  sourceUrl: 'https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.5.0-darwin-arm64.zip',
-  sourceSha256: 'c82ecb4ef476bfc35cbe5b2745cdddef873b99c9f5bd7fd11e5ca1fc1667a3fc',
-  sourceSize: 100401185,
+  entryRelativePath: 'agy',
+  entryMode: 0o755,
+  sourceUrl: 'https://storage.googleapis.com/antigravity-public/antigravity-cli/1.5.14-5302690847260672/darwin-arm/cli_mac_arm64.tar.gz',
+  sourceSha256: 'b01bdd4591e13ddfcb0e049bea74ae9f83e80829adcf64aaa58f5bfb1a425a54',
+  sourceSha512: '26830fd46bfb9200d073cf3e71bf94b707552557b4380ec01afd6e99f3a2b030e65422dab1867f77318078692defc859a7547d17ec4b0b1e9369f13c9c3caea6',
+  sourceSize: 85943943,
+  sourceMember: 'antigravity',
+  binarySha256: 'e8c2959bf4744580d0e5b8f938ec2dc3918a942b620a6262e53856400f14e5fb',
+  binarySize: 229152672,
 });
 
-const MEMBER_NAMES = new Set(antigravityRuntimeSource.members.map(member => member.name));
-
-function digest(bytes) {
-  return createHash('sha256').update(bytes).digest('hex');
+function digest(bytes, algorithm = 'sha256') {
+  return createHash(algorithm).update(bytes).digest('hex');
 }
 
-function invalidArchive() {
-  return new Error('Antigravity source archive is invalid.');
+function invalidArchive(detail) {
+  return new Error(`Antigravity source archive is invalid${detail ? `: ${detail}` : ''}.`);
 }
 
-function assertExplicitPairName(name) {
-  if (name.length === 0 || name.length > 64
-    || name.includes('/') || name.includes('\\') || name.includes('\0')
-    || name.includes('..') || !MEMBER_NAMES.has(name)) {
-    throw new Error('Antigravity source archive member path is not an explicit pair file.');
-  }
+function tarString(header, start, length) {
+  const field = header.subarray(start, start + length);
+  const end = field.indexOf(0);
+  return field.subarray(0, end === -1 ? length : end).toString('utf8');
 }
 
-function assertRegularMember(externalAttributes) {
-  const type = (externalAttributes >>> 16) & S_IFMT;
-  if (type === S_IFLNK) throw new Error('Antigravity source archive member is a link.');
-  if (type !== 0 && type !== S_IFREG) {
-    throw new Error('Antigravity source archive member is not a regular file.');
-  }
+function tarOctal(header, start, length) {
+  const text = tarString(header, start, length).trim();
+  if (!/^[0-7]+$/u.test(text)) throw invalidArchive('non-octal header field');
+  return Number.parseInt(text, 8);
 }
 
-function findEocd(bytes) {
-  if (bytes.length < 22 || bytes.length > MAX_RUNTIME_ASSET_BYTES) throw invalidArchive();
-  const limit = Math.max(0, bytes.length - (65535 + 22));
-  for (let offset = bytes.length - 22; offset >= limit; offset -= 1) {
-    if (bytes.readUInt32LE(offset) !== EOCD_HEADER) continue;
-    const commentLength = bytes.readUInt16LE(offset + 20);
-    if (offset + 22 + commentLength === bytes.length) return offset;
+function tarChecksumOk(header) {
+  const recorded = tarOctal(header, 148, 8);
+  let sum = 0;
+  for (let index = 0; index < TAR_BLOCK; index += 1) {
+    sum += index >= 148 && index < 156 ? 0x20 : header[index];
   }
-  throw invalidArchive();
+  return sum === recorded;
 }
 
-function claimSpan(spans, start, end) {
-  if (spans.some(span => start < span.end && end > span.start)) throw invalidArchive();
-  spans.push({ start, end });
+/**
+ * Read the official archive: exactly one regular file named
+ * `sourceMember`, of the pinned size and digest, followed only by the
+ * end-of-archive zero blocks. No member name ever becomes an output path.
+ */
+export function readAntigravityCliBinary(archiveBytes, recipe = antigravityRuntimeSource) {
+  if (!Buffer.isBuffer(archiveBytes) || archiveBytes.length === 0 || archiveBytes.length > MAX_RUNTIME_ASSET_BYTES) {
+    throw invalidArchive();
+  }
+  let tar;
+  try {
+    tar = gunzipSync(archiveBytes, { maxOutputLength: MAX_RUNTIME_ASSET_BYTES });
+  } catch {
+    throw invalidArchive('gzip');
+  }
+  if (tar.length < TAR_BLOCK * 3 || tar.length % TAR_BLOCK !== 0) throw invalidArchive('tar length');
+  const header = tar.subarray(0, TAR_BLOCK);
+  if (!tarChecksumOk(header)) throw invalidArchive('header checksum');
+  const magic = header.subarray(257, 265).toString('latin1');
+  if (magic !== 'ustar\u000000' && magic !== 'ustar  \u0000') throw invalidArchive('not ustar');
+  const type = String.fromCharCode(header[156]);
+  if (type !== '0' && type !== '\u0000') throw invalidArchive('member is not a regular file');
+  const prefix = tarString(header, 345, 155);
+  const name = tarString(header, 0, 100);
+  if (prefix !== '' || name !== recipe.sourceMember) {
+    throw invalidArchive('unexpected member');
+  }
+  const size = tarOctal(header, 124, 12);
+  if (size !== recipe.binarySize) throw invalidArchive('member size');
+  const dataEnd = TAR_BLOCK + size;
+  const paddedEnd = TAR_BLOCK + Math.ceil(size / TAR_BLOCK) * TAR_BLOCK;
+  if (paddedEnd + TAR_BLOCK * 2 > tar.length) throw invalidArchive('truncated');
+  for (let index = dataEnd; index < tar.length; index += 1) {
+    if (tar[index] !== 0) throw invalidArchive('more than one member');
+  }
+  const binary = Buffer.from(tar.subarray(TAR_BLOCK, dataEnd));
+  if (digest(binary) !== recipe.binarySha256) {
+    throw invalidArchive('binary differs from the pinned digest');
+  }
+  return binary;
 }
 
-function readLocalMember(bytes, member, cdOffset) {
-  const start = member.localOffset;
-  if (start < 0 || start + 30 > cdOffset || bytes.readUInt32LE(start) !== LOCAL_HEADER) throw invalidArchive();
-  const flags = bytes.readUInt16LE(start + 6);
-  const method = bytes.readUInt16LE(start + 8);
-  const crc = bytes.readUInt32LE(start + 14);
-  const compressedSize = bytes.readUInt32LE(start + 18);
-  const uncompressedSize = bytes.readUInt32LE(start + 22);
-  const nameLength = bytes.readUInt16LE(start + 26);
-  const extraLength = bytes.readUInt16LE(start + 28);
-  const nameEnd = start + 30 + nameLength;
-  if (nameEnd + extraLength > cdOffset) throw invalidArchive();
-  const name = bytes.toString('utf8', start + 30, nameEnd);
-  if (name !== member.name || flags !== member.flags || method !== member.method
-    || crc !== member.crc || compressedSize !== member.compressedSize
-    || uncompressedSize !== member.uncompressedSize) throw invalidArchive();
-  const dataStart = nameEnd + extraLength;
-  const dataEnd = dataStart + compressedSize;
-  if (dataEnd > cdOffset) throw invalidArchive();
-  const compressed = bytes.subarray(dataStart, dataEnd);
-  let payload;
-  if (method === 0) {
-    if (compressed.length !== uncompressedSize) throw invalidArchive();
-    payload = Buffer.from(compressed);
-  } else {
-    try {
-      payload = inflateRawSync(compressed, { maxOutputLength: uncompressedSize });
-    } catch {
-      throw new Error('Antigravity source archive member is corrupt.');
-    }
-  }
-  if (payload.length !== uncompressedSize || (crc32(payload) >>> 0) !== crc) {
-    throw new Error('Antigravity source archive member is corrupt.');
-  }
-  return { bytes: payload, end: dataEnd };
-}
-
-/** Validate the central directory and inflate only the two pinned filenames.
- * Output paths come from the recipe, never from archive member names. */
-export function readAntigravityPair(bytes) {
-  if (!Buffer.isBuffer(bytes)) throw invalidArchive();
-  const eocd = findEocd(bytes);
-  const disk = bytes.readUInt16LE(eocd + 4);
-  const centralDisk = bytes.readUInt16LE(eocd + 6);
-  const diskEntries = bytes.readUInt16LE(eocd + 8);
-  const totalEntries = bytes.readUInt16LE(eocd + 10);
-  const centralSize = bytes.readUInt32LE(eocd + 12);
-  const centralOffset = bytes.readUInt32LE(eocd + 16);
-  if (disk !== 0 || centralDisk !== 0 || diskEntries !== 2 || totalEntries !== 2) {
-    throw new Error('Antigravity source archive must contain exactly the paired server and harness.');
-  }
-  if (centralSize === 0xffffffff || centralOffset === 0xffffffff
-    || centralOffset + centralSize > eocd) throw invalidArchive();
-  const members = new Map();
-  const spans = [];
-  let cursor = centralOffset;
-  const end = centralOffset + centralSize;
-  while (cursor < end) {
-    if (cursor + 46 > end || bytes.readUInt32LE(cursor) !== CENTRAL_HEADER) throw invalidArchive();
-    const flags = bytes.readUInt16LE(cursor + 8);
-    const method = bytes.readUInt16LE(cursor + 10);
-    const crc = bytes.readUInt32LE(cursor + 16);
-    const compressedSize = bytes.readUInt32LE(cursor + 20);
-    const uncompressedSize = bytes.readUInt32LE(cursor + 24);
-    const nameLength = bytes.readUInt16LE(cursor + 28);
-    const extraLength = bytes.readUInt16LE(cursor + 30);
-    const commentLength = bytes.readUInt16LE(cursor + 32);
-    const memberDisk = bytes.readUInt16LE(cursor + 34);
-    const externalAttributes = bytes.readUInt32LE(cursor + 38);
-    const localOffset = bytes.readUInt32LE(cursor + 42);
-    const nameStart = cursor + 46;
-    const nameEnd = nameStart + nameLength;
-    if (nameEnd + extraLength + commentLength > end) throw invalidArchive();
-    const name = bytes.toString('utf8', nameStart, nameEnd);
-    assertExplicitPairName(name);
-    if (members.has(name)) throw new Error('Antigravity source archive contains a duplicate member.');
-    if (memberDisk !== 0) throw invalidArchive();
-    assertRegularMember(externalAttributes);
-    if (flags & 0x0001) throw new Error('Antigravity source archive member is encrypted.');
-    const bounded = (flags & 0x0008) === 0
-      && compressedSize !== 0xffffffff
-      && uncompressedSize !== 0xffffffff
-      && uncompressedSize > 0
-      && uncompressedSize <= MAX_MEMBER_UNCOMPRESSED_BYTES
-      && compressedSize <= MAX_MEMBER_UNCOMPRESSED_BYTES;
-    if (!bounded) throw new Error('Antigravity source archive member is unbounded.');
-    if (method !== 0 && method !== 8) throw invalidArchive();
-    const payload = readLocalMember(bytes, {
-      name, flags, method, crc, compressedSize, uncompressedSize, localOffset,
-    }, centralOffset);
-    claimSpan(spans, localOffset, payload.end);
-    members.set(name, payload.bytes);
-    cursor = nameEnd + extraLength + commentLength;
-  }
-  if (cursor !== end || members.size !== MEMBER_NAMES.size) throw invalidArchive();
-  let total = 0;
-  for (const name of MEMBER_NAMES) total += members.get(name).length;
-  if (total > MAX_PAIR_UNCOMPRESSED_BYTES) {
-    throw new Error('Antigravity source archive member is unbounded.');
-  }
-  return members;
-}
-
-export async function extractAntigravityPair(bytes, destination) {
+/** Write the pinned binary as `agy`. Refuses a link or non-directory target. */
+export async function extractAntigravityCli(archiveBytes, destination, recipe = antigravityRuntimeSource) {
   const info = await lstat(destination).catch(error => {
     if (error?.code === 'ENOENT') return null;
     throw error;
   });
   if (info && (info.isSymbolicLink() || !info.isDirectory())) {
-    throw new Error('Antigravity pair directory must be a real directory.');
+    throw new Error('Antigravity Runtime directory must be a real directory.');
   }
   await mkdir(destination, { recursive: true, mode: 0o700 });
-  const members = readAntigravityPair(bytes);
-  for (const member of antigravityRuntimeSource.members) {
-    const target = join(destination, member.name);
-    await writeFile(target, members.get(member.name), { flag: 'wx', mode: member.mode });
-    await chmod(target, member.mode);
-  }
+  const binary = readAntigravityCliBinary(archiveBytes, recipe);
+  const target = join(destination, antigravityRuntimeSource.entryRelativePath);
+  await writeFile(target, binary, { flag: 'wx', mode: antigravityRuntimeSource.entryMode });
+  await chmod(target, antigravityRuntimeSource.entryMode);
+  return target;
 }
 
 async function readPinnedArchive(archivePath) {
@@ -228,7 +150,8 @@ async function readPinnedArchive(archivePath) {
   const bytes = await readFile(archivePath);
   const actualSha256 = digest(bytes);
   if (bytes.length !== antigravityRuntimeSource.sourceSize
-    || actualSha256 !== antigravityRuntimeSource.sourceSha256) {
+    || actualSha256 !== antigravityRuntimeSource.sourceSha256
+    || digest(bytes, 'sha512') !== antigravityRuntimeSource.sourceSha512) {
     throw archiveMismatch('file-integrity', { actualSize: bytes.length, actualSha256 });
   }
   return bytes;
@@ -247,7 +170,7 @@ async function downloadAntigravitySource(destination, fetchImpl = globalThis.fet
   const response = await fetchImpl(antigravityRuntimeSource.sourceUrl, {
     headers: { 'Accept-Encoding': 'identity' },
     redirect: 'follow',
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(300_000),
   });
   if (!response.ok || !response.body) {
     await response.body?.cancel().catch(() => undefined);
@@ -257,7 +180,7 @@ async function downloadAntigravitySource(destination, fetchImpl = globalThis.fet
   const declaredSize = declared === null ? null : Number(declared);
   const encoding = response.headers.get('content-encoding')?.trim().toLowerCase();
   // Fetch decodes HTTP compression, while Content-Length counts encoded
-  // bytes. Require identity before comparing it with the pinned ZIP size.
+  // bytes. Require identity before comparing it with the pinned size.
   if (encoding && encoding !== 'identity') {
     await response.body.cancel().catch(() => undefined);
     throw archiveMismatch('content-encoding', { declaredSize, contentEncoding: 'non-identity' });
@@ -289,25 +212,24 @@ async function downloadAntigravitySource(destination, fetchImpl = globalThis.fet
   return destination;
 }
 
-export async function packAntigravityPair(runtimeRoot, archivePath, listPath) {
-  const names = antigravityRuntimeSource.members.map(member => member.name)
-    .sort((left, right) => left.localeCompare(right));
-  const present = (await readdir(runtimeRoot)).sort((left, right) => left.localeCompare(right));
-  if (present.length !== names.length || present.some((name, index) => name !== names[index])) {
-    throw new Error('Antigravity pair directory does not match the pinned members.');
+/** Deterministic product archive: the single `agy` member with fixed
+ * owner, mode and time, no extended metadata and no gzip timestamp. */
+export async function packAntigravityCli(runtimeRoot, archivePath, listPath) {
+  const name = antigravityRuntimeSource.entryRelativePath;
+  const present = await readdir(runtimeRoot);
+  if (present.length !== 1 || present[0] !== name) {
+    throw new Error('Antigravity Runtime directory does not match the pinned member.');
+  }
+  const path = join(runtimeRoot, name);
+  const info = await lstat(path);
+  if (!info.isFile() || info.isSymbolicLink()) {
+    throw new Error('Antigravity Runtime member must be a regular file.');
   }
   const epoch = new Date('2000-01-01T00:00:00.000Z');
-  for (const member of antigravityRuntimeSource.members) {
-    const path = join(runtimeRoot, member.name);
-    const info = await lstat(path);
-    if (!info.isFile() || info.isSymbolicLink()) {
-      throw new Error('Antigravity pair member must be a regular file.');
-    }
-    await chmod(path, 0o644);
-    await utimes(path, epoch, epoch);
-    await chmod(path, member.mode);
-  }
-  await writeFile(listPath, Buffer.from(`${names.join('\0')}\0`, 'utf8'));
+  await chmod(path, 0o644);
+  await utimes(path, epoch, epoch);
+  await chmod(path, antigravityRuntimeSource.entryMode);
+  await writeFile(listPath, Buffer.from(`${name}\0`, 'utf8'));
   await execFileAsync('/usr/bin/tar', [
     '-czhf', archivePath,
     '--format', 'ustar',
@@ -335,22 +257,22 @@ export async function packAntigravityPair(runtimeRoot, archivePath, listPath) {
   return bytes;
 }
 
-/** Build the non-shipping Dev Runtime asset. `options.archivePath` selects an
- * already cached official ZIP. Omitting it downloads the pinned registry URL.
- * This does not spawn the server, harness, model, or App, and it does not
- * consult proxy release metadata. */
+/** Build the managed Runtime asset. `options.archivePath` selects an already
+ * cached official archive; omitting it downloads the pinned URL. This does
+ * not spawn the CLI, a model or the App, and does not consult proxy release
+ * metadata. */
 export async function buildAntigravityRuntimeCandidate(outputDir, workDir, options = {}) {
   if (!outputDir || !workDir) throw new Error('Antigravity Runtime build requires output and work directories.');
   await mkdir(outputDir, { recursive: true, mode: 0o700 });
   await mkdir(workDir, { recursive: true, mode: 0o700 });
   const archivePath = options.archivePath
-    ?? await downloadAntigravitySource(join(workDir, 'agy-acp-source.zip'), options.fetch);
+    ?? await downloadAntigravitySource(join(workDir, 'agy-cli-source.tar.gz'), options.fetch);
   const bytes = await readPinnedArchive(archivePath);
-  const pairRoot = join(workDir, 'antigravity-pair');
-  await extractAntigravityPair(bytes, pairRoot);
+  const runtimeRoot = join(workDir, 'antigravity-cli');
+  const entry = await extractAntigravityCli(bytes, runtimeRoot);
   const name = `gian-runtime-antigravity-${antigravityRuntimeSource.version}-darwin-arm64.tar.gz`;
   const path = join(outputDir, name);
-  const packed = await packAntigravityPair(pairRoot, path, join(workDir, 'antigravity-runtime-files'));
+  const packed = await packAntigravityCli(runtimeRoot, path, join(workDir, 'antigravity-runtime-files'));
   return {
     provider: antigravityRuntimeSource.provider,
     version: antigravityRuntimeSource.version,
@@ -363,7 +285,7 @@ export async function buildAntigravityRuntimeCandidate(outputDir, workDir, optio
       size: packed.length,
       publish: false,
     },
-    candidateBin: join(pairRoot, antigravityRuntimeSource.entryRelativePath),
+    candidateBin: entry,
   };
 }
 
@@ -386,8 +308,8 @@ function parseArgs(argv) {
     else if (arg === '--work') options.workDir = argv[++index];
     else throw new Error(`Unknown Antigravity Runtime argument ${arg}.`);
   }
-  if (!options.archivePath || !options.outputDir || !options.workDir) {
-    throw new Error('Antigravity Runtime build requires --archive, --output, and --work.');
+  if (!options.outputDir || !options.workDir) {
+    throw new Error('Antigravity Runtime build requires --output and --work (and optionally --archive).');
   }
   return options;
 }
@@ -395,9 +317,8 @@ function parseArgs(argv) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const options = parseArgs(process.argv.slice(2));
   buildAntigravityRuntimeCandidate(options.outputDir, options.workDir, {
-    archivePath: options.archivePath,
+    ...(options.archivePath ? { archivePath: options.archivePath } : {}),
   }).then(async candidate => {
-    const harness = join(dirname(candidate.candidateBin), antigravityRuntimeSource.harnessRelativePath);
     console.log(JSON.stringify({
       provider: candidate.provider,
       version: candidate.version,
@@ -407,7 +328,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       candidateBin: candidate.candidateBin,
       memberSha256: {
         [antigravityRuntimeSource.entryRelativePath]: await hashFile(candidate.candidateBin),
-        [antigravityRuntimeSource.harnessRelativePath]: await hashFile(harness),
       },
     }, null, 2));
   }).catch(error => {

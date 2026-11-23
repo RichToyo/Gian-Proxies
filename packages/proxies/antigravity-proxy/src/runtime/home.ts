@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
 import { AntigravityRuntimeError } from './errors.js';
+import { ANTIGRAVITY_CLI_DISABLE_AUTO_UPDATE_ENV } from './layout.js';
 
 /**
  * Gemini root for this process.
@@ -34,6 +35,27 @@ export function antigravityChildEnv(env: NodeJS.ProcessEnv = process.env): NodeJ
   } else {
     delete next.GEMINI_HOME;
   }
+  return next;
+}
+
+/**
+ * Gemini root that the `agy` CLI actually uses: always the account's
+ * `~/.gemini` (with its Keychain sign-in). The CLI reads neither
+ * `GIAN_AGENT_HOME` nor `GEMINI_HOME`, so a Host Agent HOME is not applied.
+ */
+export function resolveCliGeminiHome(env: NodeJS.ProcessEnv = process.env): string {
+  return join(homeDir(env), '.gemini');
+}
+
+/**
+ * Environment for an `agy acp` child. The CLI shares the user's own sign-in
+ * and `~/.gemini`, so no `GEMINI_HOME` is passed. Self-update is disabled for
+ * the lifetime of the Gian-owned process.
+ */
+export function antigravityCliChildEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const next: NodeJS.ProcessEnv = { ...env };
+  delete next.GEMINI_HOME;
+  next[ANTIGRAVITY_CLI_DISABLE_AUTO_UPDATE_ENV] = 'true';
   return next;
 }
 

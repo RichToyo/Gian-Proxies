@@ -46,8 +46,11 @@ export async function verifyProxyRuntimeCandidate({ candidate, definition, entry
   const probe = (await import(pathToFileURL(canonical).href))[binding.export];
   if (typeof probe !== 'function') throw new Error('Package Runtime qualification probe is unavailable.');
   const result = await probe(entryPath, { ...process.env, HOME: home, GEMINI_HOME: home, GIAN_AGENT_HOME: home });
+  // The Antigravity CLI (`agy acp`) has no home override: it always uses the
+  // account's ~/.gemini, so its probe reports $HOME/.gemini for this HOME.
+  const configHomes = candidate.provider === 'antigravity' ? [home, join(home, '.gemini')] : [home];
   if (result?.runtimeId !== definition.runtime.id || result.displayName !== definition.runtime.displayName
-    || result.path !== entryPath || result.version !== candidate.version || result.configHome !== home
+    || result.path !== entryPath || result.version !== candidate.version || !configHomes.includes(result.configHome)
     || !Array.isArray(result.contentRoots) || !result.contentRoots.some(root => root.path === entryPath)) {
     throw new Error('Package Runtime qualification probe identity/version/layout differs.');
   }

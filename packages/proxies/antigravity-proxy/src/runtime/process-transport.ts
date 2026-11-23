@@ -19,8 +19,13 @@ import {
   consumeFrameBytes,
   type FrameCursor,
 } from './frames.js';
-import { antigravityChildEnv } from './home.js';
-import { assertServerExecutable, resolvePairedHarness } from './layout.js';
+import { antigravityChildEnv, antigravityCliChildEnv } from './home.js';
+import {
+  ANTIGRAVITY_CLI_ACP_ARGS,
+  assertServerExecutable,
+  isAntigravityCliBinary,
+  resolvePairedHarness,
+} from './layout.js';
 
 export interface AntigravityProcessExit {
   code: number | null;
@@ -53,6 +58,9 @@ export interface AntigravityProcessTransport {
 
 /**
  * One ACP server and the process group it leads.
+ * The `agy` CLI starts as `agy acp` with no harness variable. Any other binary
+ * is the legacy standalone server, started without arguments and with its
+ * paired `ANTIGRAVITY_HARNESS_PATH`.
  * The official server owns harness descendants in that group. Leader exit does
  * not release ownership: the group is signaled by its id and must be empty
  * before stop resolves. The wait after SIGKILL is bounded by `gracefulStopMs`.
@@ -72,13 +80,17 @@ export async function spawnAntigravityProcess(
   },
 ): Promise<AntigravityProcessTransport> {
   await assertServerExecutable(options.binaryPath);
-  const harnessPath = await resolvePairedHarness(options.binaryPath);
-  const childEnv = antigravityChildEnv(
-    options.env ? { ...process.env, ...options.env } : { ...process.env },
-  );
-  childEnv.ANTIGRAVITY_HARNESS_PATH = harnessPath;
+  const cli = isAntigravityCliBinary(options.binaryPath);
+  const harnessPath = cli ? null : await resolvePairedHarness(options.binaryPath);
+  const parentEnv = options.env ? { ...process.env, ...options.env } : { ...process.env };
+  // `agy acp` uses the user's own CLI sign-in and `~/.gemini`; the legacy
+  // server keeps the Agent HOME mapping.
+  const childEnv = cli ? antigravityCliChildEnv(parentEnv) : antigravityChildEnv(parentEnv);
+  // An inherited pairing from a legacy server is not passed to `agy acp`.
+  if (harnessPath === null) delete childEnv.ANTIGRAVITY_HARNESS_PATH;
+  else childEnv.ANTIGRAVITY_HARNESS_PATH = harnessPath;
 
-  const child = spawn(options.binaryPath, [], {
+  const child = spawn(options.binaryPath, cli ? [...ANTIGRAVITY_CLI_ACP_ARGS] : [], {
     cwd: options.cwd,
     env: childEnv,
     stdio: ['pipe', 'pipe', 'pipe'],

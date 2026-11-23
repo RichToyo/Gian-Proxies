@@ -101,6 +101,7 @@ await runProxyServer({
 | Proxy | Lanes | Notifications |
 |---|---|---|
 | `cc-proxy` | session + pipelined customization | adapter deferral released into `emit` |
+| `antigravity-proxy` | session lanes, `initialize` barrier, overtaking replies | adapter-owned ordering through `emitImmediate` |
 
 The other Proxies still run their own loops. They move to the kit one at a
-time once `cc-proxy` has shipped on it.
+time.

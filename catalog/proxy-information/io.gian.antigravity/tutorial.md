@@ -2,37 +2,37 @@
 
 ## 1. What it does in Gian
 
-The Antigravity Integration connects Google's official Antigravity ACP Server to Gian: create and manage Antigravity sessions in Gian, send text tasks, and review tool activity and approval requests. Proxy 0.0.7 pairs with upstream ACP Runtime 1.4.5; the Proxy and upstream Runtime versions are independent. This is not a wrapper around the separate `agy --print` CLI.
+The Antigravity Integration connects the ACP server built into Google's official Antigravity CLI (`agy acp`) to Gian: create and manage Antigravity sessions in Gian, send text tasks, and review tool activity and approval requests. Proxy 0.1.0 pairs with the managed agy CLI 1.5.14; the Proxy and upstream Runtime versions are independent. Sessions, the model list and quota use your own agy sign-in.
 
 ## 2. Capabilities and limitations
 
-Supported: text turns, native tool approvals, cancellation, context occupancy display, and session detach/resume. The model catalog lists only Gemini models actually advertised by the Runtime; Gian projects supported native variants into separate Model and Thinking controls and forwards the exact advertised native model ID. Mode is also native: `default` (normal permission prompts), `auto_edit` (auto-approve file edits), and `yolo` (auto-approve all tools), with conservative `default` as the default.
+Supported: text turns, native tool approvals, cancellation, context occupancy display, read-only quota, and session detach/resume. The model catalog lists only Gemini models actually advertised by the Runtime; Gian projects supported native variants into separate Model and Thinking controls and forwards the exact advertised native model ID. Mode is also native: `default` (normal permission prompts), `auto_edit` (auto-approve file edits), and `yolo` (auto-approve all tools), with conservative `default` as the default.
 
 Not in this release: Fork, Side Chat, native history replay, multimedia input and billing-token totals. Initial input is text-only even when the upstream Runtime advertises additional media capabilities. Real Provider requests require separate acceptance; a successful installation does not prove a successful model request.
 
 ## 3. Runtime architecture
 
 ```text
-Gian Host → Antigravity Proxy → shared ACP Server (agy_acp_server.par + localharness_external) → Gemini
+Gian Host → Antigravity Proxy → shared agy acp process → Gemini
 ```
 
-The Proxy and the ACP Server speak ACP (Agent Client Protocol) over stdio. One connection serves one Agent/Runtime binding; upstream manages a separate local harness per native session. Closing a session in Gian detaches it and does not delete native history.
+The Proxy and `agy acp` speak ACP (Agent Client Protocol) over stdio. One connection serves one Agent/Runtime binding. The model list and quota run short `agy` commands with the same binary, so they always describe the account the sessions use. Closing a session in Gian detaches it and does not delete native history.
 
 ## 4. Installation and dependencies
 
-Install the Antigravity Integration from Gian's official Catalog. Gian verifies and prepares the Proxy and its pinned Runtime; the Runtime must keep `agy_acp_server.par` and `localharness_external` together from the same pinned official 1.4.5 archive. Gian does not replace this server with a system `agy` executable. The cold Gemini model query needs the separate official `agy` CLI — a different component from the ACP Server; a missing helper means an unavailable catalog, not an empty model list. See the official ACP setup guide at https://antigravity.google/docs/ide/extensions/zed/ .
+Install the Antigravity Integration from Gian's official Catalog. Gian verifies and prepares the Proxy and its pinned Runtime: Google's official Antigravity CLI 1.5.14 binary, installed as `agy`. You can instead choose an existing `agy` 1.5.9 or later, such as `~/.local/bin/agy` from the official installer. A standalone `agy_acp_server.par` with its `localharness_external` sibling still works when selected, but keeps a login separate from the CLI. See the Antigravity CLI guide at https://antigravity.google/docs/cli/getting-started .
 
 ## 5. First use
 
-1. Install and prepare the Antigravity Integration in Gian; confirm the Proxy and Runtime verify successfully.
-2. When an account is required, sign in through the official ACP authentication flow (an explicit user action that may open a browser).
+1. Run `agy` once in Terminal and complete the Google sign-in it opens. Gian does not start a sign-in itself.
+2. Install and prepare the Antigravity Integration in Gian; confirm the Proxy and Runtime verify successfully.
 3. Choose Model, Thinking and Mode for the Agent and start with a small text task; unsupported pairs fail before prompting instead of being guessed or silently replaced.
 
 This guide does not imply this machine has completed real model-request acceptance.
 
 ## 6. HOME and isolation
 
-Catalog inspection uses the OS account HOME and its default `~/.gemini` configuration; a managed or custom HOME is rejected for that query. The Proxy never copies credentials and never silently rewrites the selected HOME. Runtime files and account configuration live in separate locations; do not use the nested `antigravity-acp` directory as the Gemini root. On macOS, changing the filesystem HOME does not by itself isolate Keychain state.
+The agy CLI always uses the OS account's `~/.gemini` and the macOS Keychain sign-in; an Agent HOME chosen in Gian does not change where it reads settings or credentials, so every agy on the Mac account shares one sign-in. Keep `HOME` set to the OS account home. The Proxy never copies credentials. agy processes that Gian starts do not update themselves; your terminal `agy` keeps updating normally.
 
 ## 7. Reverse proxies and custom endpoints
 
@@ -47,10 +47,11 @@ Use only officially supported authentication and endpoint configuration. The Pro
 
 ## 9. Troubleshooting
 
-- Catalog unavailable or timed out: check the separate official `agy` helper installation and the default OS HOME/Gemini root, then retry manually; do not clear stored Agent defaults or copy credentials as a workaround.
+- Sign-in required: run `agy` in Terminal and sign in, then retry; a successful version probe does not prove account readiness or a successful model turn.
+- Catalog unavailable or timed out: check that the selected `agy` is executable and that `HOME` is the OS account home, then retry manually; do not clear stored Agent defaults or copy credentials as a workaround.
 - Rejected Model/Thinking pair or stale catalog: refresh the current Proxy advertisement and review the retained explicit selection; do not replace it with a guessed native ID or a silent default.
-- Runtime not detected or probe rejected: confirm the server and harness from one verified 1.4.5 archive are executable siblings; another ACP agent reporting the same version is not this Runtime.
-- Account setup required: use the official ACP sign-in action; a successful version probe does not prove account readiness or a successful model turn.
+- Runtime not detected or probe rejected: choose an `agy` 1.5.9 or later; a legacy server needs its harness sibling from the same archive; another ACP agent reporting the same version is not this Runtime.
+- Runtime shown as unverified: your own `agy` updated past the verified 1.5.14; it still runs, or choose the managed Runtime.
 - Approval no longer pending: reopen the current request; do not replay an option from an older turn.
 - Interrupted or crashed turn: inspect native/session state before resending; cancellation or transport uncertainty does not authorize automatic resubmission.
 - When reporting issues, include controlled error codes and the Proxy/Runtime versions — never tokens, account files or raw OAuth diagnostics.

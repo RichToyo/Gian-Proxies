@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { AntigravityRuntimeError } from '../src/runtime/errors.js';
-import { antigravityChildEnv, resolveGeminiHome } from '../src/runtime/home.js';
+import { antigravityChildEnv, antigravityCliChildEnv, resolveCliGeminiHome, resolveGeminiHome } from '../src/runtime/home.js';
 
 test('prefers GIAN_AGENT_HOME over GEMINI_HOME and the default', () => {
   const resolved = resolveGeminiHome({
@@ -69,4 +69,27 @@ test('child env omits GEMINI_HOME when no explicit home is configured', () => {
   assert.equal(child.PATH, '/usr/bin');
   assert.equal(Object.hasOwn(child, 'GEMINI_HOME'), false);
   assert.equal(Object.hasOwn(child, 'ANTIGRAVITY_HARNESS_PATH'), false);
+});
+
+test('agy CLI home is always the account ~/.gemini, whatever the Agent home', () => {
+  const env = { HOME: '/Users/a', GIAN_AGENT_HOME: '/Users/a/.gian/homes/io.gian.antigravity/x', GEMINI_HOME: '/srv/g' };
+  assert.equal(resolveCliGeminiHome(env), '/Users/a/.gemini');
+  assert.equal(resolveCliGeminiHome({ HOME: '/Users/a' }), '/Users/a/.gemini');
+});
+
+test('agy CLI child env drops GEMINI_HOME, keeps HOME and disables self-update', () => {
+  const env = {
+    HOME: '/Users/a',
+    PATH: '/usr/bin',
+    GIAN_AGENT_HOME: '/Users/a/.gian/homes/io.gian.antigravity/x',
+    GEMINI_HOME: '/srv/g',
+  };
+  const child = antigravityCliChildEnv(env);
+  assert.equal(child.HOME, '/Users/a');
+  assert.equal(child.PATH, '/usr/bin');
+  assert.equal(Object.hasOwn(child, 'GEMINI_HOME'), false);
+  assert.equal(child.AGY_CLI_DISABLE_AUTO_UPDATE, 'true');
+  // The caller's environment is not modified.
+  assert.equal(env.GEMINI_HOME, '/srv/g');
+  assert.equal(Object.hasOwn(env, 'AGY_CLI_DISABLE_AUTO_UPDATE'), false);
 });

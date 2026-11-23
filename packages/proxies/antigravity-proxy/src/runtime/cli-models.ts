@@ -9,6 +9,7 @@ import type { DomainCode } from '@gian/proxy-protocol';
 
 import { AntigravityRuntimeError } from './errors.js';
 import { resolveGeminiHome } from './home.js';
+import { ANTIGRAVITY_CLI_DISABLE_AUTO_UPDATE_ENV, isAntigravityCliBinary } from './layout.js';
 
 /**
  * Installed `agy` model catalog.
@@ -24,9 +25,11 @@ import { resolveGeminiHome } from './home.js';
  * the caller's working directory is not picked up. That directory is not an
  * auth root and is not a performance bound.
  *
- * Production discovery is the user install, then Homebrew, then `/usr/local`.
- * It does not search `PATH`. Tests inject absolute candidates instead of a
- * Host provider variable.
+ * When the session Runtime is the `agy` CLI itself (`agy acp`), that exact
+ * file is the only helper, so sessions, models and quota share one install
+ * and one sign-in. Otherwise production discovery is the user install, then
+ * Homebrew, then `/usr/local`. It does not search `PATH`. Tests inject
+ * absolute candidates instead of a Host provider variable.
  */
 
 /** Flag before the `models` subcommand. This is not a prompt and not ACP. */
@@ -53,7 +56,8 @@ const MODEL_ID_MAX_LENGTH = 128;
 const MODEL_LABEL_MAX_LENGTH = 256;
 const GEMINI_MODEL_PREFIX = 'gemini';
 
-export type AntigravityCliHelperSource = 'official-user' | 'official-system' | 'injected';
+/** `runtime`: the session Runtime binary, when that binary is the `agy` CLI. */
+export type AntigravityCliHelperSource = 'official-user' | 'official-system' | 'runtime' | 'injected';
 
 export type AntigravityCliModelsFailure =
   | 'auth_required'
@@ -133,6 +137,12 @@ export interface AntigravityCliModelsOptions {
    * production discovery. This is the test injection point.
    */
   candidates?: readonly string[];
+  /**
+   * Session Runtime binary. Unset reads `GIAN_RUNTIME_BIN`, then
+   * `ANTIGRAVITY_BIN`, from `env`. Only an `agy` CLI path changes helper
+   * selection; a legacy server path keeps production discovery.
+   */
+  runtimeBinaryPath?: string;
   /** OS user home for the default-home guard and `~/.local/bin/agy`. */
   osUserHome?: string;
   timeoutMs?: number;
@@ -149,6 +159,7 @@ interface ResolvedConfig {
   cwd: string | null;
   osUserHome: string;
   candidates: readonly string[] | null;
+  runtimeBinaryPath: string | null;
   timeoutMs: number;
   maxOutputBytes: number;
   stopMs: number;
@@ -234,7 +245,7 @@ export class AntigravityCliModels {
 
   /** Re-check the default-home guard without spawning. */
   assertDefaultHome(): Promise<void> {
-    return assertDefaultCliHome({ ...this.config.env }, this.config.osUserHome);
+    return assertDefaultCliHome({ ...this.config.env }, this.config.osUserHome, boundCliRuntime(this.config));
   }
 
   /**
@@ -252,7 +263,7 @@ export class AntigravityCliModels {
 
   private async execute(signal: AbortSignal): Promise<AntigravityCliModelsResult> {
     const env = { ...this.config.env };
-    await assertDefaultCliHome(env, this.config.osUserHome);
+    await assertDefaultCliHome(env, this.config.osUserHome, boundCliRuntime(this.config));
     if (signal.aborted || this.closed) throw new AntigravityCliModelsError('cancelled');
     const helper = await selectHelper(candidateSpecs(this.config));
     if (signal.aborted || this.closed) throw new AntigravityCliModelsError('cancelled');
@@ -291,7 +302,7 @@ export async function readAntigravityCliReport(command: AntigravityCliReportComm
   if (!Object.hasOwn(REPORT_ARGS, command)) throw new AntigravityCliModelsError('invalid_response');
   const { config, signal: external } = resolveConfig(options);
   const signal = external ?? new AbortController().signal;
-  await assertDefaultCliHome({ ...config.env }, config.osUserHome);
+  await assertDefaultCliHome({ ...config.env }, config.osUserHome, boundCliRuntime(config));
   if (signal.aborted) throw new AntigravityCliModelsError('cancelled');
   const helper = await selectHelper(candidateSpecs(config));
   if (expectedHelper && !sameAntigravityCliHelper(helper, expectedHelper)) throw new AntigravityCliModelsError('helper_changed');
@@ -319,14 +330,17 @@ function resolveConfig(options: AntigravityCliModelsOptions): {
 } {
   const osUserHome = options.osUserHome ?? defaultOsUserHome();
   const cwd = options.cwd === undefined ? null : options.cwd;
+  const env = options.env ?? process.env;
   assertAbsolutePath(osUserHome);
   if (cwd !== null) assertAbsolutePath(cwd);
   return {
     config: {
-      env: options.env ?? process.env,
+      env,
       cwd,
       osUserHome,
       candidates: options.candidates ?? null,
+      runtimeBinaryPath: nonEmpty(options.runtimeBinaryPath)
+        ?? nonEmpty(env.GIAN_RUNTIME_BIN) ?? nonEmpty(env.ANTIGRAVITY_BIN) ?? null,
       timeoutMs: requireBound(options.timeoutMs, ANTIGRAVITY_CLI_MODELS_TIMEOUT_MS),
       maxOutputBytes: requireBound(options.maxOutputBytes, ANTIGRAVITY_CLI_MODELS_MAX_OUTPUT_BYTES),
       onCleanupDiagnostic: options.onCleanupDiagnostic ?? null,
@@ -340,7 +354,34 @@ function candidateSpecs(config: ResolvedConfig): readonly AntigravityCliHelperCa
   if (config.candidates !== null) {
     return config.candidates.map((path) => ({ path, source: 'injected' as const }));
   }
+  // With `agy acp` as the Runtime, query that same file: one install, one
+  // sign-in, and the version the probe accepted. This is the exact launch
+  // binding, not a PATH search. A missing or invalid file is
+  // `helper_missing`; there is no fallback to another install that may hold
+  // another login. The default-HOME guard, quota version preflight and the
+  // no-credential-copy rule still apply unchanged.
+  const runtime = config.runtimeBinaryPath;
+  if (runtime !== null && isAntigravityCliBinary(runtime)) {
+    return [{ path: runtime, source: 'runtime' }];
+  }
   return antigravityCliHelperCandidates(config.osUserHome);
+}
+
+/**
+ * True when the query helper is the bound `agy acp` Runtime binary itself
+ * (no injected candidates). Sessions and queries then run the same file, and
+ * that file always reads the OS account's `~/.gemini` and Keychain: the CLI
+ * has no `GEMINI_HOME` override. A Host Agent HOME therefore cannot point
+ * sessions at a different account than the model list and quota.
+ */
+function boundCliRuntime(config: ResolvedConfig): boolean {
+  return config.candidates === null
+    && config.runtimeBinaryPath !== null
+    && isAntigravityCliBinary(config.runtimeBinaryPath);
+}
+
+function nonEmpty(value: string | undefined): string | undefined {
+  return value === undefined || value === '' ? undefined : value;
 }
 
 async function selectHelper(
@@ -384,8 +425,13 @@ async function inspectHelper(
  * keeps the OS default. The effective Gemini root must still be that
  * account's `~/.gemini`. There is no fallback onto another home, and the
  * child environment is not rewritten.
+ *
+ * With `cliRuntime` the helper is the bound `agy acp` Runtime, which ignores
+ * both overrides and always uses the account's `~/.gemini`, exactly like the
+ * sessions. Only the `HOME` check applies then, so a Gian-managed Agent HOME
+ * still reuses the CLI sign-in for the model list and quota.
  */
-async function assertDefaultCliHome(env: NodeJS.ProcessEnv, osUserHome: string): Promise<void> {
+async function assertDefaultCliHome(env: NodeJS.ProcessEnv, osUserHome: string, cliRuntime = false): Promise<void> {
   try {
     const configuredHome = env.HOME;
     if (typeof configuredHome === 'string' && configuredHome !== '') {
@@ -393,6 +439,7 @@ async function assertDefaultCliHome(env: NodeJS.ProcessEnv, osUserHome: string):
       const expected = await canonicalPath(osUserHome);
       if (actual !== expected) throw new AntigravityCliModelsError('home_not_default');
     }
+    if (cliRuntime) return;
     const official = await canonicalPath(join(osUserHome, '.gemini'));
     const effective = await canonicalPath(resolveGeminiHome(env));
     if (effective !== official) throw new AntigravityCliModelsError('home_not_default');
@@ -465,7 +512,7 @@ async function runQuery(
   if (signal.aborted) throw new AntigravityCliModelsError('cancelled');
   const child = spawn(helper.path, command ? [...REPORT_ARGS[command]] : [...ANTIGRAVITY_CLI_MODELS_ARGS], {
     cwd,
-    env: { ...env, PWD: cwd },
+    env: { ...env, PWD: cwd, [ANTIGRAVITY_CLI_DISABLE_AUTO_UPDATE_ENV]: 'true' },
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: process.platform !== 'win32',
@@ -546,11 +593,14 @@ async function runQuery(
         return;
       }
       if (command === 'help') helpStderr.push(bytes);
-      if (command === 'usage') {
+      // The models query (no report command) and /usage both need a signed-in
+      // CLI; a signed-out `agy models` says "Please sign in to view available
+      // models" and exits 1.
+      if (command === undefined || command === 'usage') {
         diagnosticTail = (diagnosticTail + bytes.toString('utf8')).slice(-4096);
         // Refuse native interactive login instead of waiting for a browser or
         // reading an authorization code. Never return the diagnostic or URL.
-        if (/authentication required|authentication failed|waiting for authentication|paste the authorization code/iu.test(diagnosticTail)) {
+        if (/authentication required|authentication failed|waiting for authentication|paste the authorization code|please sign in/iu.test(diagnosticTail)) {
           beginCleanup(new AntigravityCliModelsError('auth_required'));
         }
       }

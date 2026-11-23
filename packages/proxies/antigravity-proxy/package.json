@@ -1,6 +1,6 @@
 {
   "name": "@gian/antigravity-proxy",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "./dist/src/cli/spawn.js",
@@ -18,7 +18,7 @@
     }
   },
   "scripts": {
-    "build": "pnpm run clean && tsc -p tsconfig.json",
+    "build": "pnpm --filter @gian/proxy-kit build && pnpm run clean && tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "node dist/src/cli/spawn.js",
@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.23.0",
+    "@gian/proxy-kit": "workspace:*",
     "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.5/gian-proxy-protocol-1.0.5.tgz"
   },
   "devDependencies": {

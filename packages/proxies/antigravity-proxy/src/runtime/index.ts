@@ -39,19 +39,25 @@ export {
   type AntigravityCliModelsOptions,
   type AntigravityCliModelsResult,
 } from './cli-models.js';
-export { antigravityChildEnv, resolveGeminiHome } from './home.js';
+export { antigravityChildEnv, antigravityCliChildEnv, resolveCliGeminiHome, resolveGeminiHome } from './home.js';
 export {
-  PAIRED_PRODUCT_ARCHIVE_ENTRIES,
+  MANAGED_PRODUCT_ARCHIVE_ENTRIES,
   planRuntimeInstallation,
 } from './install.js';
 export {
   ANTIGRAVITY_AGENT_NAME,
+  ANTIGRAVITY_CLI_ACP_ARGS,
+  ANTIGRAVITY_CLI_AGENT_NAME,
+  ANTIGRAVITY_CLI_MIN_VERSION,
   ANTIGRAVITY_PLUGIN_DISPLAY_NAME,
   ANTIGRAVITY_PLUGIN_ID,
   ANTIGRAVITY_RUNTIME_DISPLAY_NAME,
   ANTIGRAVITY_RUNTIME_ID,
   PAIRED_HARNESS_ENTRY,
+  POSIX_CLI_ENTRY,
   POSIX_SERVER_ENTRY,
+  cliBasenames,
+  isAntigravityCliBinary,
   resolvePairedHarness,
   serverBasenames,
 } from './layout.js';

@@ -1,176 +1,167 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdtemp, lstat, mkdir, open, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { chmod, mkdtemp, lstat, mkdir, open, readFile, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { crc32, deflateRawSync } from 'node:zlib';
+import { gzipSync } from 'node:zlib';
 import {
   antigravityRuntimeSource,
   buildAntigravityRuntimeCandidate,
-  extractAntigravityPair,
-  packAntigravityPair,
+  extractAntigravityCli,
+  packAntigravityCli,
+  readAntigravityCliBinary,
 } from './build-antigravity-runtime.mjs';
 
-const MAX_MEMBER_UNCOMPRESSED_BYTES = 512 * 1024 * 1024;
+const BLOCK = 512;
 
-function zip(entries) {
-  const locals = [];
-  const centrals = [];
-  let offset = 0;
-  for (const entry of entries) {
-    const name = Buffer.from(entry.name, 'utf8');
-    const data = entry.data ?? Buffer.from('member');
-    const method = entry.method ?? 8;
-    const flags = entry.flags ?? 0;
-    const compressed = method === 8 ? deflateRawSync(data) : data;
-    const uncompressedSize = entry.uncompressedSize ?? data.length;
-    const checksum = entry.crc ?? (crc32(data) >>> 0);
-    const mode = entry.mode ?? 0o100644;
-    const local = Buffer.alloc(30 + name.length);
-    local.writeUInt32LE(0x04034b50, 0);
-    local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(flags, 6);
-    local.writeUInt16LE(method, 8);
-    local.writeUInt32LE(checksum, 14);
-    local.writeUInt32LE(compressed.length, 18);
-    local.writeUInt32LE(uncompressedSize, 22);
-    local.writeUInt16LE(name.length, 26);
-    name.copy(local, 30);
-    locals.push(local, compressed);
-    const central = Buffer.alloc(46 + name.length);
-    central.writeUInt32LE(0x02014b50, 0);
-    central.writeUInt16LE((3 << 8) | 20, 4);
-    central.writeUInt16LE(20, 6);
-    central.writeUInt16LE(flags, 8);
-    central.writeUInt16LE(method, 10);
-    central.writeUInt32LE(checksum, 16);
-    central.writeUInt32LE(compressed.length, 20);
-    central.writeUInt32LE(uncompressedSize, 24);
-    central.writeUInt16LE(name.length, 28);
-    central.writeUInt32LE((mode * 0x10000) >>> 0, 38);
-    central.writeUInt32LE(offset, 42);
-    name.copy(central, 46);
-    centrals.push(central);
-    offset += local.length + compressed.length;
+/** Synthetic single-header tar.gz; never official bytes. */
+function tarGz(members, { magic = 'ustar  \0', corruptChecksum = false, trailingBlocks = 2 } = {}) {
+  const blocks = [];
+  for (const member of members) {
+    const data = member.data ?? Buffer.from('cli-bytes');
+    const header = Buffer.alloc(BLOCK);
+    header.write(member.name, 0, 100, 'utf8');
+    header.write('0000755\0', 100, 8, 'latin1');
+    header.write('0000000\0', 108, 8, 'latin1');
+    header.write('0000000\0', 116, 8, 'latin1');
+    header.write(`${(member.size ?? data.length).toString(8).padStart(11, '0')}\0`, 124, 12, 'latin1');
+    header.write('00000000000\0', 136, 12, 'latin1');
+    header.write(member.type ?? '0', 156, 1, 'latin1');
+    header.write(magic, 257, 8, 'latin1');
+    header.write(member.prefix ?? '', 345, 155, 'utf8');
+    header.fill(0x20, 148, 156);
+    let sum = 0;
+    for (const byte of header) sum += byte;
+    if (corruptChecksum) sum += 1;
+    header.write(`${sum.toString(8).padStart(6, '0')}\0 `, 148, 8, 'latin1');
+    blocks.push(header, data, Buffer.alloc((BLOCK - (data.length % BLOCK)) % BLOCK));
   }
-  const directory = Buffer.concat(centrals);
-  const eocd = Buffer.alloc(22);
-  eocd.writeUInt32LE(0x06054b50, 0);
-  eocd.writeUInt16LE(entries.length, 8);
-  eocd.writeUInt16LE(entries.length, 10);
-  eocd.writeUInt32LE(directory.length, 12);
-  eocd.writeUInt32LE(offset, 16);
-  return Buffer.concat([...locals, directory, eocd]);
+  blocks.push(Buffer.alloc(BLOCK * trailingBlocks));
+  return gzipSync(Buffer.concat(blocks));
 }
 
-function pair(server = {}, harness = {}) {
-  return [
-    { name: 'agy_acp_server.par', data: Buffer.from('server-bytes'), mode: 0o100755, ...server },
-    { name: 'localharness_external', data: Buffer.from('harness-bytes'), mode: 0o100555, ...harness },
-  ];
+function recipeFor(data, sourceMember = 'antigravity') {
+  return {
+    ...antigravityRuntimeSource,
+    sourceMember,
+    binarySize: data.length,
+    binarySha256: createHash('sha256').update(data).digest('hex'),
+  };
 }
 
-test('the Antigravity source recipe pins the published darwin-arm64 ZIP', () => {
+test('the Antigravity source recipe pins Google\'s darwin-arm64 agy 1.5.14 archive', () => {
   assert.equal(antigravityRuntimeSource.schemaVersion, 1);
-  assert.equal(antigravityRuntimeSource.kind, 'antigravity-pair');
+  assert.equal(antigravityRuntimeSource.kind, 'antigravity-cli');
   assert.equal(antigravityRuntimeSource.provider, 'antigravity');
   assert.equal(antigravityRuntimeSource.pluginId, 'io.gian.antigravity');
   assert.equal(antigravityRuntimeSource.runtimeId, 'antigravity-acp');
-  assert.equal(antigravityRuntimeSource.version, '1.5.0');
+  assert.equal(antigravityRuntimeSource.version, '1.5.14');
   assert.equal(antigravityRuntimeSource.platform, 'darwin-arm64');
-  assert.equal(antigravityRuntimeSource.registryPlatform, 'darwin-aarch64');
+  assert.equal(antigravityRuntimeSource.upstreamPlatform, 'darwin_arm64');
   assert.equal(antigravityRuntimeSource.format, 'tar.gz');
-  assert.equal(antigravityRuntimeSource.entryRelativePath, 'agy_acp_server.par');
-  assert.equal(antigravityRuntimeSource.harnessRelativePath, 'localharness_external');
-  assert.deepEqual(antigravityRuntimeSource.members, [
-    { name: 'agy_acp_server.par', mode: 0o755 },
-    { name: 'localharness_external', mode: 0o555 },
-  ]);
+  assert.equal(antigravityRuntimeSource.entryRelativePath, 'agy');
+  assert.equal(antigravityRuntimeSource.entryMode, 0o755);
   assert.equal(antigravityRuntimeSource.sourceUrl,
-    'https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.5.0-darwin-arm64.zip');
+    'https://storage.googleapis.com/antigravity-public/antigravity-cli/1.5.14-5302690847260672/darwin-arm/cli_mac_arm64.tar.gz');
   assert.equal(antigravityRuntimeSource.sourceSha256,
-    'c82ecb4ef476bfc35cbe5b2745cdddef873b99c9f5bd7fd11e5ca1fc1667a3fc');
-  assert.equal(antigravityRuntimeSource.sourceSize, 100401185);
+    'b01bdd4591e13ddfcb0e049bea74ae9f83e80829adcf64aaa58f5bfb1a425a54');
+  assert.match(antigravityRuntimeSource.sourceSha512, /^26830fd46bfb9200[a-f0-9]{112}$/);
+  assert.equal(antigravityRuntimeSource.sourceSize, 85943943);
+  assert.equal(antigravityRuntimeSource.sourceMember, 'antigravity');
+  assert.equal(antigravityRuntimeSource.binarySha256,
+    'e8c2959bf4744580d0e5b8f938ec2dc3918a942b620a6262e53856400f14e5fb');
+  assert.equal(antigravityRuntimeSource.binarySize, 229152672);
   assert.equal(Object.hasOwn(antigravityRuntimeSource, 'publish'), false);
 });
 
-test('pair extraction keeps only the two explicit deflated members', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'agy-pair-'));
+test('extraction writes only the pinned binary, as agy, executable', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'agy-cli-'));
   t.after(() => rm(root, { recursive: true, force: true }));
+  const data = Buffer.from('agy-binary-bytes');
   const destination = join(root, 'out');
-  await extractAntigravityPair(zip(pair()), destination);
-  assert.equal(await readFile(join(destination, 'agy_acp_server.par'), 'utf8'), 'server-bytes');
-  assert.equal(await readFile(join(destination, 'localharness_external'), 'utf8'), 'harness-bytes');
-  assert.equal((await lstat(join(destination, 'agy_acp_server.par'))).mode & 0o777, 0o755);
-  assert.equal((await lstat(join(destination, 'localharness_external'))).mode & 0o777, 0o555);
+  const entry = await extractAntigravityCli(tarGz([{ name: 'antigravity', data }]), destination, recipeFor(data));
+  assert.equal(entry, join(destination, 'agy'));
+  assert.deepEqual(await readdir(destination), ['agy']);
+  assert.deepEqual(await readFile(entry), data);
+  assert.equal((await lstat(entry)).mode & 0o777, 0o755);
+  // POSIX "ustar\000" headers are accepted too.
+  assert.deepEqual(readAntigravityCliBinary(tarGz([{ name: 'antigravity', data }], { magic: 'ustar\u000000' }), recipeFor(data)), data);
 });
 
-test('pair extraction rejects traversal, links, duplicates, and unbounded members', async t => {
-  const destination = await mkdtemp(join(tmpdir(), 'agy-pair-reject-'));
-  t.after(() => rm(destination, { recursive: true, force: true }));
-  await assert.rejects(extractAntigravityPair(zip(pair({ name: '../agy_acp_server.par' })), destination),
-    /explicit pair file/);
-  await assert.rejects(extractAntigravityPair(zip(pair({ name: '/agy_acp_server.par' })), destination),
-    /explicit pair file/);
-  await assert.rejects(extractAntigravityPair(zip(pair({ name: 'nested/agy_acp_server.par' })), destination),
-    /explicit pair file/);
-  await assert.rejects(extractAntigravityPair(zip(pair({ mode: 0o120777 })), destination),
-    /is a link/);
-  await assert.rejects(extractAntigravityPair(zip([
-    { name: 'agy_acp_server.par', data: Buffer.from('a'), mode: 0o100755 },
-    { name: 'agy_acp_server.par', data: Buffer.from('b'), mode: 0o100755 },
-  ]), destination), /duplicate member/);
-  await assert.rejects(extractAntigravityPair(zip(pair({
-    uncompressedSize: MAX_MEMBER_UNCOMPRESSED_BYTES + 1,
-  })), destination), /unbounded/);
-  await assert.rejects(extractAntigravityPair(zip([
-    ...pair(),
-    { name: 'extra', data: Buffer.from('nope'), mode: 0o100644 },
-  ]), destination), /exactly the paired/);
-  await assert.rejects(extractAntigravityPair(zip(pair({ flags: 0x0001 })), destination),
-    /encrypted/);
+test('extraction rejects other names, links, extra members, size or digest drift and corrupt headers', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'agy-cli-reject-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const data = Buffer.from('agy-binary-bytes');
+  const recipe = recipeFor(data);
+  const read = bytes => () => readAntigravityCliBinary(bytes, recipe);
+  for (const name of ['../antigravity', '/antigravity', 'nested/antigravity', 'agy', 'antigravity.exe']) {
+    assert.throws(read(tarGz([{ name, data }])), /unexpected member/, name);
+  }
+  assert.throws(read(tarGz([{ name: 'antigravity', data, prefix: 'nested' }])), /unexpected member/);
+  assert.throws(read(tarGz([{ name: 'antigravity', data, type: '2' }])), /not a regular file/);
+  assert.throws(read(tarGz([{ name: 'antigravity', data, type: '5' }])), /not a regular file/);
+  assert.throws(read(tarGz([{ name: 'antigravity', data }, { name: 'extra', data: Buffer.from('x') }])),
+    /more than one member/);
+  assert.throws(read(tarGz([{ name: 'antigravity', data: Buffer.from('agy-binary-bytez') }])), /pinned digest/);
+  assert.throws(read(tarGz([{ name: 'antigravity', data: Buffer.from('short') }])), /member size/);
+  assert.throws(read(tarGz([{ name: 'antigravity', data }], { corruptChecksum: true })), /header checksum/);
+  assert.throws(read(tarGz([{ name: 'antigravity', data }], { magic: 'notustar' })), /not ustar/);
+  assert.throws(read(tarGz([{ name: 'antigravity', data }], { trailingBlocks: 0 })), /tar length|truncated/);
+  assert.throws(read(Buffer.from('not gzip')), /gzip/);
+  // The output directory must be a real directory.
+  const file = join(root, 'file');
+  await writeFile(file, 'x');
+  await assert.rejects(extractAntigravityCli(tarGz([{ name: 'antigravity', data }]), file, recipe), /real directory/);
+  const link = join(root, 'link');
+  await mkdir(join(root, 'target'));
+  await symlink(join(root, 'target'), link);
+  await assert.rejects(extractAntigravityCli(tarGz([{ name: 'antigravity', data }]), link, recipe), /real directory/);
 });
 
-test('the darwin product tar.gz is reproducible and has no gzip timestamp', {
+test('the darwin product tar.gz is reproducible, holds only agy and has no gzip timestamp', {
   skip: process.platform !== 'darwin' ? 'The pinned Dev product uses macOS bsdtar.' : false,
 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'agy-pack-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const runtimeRoot = join(root, 'pair');
+  const runtimeRoot = join(root, 'cli');
   await mkdir(runtimeRoot);
-  await writeFile(join(runtimeRoot, 'agy_acp_server.par'), 'server-bytes');
-  await writeFile(join(runtimeRoot, 'localharness_external'), 'harness-bytes');
+  await writeFile(join(runtimeRoot, 'agy'), 'cli-bytes');
   const first = join(root, 'first.tar.gz');
   const second = join(root, 'second.tar.gz');
-  await packAntigravityPair(runtimeRoot, first, join(root, 'list-a'));
+  await packAntigravityCli(runtimeRoot, first, join(root, 'list-a'));
   const later = new Date('2026-10-13T00:00:00.000Z');
-  await writeFile(join(runtimeRoot, 'agy_acp_server.par'), 'server-bytes', { mode: 0o600 });
-  await chmod(join(runtimeRoot, 'localharness_external'), 0o644);
-  await utimes(join(runtimeRoot, 'agy_acp_server.par'), later, later);
-  await utimes(join(runtimeRoot, 'localharness_external'), later, later);
-  await packAntigravityPair(runtimeRoot, second, join(root, 'list-b'));
+  await chmod(join(runtimeRoot, 'agy'), 0o600);
+  await utimes(join(runtimeRoot, 'agy'), later, later);
+  await packAntigravityCli(runtimeRoot, second, join(root, 'list-b'));
   const packed = await readFile(first);
   assert.deepEqual(packed, await readFile(second));
   assert.equal(packed[0], 0x1f);
   assert.equal(packed[1], 0x8b);
   assert.equal(packed.readUInt32LE(4), 0);
+  const recipe = { ...recipeFor(Buffer.from('cli-bytes'), 'agy') };
+  assert.deepEqual(readAntigravityCliBinary(packed, recipe), Buffer.from('cli-bytes'));
+
+  await writeFile(join(runtimeRoot, 'extra'), 'x');
+  await assert.rejects(packAntigravityCli(runtimeRoot, join(root, 'third.tar.gz'), join(root, 'list-c')),
+    /pinned member/);
 });
 
-test('an archive other than the pinned official ZIP is rejected before packing', async t => {
+test('an archive other than the pinned official archive is rejected before packing', async t => {
   const root = await mkdtemp(join(tmpdir(), 'agy-pin-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const archive = join(root, 'agy.zip');
+  const archive = join(root, 'agy.tar.gz');
   await writeFile(archive, Buffer.from('not the official archive'));
   await assert.rejects(buildAntigravityRuntimeCandidate(join(root, 'out'), join(root, 'work'), {
     archivePath: archive,
   }), /pinned recipe/);
-  const link = join(root, 'linked.zip');
+  const link = join(root, 'linked.tar.gz');
   await symlink(archive, link);
   await assert.rejects(buildAntigravityRuntimeCandidate(join(root, 'out-2'), join(root, 'work-2'), {
     archivePath: link,
   }), /regular file/);
 
-  const sameSize = join(root, 'same-size.zip');
+  const sameSize = join(root, 'same-size.tar.gz');
   const file = await open(sameSize, 'wx');
   try { await file.truncate(antigravityRuntimeSource.sourceSize); }
   finally { await file.close(); }
@@ -178,9 +169,9 @@ test('an archive other than the pinned official ZIP is rejected before packing',
     archivePath: sameSize,
   }), error => {
     assert.match(error.message, /"stage":"file-integrity"/);
-    assert.match(error.message, /"actualSize":100401185/);
+    assert.match(error.message, /"actualSize":85943943/);
     assert.match(error.message, /"actualSha256":"[a-f0-9]{64}"/);
-    assert.match(error.message, /"expectedSha256":"c82ecb4e/);
+    assert.match(error.message, /"expectedSha256":"b01bdd45/);
     return true;
   });
 });
@@ -193,8 +184,8 @@ test('download requests identity bytes and distinguishes HTTP, encoding, declare
     { name: 'no-body', response: () => new Response(null), error: /download failed \(200\)/ },
     { name: 'encoded', response: () => new Response('private response body', { headers: { 'content-encoding': 'gzip', 'content-length': '111404059' } }), error: /"stage":"content-encoding".*"declaredSize":111404059/ },
     { name: 'declared', response: () => new Response('private response body', { headers: { 'content-length': '111404059' } }), error: /"stage":"content-length".*"declaredSize":111404059/ },
-    { name: 'short', response: () => new Response('zip', { headers: { 'content-length': String(antigravityRuntimeSource.sourceSize) } }), error: /"stage":"download-size".*"declaredSize":100401185,"actualSize":3/ },
-    { name: 'unknown-length', response: () => new Response('zip'), error: /"stage":"download-size".*"declaredSize":null,"actualSize":3/ },
+    { name: 'short', response: () => new Response('tgz', { headers: { 'content-length': String(antigravityRuntimeSource.sourceSize) } }), error: /"stage":"download-size".*"declaredSize":85943943,"actualSize":3/ },
+    { name: 'unknown-length', response: () => new Response('tgz'), error: /"stage":"download-size".*"declaredSize":null,"actualSize":3/ },
   ];
   for (const fixture of cases) {
     await t.test(fixture.name, async () => {
@@ -215,8 +206,8 @@ test('download requests identity bytes and distinguishes HTTP, encoding, declare
         return true;
       });
       assert.equal(calls, 1);
-      await assert.rejects(lstat(join(work, 'agy-acp-source.zip')), { code: 'ENOENT' });
-      await assert.rejects(lstat(join(work, 'antigravity-pair')), { code: 'ENOENT' });
+      await assert.rejects(lstat(join(work, 'agy-cli-source.tar.gz')), { code: 'ENOENT' });
+      await assert.rejects(lstat(join(work, 'antigravity-cli')), { code: 'ENOENT' });
     });
   }
 });

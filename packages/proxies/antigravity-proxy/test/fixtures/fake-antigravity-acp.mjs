@@ -94,6 +94,7 @@ function handle(message) {
       GEMINI_HOME: env.GEMINI_HOME ?? null,
       GIAN_AGENT_HOME: env.GIAN_AGENT_HOME ?? null,
       ANTIGRAVITY_HARNESS_PATH: env.ANTIGRAVITY_HARNESS_PATH ?? null,
+      AGY_CLI_DISABLE_AUTO_UPDATE: env.AGY_CLI_DISABLE_AUTO_UPDATE ?? null,
       argv: process.argv,
     }));
     if (env.FAKE_AGY_IGNORE_INITIALIZE === '1') return;

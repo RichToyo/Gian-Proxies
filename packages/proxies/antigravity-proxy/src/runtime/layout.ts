@@ -1,15 +1,35 @@
 import { constants } from 'node:fs';
 import { access, lstat, realpath, stat } from 'node:fs/promises';
-import { dirname, isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join, posix, win32 } from 'node:path';
 
 import { AntigravityRuntimeError } from './errors.js';
 
 export const ANTIGRAVITY_RUNTIME_ID = 'antigravity-acp';
 /**
- * Official ACP `initialize` `agentInfo.name`.
+ * Legacy standalone server ACP `initialize` `agentInfo.name`.
  * Probe treats any other name as a different peer, even at version 1.3.0.
  */
 export const ANTIGRAVITY_AGENT_NAME = 'antigravity-acp';
+/** `agentInfo.name` reported by the ACP server built into the `agy` CLI. */
+export const ANTIGRAVITY_CLI_AGENT_NAME = 'Antigravity ACP Server';
+/**
+ * Oldest `agy` whose `agy acp` loads the user's settings and CLI sign-in.
+ * 1.5.0 added the subcommand; 1.5.9 fixed `Authentication required` after a
+ * completed `agy acp --login`.
+ */
+export const ANTIGRAVITY_CLI_MIN_VERSION = '1.5.9';
+/** `agy acp`: the CLI's own ACP server. It needs no harness file. */
+export const ANTIGRAVITY_CLI_ACP_ARGS = ['acp'] as const;
+/**
+ * Set to exactly `true` on every `agy` Gian launches. The CLI otherwise
+ * spawns a background updater that replaces its own binary, which would
+ * break a managed Runtime's content fingerprint and move a user's Runtime
+ * past the verified version mid-session. A user's own terminal `agy` keeps
+ * updating normally. Checked in `agy` 1.5.14 (`auto_updater.go`).
+ */
+export const ANTIGRAVITY_CLI_DISABLE_AUTO_UPDATE_ENV = 'AGY_CLI_DISABLE_AUTO_UPDATE';
+export const POSIX_CLI_ENTRY = 'agy';
+export const WINDOWS_CLI_ENTRY = 'agy.exe';
 /** Manifest Runtime displayName. Host RuntimeResolver requires this exact string. */
 export const ANTIGRAVITY_RUNTIME_DISPLAY_NAME = 'Antigravity ACP Server';
 /** Manifest plugin id. The plugin display name is `Antigravity`, not the Runtime display name. */
@@ -30,6 +50,28 @@ export function serverBasenames(platform: NodeJS.Platform = process.platform): r
 export function harnessBasenames(platform: NodeJS.Platform = process.platform): readonly string[] {
   if (platform === 'win32') return WINDOWS_HARNESS_NAMES;
   return POSIX_HARNESS_NAMES;
+}
+
+export function cliBasenames(platform: NodeJS.Platform = process.platform): readonly string[] {
+  if (platform === 'win32') return [WINDOWS_CLI_ENTRY];
+  return [POSIX_CLI_ENTRY];
+}
+
+/**
+ * The one Runtime-kind decision, by basename only. `agy` (`agy.exe` on
+ * Windows, any case) is the CLI and launches as `agy acp` without a harness.
+ * Every other name, including `agy_acp_server.par`, is the legacy standalone
+ * server and keeps the paired-harness contract. Probe still checks the peer's
+ * `agentInfo`; this does not read or run the file.
+ */
+export function isAntigravityCliBinary(
+  binaryPath: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (platform === 'win32') {
+    return cliBasenames(platform).includes(win32.basename(binaryPath).toLowerCase());
+  }
+  return cliBasenames(platform).includes(posix.basename(binaryPath));
 }
 
 /**

@@ -39,6 +39,7 @@ interface CliReport {
   harness: boolean;
   hasToken: boolean;
   marker: string | null;
+  autoUpdate: string | null;
 }
 
 interface FixturePaths {
@@ -537,6 +538,121 @@ test('selects the first absolute regular executable and resolves a safe symlink'
     assert.equal(linked.helper.path.includes(`${join('Cellar', 'agy')}`), true);
     assert.notEqual(linked.helper.path, link);
     assert.equal((await readReport(paths.report)).marker, 'linked');
+  } finally {
+    await rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('a bound agy Runtime reuses the CLI sign-in under a Gian-managed Agent HOME', skipWindows, async () => {
+  const paths = await makePaths();
+  const runtimeAgy = join(paths.root, 'runtime', 'agy');
+  const managedHome = join(paths.root, 'gian', 'homes', 'io.gian.antigravity', 'agent-1');
+  await installFake(runtimeAgy);
+  await mkdir(managedHome, { recursive: true });
+  const env = {
+    HOME: paths.home,
+    PATH: '/usr/bin:/bin',
+    GIAN_RUNTIME_BIN: runtimeAgy,
+    GIAN_AGENT_HOME: managedHome,
+    GEMINI_HOME: managedHome,
+    FAKE_AGY_CLI_REPORT: paths.report,
+    FAKE_AGY_CLI_PID: paths.pidPath,
+    FAKE_AGY_CLI_STDOUT: modelsDocument([
+      { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)' },
+    ]),
+  };
+  try {
+    // `agy acp` ignores both overrides and reads the account's ~/.gemini, so
+    // the model list comes from the same sign-in as the sessions.
+    const listed = await listAntigravityCliModels({ osUserHome: paths.home, cwd: paths.cwd, env });
+    assert.equal(listed.helper.source, 'runtime');
+    assert.deepEqual(listed.models.map(model => model.id), ['gemini-3.8-flash-high']);
+    const report = await readReport(paths.report);
+    // Gian never lets the CLI replace its own binary.
+    assert.equal(report.autoUpdate, 'true');
+
+    // HOME itself must still be the OS account home.
+    await assert.rejects(
+      listAntigravityCliModels({ osUserHome: paths.home, cwd: paths.cwd, env: { ...env, HOME: managedHome } }),
+      (error: unknown) => {
+        assertFailure(error, 'home_not_default', HOME_MESSAGE, 'RUNTIME_ERROR');
+        return true;
+      },
+    );
+
+    // A legacy server keeps its own login, so a managed home still refuses
+    // to show the CLI account's models for it.
+    await assert.rejects(
+      listAntigravityCliModels({
+        osUserHome: paths.home,
+        cwd: paths.cwd,
+        env: { ...env, GIAN_RUNTIME_BIN: join(paths.root, 'extract', 'agy_acp_server.par') },
+      }),
+      (error: unknown) => {
+        assertFailure(error, 'home_not_default', HOME_MESSAGE, 'RUNTIME_ERROR');
+        return true;
+      },
+    );
+  } finally {
+    await rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('an agy Runtime binding is the only helper; a legacy server binding keeps official discovery', skipWindows, async () => {
+  const paths = await makePaths();
+  const runtimeAgy = join(paths.root, 'runtime', 'agy');
+  const userAgy = join(paths.home, '.local', 'bin', 'agy');
+  await installFake(runtimeAgy);
+  await installFake(userAgy);
+  const select = (options: AntigravityCliModelsOptions) => new AntigravityCliModels({
+    osUserHome: paths.home,
+    cwd: paths.cwd,
+    ...options,
+  }).resolveSelectedHelper();
+  try {
+    const bound = await select({ env: { HOME: paths.home, GIAN_RUNTIME_BIN: runtimeAgy } });
+    assert.equal(bound?.path, await realpath(runtimeAgy));
+    assert.equal(bound?.source, 'runtime');
+
+    const explicit = await select({
+      runtimeBinaryPath: runtimeAgy,
+      env: { HOME: paths.home, GIAN_RUNTIME_BIN: join(paths.root, 'other', 'agy') },
+    });
+    assert.equal(explicit?.path, await realpath(runtimeAgy));
+    assert.equal(explicit?.source, 'runtime');
+
+    const legacy = await select({
+      env: { HOME: paths.home, GIAN_RUNTIME_BIN: join(paths.root, 'extract', 'agy_acp_server.par') },
+    });
+    assert.equal(legacy?.path, await realpath(userAgy));
+    assert.equal(legacy?.source, 'official-user');
+
+    // A missing bound CLI does not fall back to another install and login.
+    assert.equal(await select({ env: { HOME: paths.home, GIAN_RUNTIME_BIN: join(paths.root, 'gone', 'agy') } }), null);
+
+    const injected = await select({ candidates: [userAgy], env: { HOME: paths.home, GIAN_RUNTIME_BIN: runtimeAgy } });
+    assert.equal(injected?.source, 'injected');
+    await assertAbsent(paths.report);
+
+    const listed = await listAntigravityCliModels({
+      osUserHome: paths.home,
+      cwd: paths.cwd,
+      env: {
+        HOME: paths.home,
+        PATH: '/usr/bin:/bin',
+        GIAN_RUNTIME_BIN: runtimeAgy,
+        FAKE_AGY_CLI_REPORT: paths.report,
+        FAKE_AGY_CLI_PID: paths.pidPath,
+        FAKE_AGY_CLI_MARKER: 'runtime',
+        FAKE_AGY_CLI_STDOUT: modelsDocument([
+          { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)' },
+        ]),
+      },
+    });
+    assert.equal(listed.helper.source, 'runtime');
+    const report = await readReport(paths.report);
+    assert.equal(report.marker, 'runtime');
+    assert.deepEqual(report.argv.slice(-3), [...ANTIGRAVITY_CLI_MODELS_ARGS]);
   } finally {
     await rm(paths.root, { recursive: true, force: true });
   }
@@ -1113,5 +1229,25 @@ test('a failed private-directory removal does not report a successful catalog', 
     await catalog.stop().catch(() => undefined);
     if (queryCwd) await realRm(queryCwd, { recursive: true, force: true });
     await realRm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('a signed-out CLI model query is a sign-in error, not a generic failure', skipWindows, async () => {
+  const paths = await makePaths();
+  try {
+    // What agy 1.5.11 prints for `agy --output-format json models` when signed out.
+    await assert.rejects(
+      listAntigravityCliModels(queryOptions(paths, {
+        FAKE_AGY_CLI_STDOUT: '',
+        FAKE_AGY_CLI_STDERR: 'Fetching available models...\nError: Please sign in to view available models. Launch the CLI without arguments to sign in.\n',
+        FAKE_AGY_CLI_EXIT: '1',
+      })),
+      (error: unknown) => {
+        assertFailure(error, 'auth_required', 'Antigravity CLI sign-in is required.', 'RUNTIME_AUTH_REQUIRED');
+        return true;
+      },
+    );
+  } finally {
+    await rm(paths.root, { recursive: true, force: true });
   }
 });

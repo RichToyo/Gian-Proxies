@@ -1,5 +1,14 @@
 # Gian Proxies Changelog
 
+## Antigravity Proxy 0.1.0 candidate - 2026-11-22
+
+- Run sessions through the ACP server built into the agy CLI (`agy acp`, 1.5.9 or later) instead of the standalone `agy_acp_server.par`. Sessions, the model list and quota now use the user's own agy sign-in; one `agy` login in Terminal is enough. A signed-out CLI reports `RUNTIME_AUTH_REQUIRED` with sign-in instructions for sessions and the model list.
+- The agy CLI has no Gemini home override and always reads the account's `~/.gemini` and Keychain sign-in. For an agy Runtime the Proxy no longer maps the Host Agent HOME onto `GEMINI_HOME`, reports `~/.gemini` as the probe's config home, and keeps only the `HOME` check for the model list and quota. A Gian-managed Agent HOME therefore no longer breaks the model list.
+- Set `AGY_CLI_DISABLE_AUTO_UPDATE=true` on every agy Gian launches, so the CLI never replaces its own binary under a running Proxy. A user's terminal `agy` keeps updating.
+- Replace the managed ACP registry pair (1.5.0) with the official Antigravity CLI 1.5.14 from Google's release manifest, pinned by SHA-256 and SHA-512 and repacked byte-for-byte as `agy`. Verified Runtime versions are now `1.5.14`. A user-selected legacy `.par` server keeps the paired-harness contract.
+- Adopt `@gian/proxy-kit` for the gian.proxy/2 wire server.
+- Exact-artifact hosted qualification and publication remain required.
+
 ## Claude Proxy 0.4.1 candidate - 2026-11-21
 
 0.4.0 is a withdrawn Claude Proxy version (the unified 0.4.0 bump of 2026-09-20) and is never reused. It was published in error on 2026-11-20 and never entered a signed Catalog; 0.4.1 is the same code.

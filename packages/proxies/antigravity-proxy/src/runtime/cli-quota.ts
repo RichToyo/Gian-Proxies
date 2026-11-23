@@ -42,6 +42,9 @@ export class AntigravityCliQuota {
     let timedOut = false;
     // Includes preflight. The transport owns cleanup and refuses interactive
     // sign-in; no Runtime session, credential copy or profile rewrite occurs.
+    // Helper selection is the catalog's: an `agy acp` Runtime binding
+    // (`runtimeBinaryPath`, else `GIAN_RUNTIME_BIN` in `env`) is the helper,
+    // so quota reads the same CLI account the sessions use.
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 24_000);
     const query = async (command: 'help' | 'changelog' | 'usage', expected?: AntigravityCliHelperIdentity): Promise<AntigravityCliReport> => {
       const result = await this.report(command, { ...this.options, env, signal,

@@ -97,6 +97,7 @@ async function main() {
     harness: Object.hasOwn(env, 'ANTIGRAVITY_HARNESS_PATH'),
     hasToken: Object.hasOwn(env, 'AGY_TOKEN'),
     marker: env.FAKE_AGY_CLI_MARKER ?? null,
+    autoUpdate: Object.hasOwn(env, 'AGY_CLI_DISABLE_AUTO_UPDATE') ? env.AGY_CLI_DISABLE_AUTO_UPDATE : null,
   }));
 
   if (env.FAKE_AGY_CLI_LATE_STDOUT === '1' || env.FAKE_AGY_CLI_HOLD_STDOUT === '1') {

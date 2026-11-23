@@ -5,7 +5,8 @@ import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-import { readNdjsonLines } from '@gian/proxy-protocol';
+import { runProxyServer, type JsonRpcErrorObject } from '@gian/proxy-kit';
+import { MAX_NDJSON_LINE_BYTES } from '@gian/proxy-protocol';
 import { isRuntimeBootstrapOffer, serveRuntimeBootstrap } from '@gian/proxy-protocol/node';
 
 import { AntigravityProxyService } from '../core/service.js';
@@ -13,9 +14,15 @@ import { AntigravityProtocolV2Adapter } from '../protocol/v2-adapter.js';
 import { AntigravityAcpClient } from '../runtime/acp-client.js';
 import { discoverAntigravityRuntimes, probeAntigravityRuntime } from '../runtime/discover.js';
 import { planRuntimeInstallation } from '../runtime/install.js';
-import { createProtocolWriter, parseRequestLine, type WireRequest } from '../transport/protocol.js';
+import { ProtocolError, standardError, validateRequest } from '../transport/protocol.js';
 
 const PLUGIN_ID = 'io.gian.antigravity';
+
+/** Requests that answer a runtime blocked inside a session request, so they
+ *  never queue behind that session. */
+const OVERTAKE_METHODS = new Set(['interaction.respond', 'turn.interrupt', 'shutdown']);
+/** `initialize` runs alone: no session request starts before it settles. */
+const BARRIER_METHODS = new Set(['initialize']);
 
 function packageVersion(): string {
   let directory = dirname(fileURLToPath(import.meta.url));
@@ -52,8 +59,9 @@ async function main(): Promise<void> {
     });
     return;
   }
+  // Either the `agy` CLI (launched as `agy acp`) or a legacy extracted server.
   const binaryPath = values['antigravity-bin'] ?? process.env.GIAN_RUNTIME_BIN ?? process.env.ANTIGRAVITY_BIN;
-  if (!binaryPath || !isAbsolute(binaryPath)) throw new Error('An absolute Antigravity ACP server path is required.');
+  if (!binaryPath || !isAbsolute(binaryPath)) throw new Error('An absolute Antigravity runtime path is required.');
   const runtime = new AntigravityAcpClient({ binaryPath });
   if (values.authenticate) {
     try {
@@ -63,77 +71,49 @@ async function main(): Promise<void> {
     } finally { await runtime.stop(); }
     return;
   }
-  const service = new AntigravityProxyService({ runtime });
-  const writer = createProtocolWriter(process.stdout);
-  const adapter = new AntigravityProtocolV2Adapter(service, version, writer.notification);
-  const pending = new Set<Promise<void>>();
-  const queues = new Map<string, Promise<void>>();
-  const overtake = new Set(['interaction.respond', 'turn.interrupt', 'shutdown']);
-  let closing: Promise<void> | null = null;
-  const close = (): Promise<void> => {
-    closing ??= adapter.close();
-    return closing;
-  };
-  const terminate = (code: number) => { void close().then(() => process.exit(code), () => process.exit(1)); };
-  const onSignal = () => { terminate(0); };
-  const onFatal = () => {
-    process.stderr.write('Antigravity Proxy failed; retiring its owned runtime.\n');
-    terminate(1);
-  };
-  process.once('SIGINT', onSignal);
-  process.once('SIGTERM', onSignal);
-  process.once('uncaughtException', onFatal);
-  process.once('unhandledRejection', onFatal);
 
-  const dispatch = (request: WireRequest): Promise<void> => adapter.dispatch(request, (result, error) => {
-    if (error !== undefined) writer.error(request.id, error);
-    else writer.result(request.id, result);
-  });
-  try {
-    for await (const line of readNdjsonLines(process.stdin)) {
-      if (!line.trim()) continue;
-      let request: WireRequest;
-      try { request = parseRequestLine(line); }
-      catch (error) {
-        let id: string | null = null;
-        try { const parsed = JSON.parse(line) as { id?: unknown }; if (typeof parsed?.id === 'string') id = parsed.id; } catch { /* Parse errors have a null id. */ }
-        writer.error(id, error);
-        continue;
-      }
-      if (request.method === 'initialize' || request.method === 'shutdown') {
-        await dispatch(request);
-        if (request.method === 'shutdown') break;
-        continue;
-      }
-      const key = typeof request.params.sessionId === 'string' ? request.params.sessionId : '';
-      const previous = queues.get(key) ?? Promise.resolve();
-      const operation = (overtake.has(request.method) ? Promise.resolve() : previous)
-        .then(() => dispatch(request));
-      const settled = operation.catch(() => { process.exitCode = 1; void close(); });
-      pending.add(settled);
-      if (!overtake.has(request.method)) queues.set(key, settled);
-      void settled.then(() => {
-        pending.delete(settled);
-        if (queues.get(key) === settled) queues.delete(key);
+  await runProxyServer({
+    tag: 'antigravity-proxy',
+    toJsonRpcError: (error) => standardError(error) as unknown as JsonRpcErrorObject,
+    overtakeMethods: OVERTAKE_METHODS,
+    barrierMethods: BARRIER_METHODS,
+    // Requests are serialized per session; different sessions run side by side.
+    laneKey: (request) => (typeof request.params.sessionId === 'string' ? request.params.sessionId : ''),
+    // An adapter whose request task rejects instead of answering is broken:
+    // retire the owned runtime rather than keep serving.
+    failClosedOnDispatchRejection: true,
+    writer: {
+      maxLineBytes: MAX_NDJSON_LINE_BYTES,
+      oversized: () => new ProtocolError('RUNTIME_ERROR', 'Proxy output exceeds the negotiated frame limit.'),
+    },
+    // Native diagnostics can contain OAuth material, so a crash reports
+    // nothing but the fact.
+    onCrash: () => {
+      process.stderr.write('Antigravity Proxy failed; retiring its owned runtime.\n');
+    },
+    async createHandler(_emit, emitImmediate) {
+      const service = new AntigravityProxyService({ runtime });
+      // The adapter orders its own notifications behind the Responses it
+      // writes, so it emits directly.
+      const adapter = new AntigravityProtocolV2Adapter(service, version, emitImmediate, {
+        // Models and quota come from the same `agy` binary as the sessions.
+        cliModels: { runtimeBinaryPath: binaryPath },
       });
-    }
-  } finally {
-    let closeError: unknown;
-    try {
-      await close();
-    } catch (error) {
-      closeError = error;
-    }
-    try {
-      await Promise.allSettled(pending);
-    } finally {
-      process.removeListener('SIGINT', onSignal);
-      process.removeListener('SIGTERM', onSignal);
-      process.removeListener('uncaughtException', onFatal);
-      process.removeListener('unhandledRejection', onFatal);
-    }
-    if (closeError !== undefined) throw closeError;
-  }
+      return {
+        async dispatch(request, respond) {
+          let validated;
+          try {
+            validated = validateRequest({ jsonrpc: '2.0', ...request });
+          } catch (error) {
+            respond(undefined, error);
+            return;
+          }
+          await adapter.dispatch(validated, respond);
+        },
+        close: () => adapter.close(),
+      };
+    },
+  });
 }
 
 main().catch(() => {

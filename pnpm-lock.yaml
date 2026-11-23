@@ -59,6 +59,10 @@
           "specifier": "^0.23.0",
           "version": "0.23.0(patch_hash=f6c793aced1f0bd3e72bf99d6adfb78ec2d95ba21b45c9629cac2724bc59d220)(zod@4.6.6)"
         },
+        "@gian/proxy-kit": {
+          "specifier": "workspace:*",
+          "version": "link:../../proxy-kit"
+        },
         "@gian/proxy-protocol": {
           "specifier": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.5/gian-proxy-protocol-1.0.5.tgz",
           "version": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.5/gian-proxy-protocol-1.0.5.tgz"
