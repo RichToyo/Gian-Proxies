@@ -1,6 +1,6 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.72.0",
-  "sequence": 72,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.73.0",
+  "sequence": 73,
   "sourceId": "gian-official",
   "plugins": [
     {
@@ -17,16 +17,16 @@
         "companions": [],
         "generationId": "claude-0.4.1-runtime-2.1.327",
         "runtime": {
+          "asset": {
+            "sha256": "76d48205c926c8a6978cfc2171b631bcd01e20bbadd085638bb2ec57bea91c5b",
+            "size": 354515104,
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.4.1/claude-2.1.327-darwin-arm64"
+          },
+          "entryRelativePath": "bin/claude",
+          "format": "raw",
           "kind": "native-binary",
           "runtimeId": "claude",
-          "version": "2.1.327",
-          "asset": {
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.4.1/claude-2.1.327-darwin-arm64",
-            "sha256": "76d48205c926c8a6978cfc2171b631bcd01e20bbadd085638bb2ec57bea91c5b",
-            "size": 354515104
-          },
-          "format": "raw",
-          "entryRelativePath": "bin/claude"
+          "version": "2.1.327"
         }
       }
     },
@@ -168,27 +168,27 @@
     {
       "id": "io.gian.antigravity",
       "displayName": "Antigravity",
-      "version": "0.0.9",
+      "version": "0.1.0",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "shared",
       "combination": {
         "certificate": {
-          "id": "proxies-009022f8c8a74e00958bfaa7354cb4219c5e4010-44072858601-1",
-          "sha256": "c003da8f8f84e3993f176e7e4a0fa612144e70dc3dfe3cc1b8c76b1c955a131b"
+          "id": "proxies-0a7c32eff368d9f18ae4b6532cda8ba7bebb2387-45109711961-1",
+          "sha256": "53233c13b222b0230ab9a20511ee6ce642f85e5db717810cdc9546f865f6d09f"
         },
         "companions": [],
-        "generationId": "antigravity-0.0.9-runtime-1.5.0",
+        "generationId": "antigravity-0.1.0-runtime-1.5.14",
         "runtime": {
-          "asset": {
-            "sha256": "7c5e7eeac38488aa4a2f635f448a92365424bbc83ce7ab3407d435556b93f034",
-            "size": 100235809,
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.0.8/gian-runtime-antigravity-1.5.0-darwin-arm64.tar.gz"
-          },
-          "entryRelativePath": "agy_acp_server.par",
-          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "antigravity-acp",
-          "version": "1.5.0"
+          "version": "1.5.14",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.1.0/gian-runtime-antigravity-1.5.14-darwin-arm64.tar.gz",
+            "sha256": "624a2c06fe1286d4f4e6b366f066bef31d031eb3e510688ed090719a1ae89fc5",
+            "size": 85907847
+          },
+          "format": "tar.gz",
+          "entryRelativePath": "agy"
         }
       }
     }

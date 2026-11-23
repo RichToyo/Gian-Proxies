@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.0.9**, Runtime **1.5.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.1.0**, Runtime **1.5.14**. These are distribution targets, not this machine's installed state.
+
+## 0.1.0
+
+First published: 2026-11-23T04:09:00Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.1.0): 2026-11-23T04:09:00Z.
+- CLI: 1.5.14 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Run sessions through the ACP server built into the agy CLI (agy acp, 1.5.9 or later) instead of the separate agy_acp_server.par, so sessions, the model list and quota reuse the user's own agy sign-in under any Agent HOME; a signed-out CLI reports sign-in required. Gian-launched agy processes never update themselves. Replace the managed ACP pair with the official Antigravity CLI 1.5.14, repacked byte-for-byte as agy from Google's pinned release archive. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-antigravity-v0.1.0) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-antigravity-v0.1.0/packages/proxies/antigravity-proxy/README.md)
 
 ## 0.0.9
 
