@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "claude",
-  "currentVersion": "0.4.1",
+  "currentVersion": "0.4.2",
   "entries": [
+    {
+      "version": "0.4.2",
+      "firstPublishedAt": "2026-11-23T06:55:43Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-claude-v0.4.2",
+          "publishedAt": "2026-11-23T06:55:43Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.4.2",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.4.2/gian-proxy-claude-0.4.2-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "2e24dc9a6e209bcd897588077c3b0f2bd32e85f7b123ca1a2bb6fe5bbc0ab32d",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.4.2/gian-proxy-claude-0.4.2-darwin-arm64.tar.gz",
+            "sha256": "805338dec6e4f9c9939eea84fad40ecc206ad8f7e64ff51c698f99b9fb0ce79d",
+            "size": 278830
+          },
+          "runtimeDeclaration": {
+            "id": "claude",
+            "versions": [
+              "2.1.330"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Upgrade the managed Claude Code Runtime from 2.1.327 to official 2.1.330 with the pinned binary bytes. Upstream fixes include a multi-minute freeze after compacting a very long conversation, --resume failing when the last saved message has an invalid timestamp, lower memory use in long SDK sessions, and background agents left waiting after an interrupt. The streaming-input mode, native control requests and turn.steer are unchanged. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.4.2",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-claude-v0.4.2/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.4.1",
       "firstPublishedAt": "2026-11-21T04:55:06Z",

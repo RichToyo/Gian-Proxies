@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.1**, Runtime **2.1.327**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.2**, Runtime **2.1.330**. These are distribution targets, not this machine's installed state.
+
+## 0.4.2
+
+First published: 2026-11-23T06:55:43Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.4.2): 2026-11-23T06:55:43Z.
+- CLI: 2.1.330 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Upgrade the managed Claude Code Runtime from 2.1.327 to official 2.1.330 with the pinned binary bytes. Upstream fixes include a multi-minute freeze after compacting a very long conversation, --resume failing when the last saved message has an invalid timestamp, lower memory use in long SDK sessions, and background agents left waiting after an interrupt. The streaming-input mode, native control requests and turn.steer are unchanged. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.4.2) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-claude-v0.4.2/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts)
 
 ## 0.4.1
 
