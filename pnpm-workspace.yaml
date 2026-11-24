@@ -30,6 +30,7 @@
     "@gian/remote-web>zod": "4.6.6",
     "@deepseek-ai/dsh-web-fetch-http>undici": "8.12.2",
     "@deepseek-ai/dsh-http-proxy>undici": "8.12.2",
+    "@deepseek-ai/dsh-experimental-liveshare>undici": "8.12.2",
     "express@5>qs": "6.16.0",
     "hono": "4.13.7",
     "js-yaml": "4.3.2",

@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichToyo/Gian-Dev",
-  "sourceCommit": "f50b2a1838354ab9b80f68589dcb14ece07f38ac",
+  "sourceCommit": "4c87f7037d669245fe305212cfcffacd4a07b88a",
   "workingTree": false,
   "externalPackages": [
     {
@@ -3271,12 +3271,12 @@
     {
       "source": "pnpm-lock.yaml",
       "path": "pnpm-lock.yaml",
-      "sha256": "41a4fc6e9117d327662bb894952f66bab6b3833350b9686e20406bc2abc10a96"
+      "sha256": "ba0620498c25f0e2d8e14fc7ae07c041ae5949b87f6755db734175d8ba768abe"
     },
     {
       "source": "pnpm-workspace.yaml",
       "path": "pnpm-workspace.yaml",
-      "sha256": "0d0c0d196cc3edcb79f9cd413fd7811abc4713a201f056accab3bb2ffe0153e9"
+      "sha256": "929e76fc6ed2c16f04aca4c9be00070b022e7349625881bfa3b08d73dcafacff"
     },
     {
       "source": "runtimes/deepseek-harness/package-lock.json",
@@ -6573,12 +6573,12 @@
     {
       "path": "pnpm-lock.yaml",
       "mode": 420,
-      "sha256": "bfe8ad0f50fe46d1f90db6a76633a968c4459db9b0399a2f7ea59064c96cfedb"
+      "sha256": "e63d36de4f7c5398a5986f5c9a68aeb0317030c784fb75769e3df7d2650d2a76"
     },
     {
       "path": "pnpm-workspace.yaml",
       "mode": 420,
-      "sha256": "d93a638e23d3e8d817cfe30346a9c3d645e6cbf9954028a348dcf0cd1229b270"
+      "sha256": "5f018c15f21f914d39756060b2d26d1ee436d808f2fac7bcf61bf3ffb4716fc4"
     },
     {
       "path": "protocol-package.json",
