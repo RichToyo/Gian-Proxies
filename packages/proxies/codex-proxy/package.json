@@ -1,6 +1,6 @@
 {
   "name": "@gian/codex-proxy",
-  "version": "0.3.15",
+  "version": "0.4.1",
   "private": true,
   "type": "module",
   "main": "./dist/src/cli/spawn.js",
@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "build": "pnpm run clean && tsc -p tsconfig.json",
+    "build": "pnpm --filter @gian/proxy-kit build && pnpm run clean && tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "node dist/src/cli/spawn.js",
@@ -22,6 +22,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@gian/proxy-kit": "workspace:*",
     "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.5/gian-proxy-protocol-1.0.5.tgz",
     "@gian/shared": "workspace:*"
   },

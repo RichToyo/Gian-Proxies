@@ -14,53 +14,53 @@
   {
     "pluginId": "codex",
     "runtimeId": "codex",
-    "version": "0.169.0",
+    "version": "0.171.0",
     "format": "tar.gz",
     "entryRelativePath": "bin/codex",
     "asset": {
-      "sha256": "8a232260df7a12c5e83e0b4b7659e1c8d9259b41942517bc0068d8ab55c36461",
-      "size": 172466618,
-      "url": "https://github.com/openai/codex/releases/download/rust-v0.169.0/codex-package-aarch64-apple-darwin.tar.gz"
+      "sha256": "58c88032ec446e72922d911d8f03773102da20c16a6059cf21f6744bce57f210",
+      "size": 176190739,
+      "url": "https://github.com/openai/codex/releases/download/rust-v0.171.0/codex-package-aarch64-apple-darwin.tar.gz"
     }
   },
   {
     "pluginId": "ai.deepseek.harness",
     "runtimeId": "deepseek-harness",
-    "version": "0.2.2-rc.3",
+    "version": "0.2.2-rc.5",
     "format": "tar.gz",
     "entryRelativePath": "node_modules/@deepseek-ai/dsh/lib/bin.js",
     "build": {
       "kind": "dsh-lock",
-      "packageSha256": "2e298797fb26dd941c3ad193f1637177093bdcacb974fb6e0bdb75215453e51d",
-      "lockSha256": "bfe10c1e05bbd60658c23546a9cf4fa38471f027340fc8b8657ffc949f815105"
+      "packageSha256": "cf57707ef9962f1f5d811c2e8dfcda3584002dfd1ef7711652dc182391d38028",
+      "lockSha256": "ac18d49eac04f016d25e829089c4ef576124a9114de01b8fe4fbe3b8ed17775e"
     },
     "asset": {
-      "sha256": "4813830917dd06d240a1350e0e8ea63cd5a01d12e67ea402172842c459177c46",
-      "size": 226412398
+      "sha256": "7d567d620c9b3637e30f5a75ad9b776ed4206c6c5b91a1e40ec976ccd45f6f5e",
+      "size": 223841895
     }
   },
   {
     "pluginId": "grok",
     "runtimeId": "grok",
-    "version": "1.0.89",
+    "version": "1.0.92",
     "format": "raw",
     "entryRelativePath": "bin/grok",
     "asset": {
-      "sha256": "f149e6ad81339491f8d6e0c5fd712f2813042c0dfbb595c28d5767e4567c17a1",
-      "size": 190386368,
-      "url": "https://x.ai/cli/grok-1.0.89-macos-aarch64"
+      "sha256": "8b5f67b24f2cc9a4341d8e2eb7f67e3228d7d647ed04752a4f932f7133e5ab08",
+      "size": 190640272,
+      "url": "https://x.ai/cli/grok-1.0.92-macos-aarch64"
     }
   },
   {
     "pluginId": "kimi",
     "runtimeId": "kimi",
-    "version": "2.6.3",
+    "version": "2.7.2",
     "format": "tar.gz",
     "entryRelativePath": "kimi",
     "asset": {
-      "url": "https://github.com/MoonshotAI/kimi-code/releases/download/%40moonshot-ai/kimi-code%402.6.3/kimi-code-darwin-arm64.tar.gz",
-      "sha256": "2f65c94f666b02641a20d305d84a3f5513938bf21d4884c82f9e479ffebccc00",
-      "size": 59942626
+      "url": "https://github.com/MoonshotAI/kimi-code/releases/download/%40moonshot-ai/kimi-code%402.7.2/kimi-code-darwin-arm64.tar.gz",
+      "sha256": "46cb6bf4afe3a6d7931e0a47418035fde53a43b286329c8dabb5f71bfc9e71b4",
+      "size": 61167615
     }
   },
   {
@@ -78,7 +78,7 @@
   {
     "pluginId": "io.gian.antigravity",
     "runtimeId": "antigravity-acp",
-    "version": "1.5.14",
+    "version": "1.5.16",
     "format": "tar.gz",
     "entryRelativePath": "agy",
     "probe": {
@@ -86,11 +86,11 @@
     },
     "build": {
       "kind": "antigravity-cli",
-      "sourceSha256": "b01bdd4591e13ddfcb0e049bea74ae9f83e80829adcf64aaa58f5bfb1a425a54"
+      "sourceSha256": "ba47202f712de4c4a78fd787d81ba206d73e11c97572fc69420f29a77efc8d95"
     },
     "asset": {
-      "sha256": "624a2c06fe1286d4f4e6b366f066bef31d031eb3e510688ed090719a1ae89fc5",
-      "size": 85907847
+      "sha256": "42490dbd4ff469c3a651731c37dafb45153c5bb3dcc8f0b8141742d1be322290",
+      "size": 86463263
     }
   }
 ]

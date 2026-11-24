@@ -9,11 +9,10 @@ import { createInterface } from 'node:readline';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { initializeResultSchema, proxyErrorResponseSchema } from '@gian/proxy-protocol';
+import { parseWireRequest, WireRequestError } from '@gian/proxy-kit';
 import {
-  CodexJsonRpcError,
   CodexProtocolError,
   jsonRpcError,
-  parseRequestLine,
 } from '../src/transport/protocol.js';
 
 interface JsonRpcMessage {
@@ -200,12 +199,11 @@ test('ERR-004: Codex CLI initialize reports plugin identity and shared scope', a
 });
 
 test('ERR-004: framing separates parse, invalid request, invalid params, and domain errors', () => {
+  // Framing is owned by the shared proxy-kit wire server.
   const expectStandard = (line: string, expectedCode: number) => {
     assert.throws(
-      () => parseRequestLine(line),
-      (error: unknown) => error instanceof CodexJsonRpcError
-        && error.code === expectedCode
-        && jsonRpcError(error).data === undefined,
+      () => parseWireRequest(line),
+      (error: unknown) => error instanceof WireRequestError && error.code === expectedCode,
     );
   };
 

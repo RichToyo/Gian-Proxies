@@ -1,5 +1,3 @@
-const JSONRPC = '2.0' as const;
-
 const JSONRPC_ERROR_CODES = {
   PARSE_ERROR: -32700,
   INVALID_REQUEST: -32600,
@@ -41,6 +39,8 @@ export class CodexProtocolError extends Error {
     readonly domainCode: DomainCode,
     message: string,
     retryable = false,
+    /** Native identifiers (Codex error code, RPC method); never secrets. */
+    readonly details: Record<string, string | number | boolean | null> = {},
   ) {
     super(message);
     this.name = 'CodexProtocolError';
@@ -58,10 +58,6 @@ export class CodexJsonRpcError extends Error {
   }
 }
 
-export function writeJsonLine(stream: NodeJS.WritableStream, payload: unknown): void {
-  stream.write(`${JSON.stringify(payload)}\n`);
-}
-
 export function jsonRpcError(error: unknown) {
   if (error instanceof CodexJsonRpcError) {
     return {
@@ -76,7 +72,7 @@ export function jsonRpcError(error: unknown) {
       data: {
         domainCode: error.domainCode,
         retryable: error.retryable,
-        details: {},
+        details: { ...error.details },
       },
     };
   }
@@ -89,56 +85,5 @@ export function jsonRpcError(error: unknown) {
       retryable: false,
       details: {},
     },
-  };
-}
-
-export function createProtocolWriter(outputStream: NodeJS.WritableStream) {
-  return {
-    result(id: string, result: unknown) {
-      writeJsonLine(outputStream, { jsonrpc: JSONRPC, id, result });
-    },
-    error(id: string | null, error: unknown) {
-      writeJsonLine(outputStream, { jsonrpc: JSONRPC, id, error: jsonRpcError(error) });
-    },
-    notification(method: string, params: unknown) {
-      writeJsonLine(outputStream, { jsonrpc: JSONRPC, method, params });
-    },
-  };
-}
-
-export function parseRequestLine(line: string): {
-  jsonrpc: '2.0';
-  id: string;
-  method: string;
-  params: Record<string, unknown>;
-} {
-  let value: unknown;
-  try {
-    value = JSON.parse(line);
-  } catch {
-    throw new CodexJsonRpcError(JSONRPC_ERROR_CODES.PARSE_ERROR, 'Parse error.');
-  }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new CodexJsonRpcError(JSONRPC_ERROR_CODES.INVALID_REQUEST, 'Invalid Request.');
-  }
-  const record = value as Record<string, unknown>;
-  if (record.jsonrpc !== JSONRPC) {
-    throw new CodexJsonRpcError(JSONRPC_ERROR_CODES.INVALID_REQUEST, 'Invalid Request.');
-  }
-  if (typeof record.id !== 'string' || record.id.length === 0) {
-    throw new CodexJsonRpcError(JSONRPC_ERROR_CODES.INVALID_REQUEST, 'Invalid Request.');
-  }
-  if (typeof record.method !== 'string' || record.method.length === 0) {
-    throw new CodexJsonRpcError(JSONRPC_ERROR_CODES.INVALID_REQUEST, 'Invalid Request.');
-  }
-  const params = record.params;
-  if (params !== undefined && (typeof params !== 'object' || params === null || Array.isArray(params))) {
-    throw new CodexJsonRpcError(JSONRPC_ERROR_CODES.INVALID_PARAMS, 'Invalid params.');
-  }
-  return {
-    jsonrpc: JSONRPC,
-    id: record.id,
-    method: record.method,
-    params: (params ?? {}) as Record<string, unknown>,
   };
 }

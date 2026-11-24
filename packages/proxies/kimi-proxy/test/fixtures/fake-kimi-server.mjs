@@ -1,729 +1,386 @@
 #!/usr/bin/env node
 /**
- * Scriptable fake Kimi local server (`kimi web`) for zcode-proxy-style
- * deterministic tests of the kimi proxy.
+ * Scriptable fake Kimi Code 2.7 local server (`kimi web --json`) for
+ * end-to-end tests of the kimi proxy through its real CLI.
  *
- * Usage: node fake-kimi-server.mjs web --no-open --port <N> --host 127.0.0.1
- *   (argv is accepted so the spawn contract matches the real CLI)
- * Scenario: FAKE_SCENARIO env var points at a JSON file; every request is
- * logged to FAKE_LOG (JSONL).
+ * Shapes follow kimi-code 2.7.2 (kap-server protocol/session.ts,
+ * protocol/conversation.ts, ws-agent.ts, wsConnectionV1.ts) and were checked
+ * against the real 2.7.2 binary for the credential-free surface:
+ * - `--version` prints the bare version (scenario.version, default 2.7.2);
+ * - `web --json --port 0` prints one ready line {origin, ws_url, token,
+ *   kimi_agent_protocol_version};
+ * - session wire {id, workspace_id, cwd, title, activity, pending_interaction};
+ * - `/messages` answers a non-envelope 404 and `/children` 40001;
+ * - WS subscribe → response, task.list, agent, context, todo, turns; global
+ *   unwrapped `session` events go to every connection.
  *
- * Implements the subset of the kap-server surface the proxy uses:
- * - REST envelope {code, msg, data, request_id} with real error codes;
- * - POST /api/v1/workspaces, /api/v1/sessions (+list/get/profile/delete/
- *   children), prompts (+steer/:abort), approvals, questions, models, config,
- *   messages, file-history changes/content, shutdown;
- * - /api/v1/ws with server_hello, subscribe acks, ping/pong, and
- *   scenario-scripted session-event frames (seq/epoch journal semantics).
+ * Every request is logged to FAKE_LOG (JSONL).
  */
 
 import fs from 'node:fs';
 import http from 'node:http';
 import crypto from 'node:crypto';
-import { createInterface } from 'node:readline';
-
-if (process.argv.includes('--version')) {
-  process.stdout.write('2.3.3\n');
-  process.exit(0);
-}
 
 const scenarioPath = process.env.FAKE_SCENARIO;
-const logPath = process.env.FAKE_LOG;
 const scenario = scenarioPath ? JSON.parse(fs.readFileSync(scenarioPath, 'utf8')) : {};
+const logPath = process.env.FAKE_LOG;
 const log = (entry) => {
   if (logPath) fs.appendFileSync(logPath, `${JSON.stringify({ pid: process.pid, ...entry })}\n`);
 };
 
-// Parse `--port <N>` from argv (ignore everything else).
-const argv = process.argv.slice(2);
-const portIndex = argv.indexOf('--port');
-const PORT = portIndex >= 0 ? Number(argv[portIndex + 1]) : 58627;
-const TOKEN = scenario.token ?? 'test-token';
-const KIMI_CODE_HOME = process.env.KIMI_CODE_HOME ?? process.env.HOME;
+if (process.argv.includes('--version')) {
+  log({ kind: 'version', kimiCodeHome: process.env.KIMI_CODE_HOME ?? null });
+  process.stdout.write(`${scenario.version ?? '2.7.2'}\n`);
+  process.exit(0);
+}
 
-// Native 2.2.0 and 2.3.0 persist this token directly in KIMI_CODE_HOME.
-try {
-  fs.mkdirSync(KIMI_CODE_HOME, { recursive: true });
-  fs.writeFileSync(`${KIMI_CODE_HOME}/server.token`, TOKEN, { mode: 0o600 });
-} catch { /* best-effort */ }
+log({ kind: 'start', argv: process.argv.slice(2), kimiCodeHome: process.env.KIMI_CODE_HOME ?? null,
+  noAutoUpdate: process.env.KIMI_CODE_NO_AUTO_UPDATE ?? null });
+if (scenario.behavior?.failStartup) {
+  process.stderr.write(`${scenario.behavior.failStartup}\n`);
+  process.exit(3);
+}
 
-let requestIdCounter = 1;
-const requestId = () => `01FAKE${String(requestIdCounter++).padStart(20, '0')}`;
-const ulid = () => crypto.randomBytes(12).toString('hex');
+const TOKEN = `ephemeral-${crypto.randomBytes(6).toString('hex')}`;
+const now = () => new Date().toISOString();
+let requestCounter = 1;
+const requestId = () => `01FAKE${String(requestCounter++).padStart(20, '0')}`;
 
-function envelope(res, status, code, msg, data, extra = {}) {
-  const body = JSON.stringify({ code, msg, data, request_id: requestId(), ...extra });
+function send(res, status, body) {
   res.writeHead(status, { 'content-type': 'application/json' });
-  res.end(body);
+  res.end(JSON.stringify(body));
 }
-const ok = (res, data) => envelope(res, 200, 0, 'success', data);
-const fail = (res, code, msg) => envelope(res, 200, code, msg, null);
+const ok = (res, data) => send(res, 200, { code: 0, msg: 'success', data, request_id: requestId() });
+const fail = (res, code, msg) => send(res, 200, { code, msg, data: null, request_id: requestId() });
 
-// ---- state (FAKE_STATE file persists sessions/workspaces across restarts) ----
+// ---- state ----
 
-const statePath = process.env.FAKE_STATE ?? null;
+const sessions = new Map(); // id -> session
+const clients = new Set();
+const promptScripts = [...(scenario.prompts ?? [])];
+let sessionCounter = 0;
 
-function persistState() {
-  if (!statePath) return;
-  try {
-    fs.writeFileSync(statePath, JSON.stringify({
-      workspaces: [...state.workspaces.entries()],
-      sessions: [...state.sessions.entries()].map(([id, session]) => [id, {
-        info: session.info,
-        messages: session.messages,
-        childOf: session.childOf,
-        turnCounter: session.turnCounter,
-      }]),
-    }));
-  } catch { /* best-effort */ }
-}
-
-const state = {
-  workspaces: new Map(), // root -> {id, root}
-  sessions: new Map(), // id -> {info, messages, busy, activePrompt, turnCounter, childOf}
-  approvals: new Map(), // id -> {record, decision}
-  questions: new Map(),
-  tasks: new Map(), // session and task identity -> current native status
-  models: scenario.models ?? [],
-  defaultModel: scenario.default_model ?? null,
-  wsClients: new Set(),
-  journal: new Map(),
-  wsConnections: 0,
-};
-
-if (statePath && fs.existsSync(statePath)) {
-  try {
-    const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-    for (const [root, workspace] of saved.workspaces ?? []) state.workspaces.set(root, workspace);
-    for (const [id, session] of saved.sessions ?? []) {
-      state.sessions.set(id, {
-        info: session.info, messages: session.messages ?? [], live: false, busy: false, activePrompt: null,
-        turnCounter: session.turnCounter ?? 0, childOf: session.childOf ?? null, turnIdByPrompt: new Map(),
-      });
-    }
-  } catch { /* corrupt state: start clean */ }
-}
-
-function makeSessionInfo(cwd) {
+function wire(session) {
   return {
-    id: `session_${ulid()}`,
-    workspace_id: '',
-    title: '',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    busy: false,
-    main_turn_active: false,
-    pending_interaction: 'none',
-    archived: false,
-    metadata: { cwd },
-    agent_config: {},
-    usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_creation_tokens: 0, context_tokens: 0, context_limit: 0, turn_count: 0 },
-    permission_rules: [],
-    message_count: 0,
-    last_seq: 0,
+    id: session.id, workspace_id: 'wd_fake', cwd: session.cwd, title: session.title,
+    created_at: session.createdAt, updated_at: session.updatedAt,
+    activity: session.activity, pending_interaction: session.pendingInteraction, archived: false,
+    ...(session.metadata ? { metadata: session.metadata } : {}),
   };
 }
 
-for (const seed of scenario.sessions ?? []) {
-  const info = { ...makeSessionInfo(seed.cwd ?? '/tmp/fake-ws'), ...seed.info };
-  state.sessions.set(info.id, {
-    info,
-    messages: seed.messages ?? [],
-    live: false,
-    busy: info.busy === true,
-    activePrompt: null,
-    turnCounter: 0,
-    childOf: seed.childOf ?? null,
-    turnIdByPrompt: new Map(),
-  });
-}
-
-const getTurnScript = (sessionId) => {
-  const perSession = scenario.turns?.[sessionId];
-  if (perSession !== undefined) return perSession;
-  if (Array.isArray(scenario.turnSequence)) {
-    return scenario.turnSequence[Math.min(state.sessions.get(sessionId)?.turnCounter ?? 0, scenario.turnSequence.length - 1)];
-  }
-  return scenario.turn ?? null;
-};
-
-// ---- turn scripts (WS event scheduling) ----
-
-const timers = new Set();
-const promptTimers = new Map();
-
-function emitFrame(sessionId, type, payload, options = {}) {
-  const session = state.sessions.get(sessionId);
-  if (!session) return;
-  if (['task.started', 'background.task.started', 'task.terminated', 'background.task.terminated'].includes(type)
-    && typeof payload.info?.taskId === 'string') {
-    const info = payload.info;
-    const raw = info.status ?? (type.endsWith('.started') ? 'running' : 'completed');
-    const status = raw === 'timed_out' || raw === 'lost' ? 'failed' : raw === 'killed' ? 'cancelled' : raw;
-    state.tasks.set(`${sessionId}\0${info.taskId}`, { id: info.taskId, session_id: sessionId, status });
-  }
-  // Kimi 2.1.1 volatile frames reuse the current durable seq instead of
-  // calling nextSeq(). reuseSeq models that; the default still increments.
-  if (options.reuseSeq !== true) session.info.last_seq += 1;
-  const frame = {
-    type,
-    seq: session.info.last_seq,
-    epoch: `ep_${sessionId.slice(-8)}`,
-    session_id: sessionId,
-    timestamp: new Date().toISOString(),
-    ...(options.volatile === true ? { volatile: true } : {}),
-    ...(Number.isInteger(options.offset) ? { offset: options.offset } : {}),
-    payload: { type, ...payload },
+function makeSession(cwd, extra = {}) {
+  sessionCounter += 1;
+  const session = {
+    id: extra.id ?? `session_fake_${process.pid}_${sessionCounter}`, cwd, title: extra.title ?? '', createdAt: now(), updatedAt: now(),
+    activity: 'idle', pendingInteraction: 'none', metadata: extra.metadata, turns: extra.turns ?? [],
+    nextTurnNumber: Math.max(-1, ...(extra.turns ?? []).map(turn => turn.turn_number ?? -1)) + 1,
+    active: null, queued: [], interactions: new Map(), prompts: new Set(),
   };
-  const journal = state.journal.get(sessionId) ?? [];
-  journal.push(frame);
-  state.journal.set(sessionId, journal);
-  for (const client of state.wsClients) {
-    if (client.subscriptions.has(sessionId)) client.sendJson(frame);
-  }
+  sessions.set(session.id, session);
+  if (typeof persist === 'function') persist();
+  return session;
 }
-
-function scheduleScript(sessionId, script, promptId) {
-  const session = state.sessions.get(sessionId);
-  if (!session || !script) return;
-  const turnId = ++session.turnCounter;
-  session.turnIdByPrompt.set(promptId, turnId);
-  let elapsed = script.delayBefore ?? 15;
-  const ownedTimers = new Set();
-  promptTimers.set(`${sessionId}\0${promptId}`, ownedTimers);
-  for (const step of script.events ?? []) {
-    if (step.op === 'wait') {
-      elapsed += step.ms ?? 20;
-      continue;
-    }
-    const snapshot = { ...step };
-    const at = elapsed;
-    const timer = setTimeout(() => {
-      timers.delete(timer);
-      ownedTimers.delete(timer);
-      if (ownedTimers.size === 0) promptTimers.delete(`${sessionId}\0${promptId}`);
-      if (step.op === 'disconnect') {
-        for (const client of [...state.wsClients]) {
-          state.wsClients.delete(client);
-          client.socket.destroy();
-        }
-        log({ kind: 'ws-disconnect', sessionId });
-        return;
-      }
-      if (step.op === 'set-work-state') {
-        if (typeof step.busy === 'boolean') session.busy = step.busy;
-        if (typeof step.mainTurnActive === 'boolean') session.info.main_turn_active = step.mainTurnActive;
-        if (typeof step.pendingInteraction === 'string') session.info.pending_interaction = step.pendingInteraction;
-        for (const [taskId, status] of Object.entries(step.taskStatuses ?? {})) {
-          const key = `${sessionId}\0${taskId}`;
-          const task = state.tasks.get(key);
-          if (task) state.tasks.set(key, { ...task, status });
-        }
-        log({ kind: 'work-state-set', sessionId });
-        return;
-      }
-      if (step.type === 'turn.ended') {
-        session.busy = false;
-        session.activePrompt = null;
-        session.info.main_turn_active = false;
-        session.info.last_turn_reason = step.payload?.reason ?? 'completed';
-      }
-      if (step.type === 'turn.started' && step.payload?.origin?.kind === 'task') {
-        session.busy = true;
-        session.info.main_turn_active = true;
-        session.activePrompt = typeof step.payload.promptId === 'string' ? step.payload.promptId : null;
-        if (session.activePrompt !== null) {
-          session.turnIdByPrompt.set(session.activePrompt, step.payload.turnId ?? turnId);
-          promptTimers.set(`${sessionId}\0${session.activePrompt}`, ownedTimers);
-        }
-      }
-      if (step.type === 'event.session.work_changed') {
-        if (typeof step.payload?.busy === 'boolean') session.busy = step.payload.busy;
-        if (typeof step.payload?.main_turn_active === 'boolean') session.info.main_turn_active = step.payload.main_turn_active;
-        if (typeof step.payload?.pending_interaction === 'string') session.info.pending_interaction = step.payload.pending_interaction;
-      }
-      if (step.type === 'event.approval.requested') {
-        state.approvals.set(step.payload.approval_id, {
-          record: { approval_id: step.payload.approval_id, session_id: sessionId, agent_id: 'main', turn_id: turnId, tool_call_id: step.payload.tool_call_id ?? '', tool_name: step.payload.tool_name ?? '', action: step.payload.action ?? '', tool_input_display: step.payload.tool_input_display ?? null, created_at: new Date().toISOString(), expires_at: step.payload.expires_at ?? null },
-          decision: null,
-          feedback: null,
-        });
-      }
-      if (step.type === 'event.question.requested') {
-        state.questions.set(step.payload.question_id, {
-          record: { question_id: step.payload.question_id, session_id: sessionId, agent_id: 'main', turn_id: turnId, questions: step.payload.questions ?? [], created_at: new Date().toISOString() },
-          answers: null,
-          note: null,
-        });
-      }
-      const payload = { promptId, turnId, ...(step.payload ?? {}) };
-      if (step.omitPromptId === true) delete payload.promptId;
-      emitFrame(sessionId, step.type, payload, {
-        volatile: step.volatile === true,
-        reuseSeq: step.reuseSeq === true,
-        offset: step.offset,
-      });
-      log({ kind: 'ws-frame', sessionId, type: step.type, turnId });
-    }, at);
-    timer.unref();
-    timers.add(timer);
-    ownedTimers.add(timer);
-    void snapshot;
-  }
+// Native sessions persist on disk across server restarts (FAKE_STATE).
+const statePath = process.env.FAKE_STATE ?? null;
+function persist() {
+  if (!statePath) return;
+  fs.writeFileSync(statePath, JSON.stringify([...sessions.values()].map(session => ({ id: session.id, cwd: session.cwd,
+    title: session.title, metadata: session.metadata, turns: session.turns.filter(turn => turn.status === 'ended') }))));
 }
+const saved = statePath && fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')) : null;
+for (const seed of saved ?? scenario.sessions ?? []) makeSession(seed.cwd ?? '/tmp/fake-ws', seed);
 
-function abortScript(sessionId, promptId) {
-  const session = state.sessions.get(sessionId);
-  if (!session) return false;
-  const turnId = session.turnIdByPrompt.get(promptId);
-  if (turnId === undefined) return false;
-  for (const timer of promptTimers.get(`${sessionId}\0${promptId}`) ?? []) {
-    clearTimeout(timer);
-    timers.delete(timer);
-  }
-  promptTimers.delete(`${sessionId}\0${promptId}`);
-  session.busy = false;
-  session.activePrompt = null;
-  session.info.main_turn_active = false;
-  emitFrame(sessionId, 'turn.ended', { promptId, turnId, reason: 'cancelled' });
-  emitFrame(sessionId, 'event.session.work_changed', { busy: false, main_turn_active: false });
-  return true;
-}
-
-// ---- WS (minimal RFC6455 server) ----
+// ---- WebSocket (minimal RFC6455) ----
 
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
-
 function wsSendText(socket, text) {
   const payload = Buffer.from(text, 'utf8');
   let header;
   if (payload.length < 126) header = Buffer.from([0x81, payload.length]);
-  else if (payload.length <= 0xffff) {
-    header = Buffer.alloc(4);
-    header[0] = 0x81; header[1] = 126; header.writeUInt16BE(payload.length, 2);
-  } else {
-    header = Buffer.alloc(10);
-    header[0] = 0x81; header[1] = 127; header.writeBigUInt64BE(BigInt(payload.length), 2);
-  }
+  else if (payload.length <= 0xffff) { header = Buffer.alloc(4); header[0] = 0x81; header[1] = 126; header.writeUInt16BE(payload.length, 2); }
+  else { header = Buffer.alloc(10); header[0] = 0x81; header[1] = 127; header.writeBigUInt64BE(BigInt(payload.length), 2); }
   socket.write(Buffer.concat([header, payload]));
 }
 
-function attachWs(req, socket) {
-  const key = req.headers['sec-websocket-key'];
-  const accept = crypto.createHash('sha1').update(`${key}${WS_GUID}`).digest('base64');
-  socket.write(
-    'HTTP/1.1 101 Switching Protocols\r\n'
-    + 'Upgrade: websocket\r\n'
-    + 'Connection: Upgrade\r\n'
-    + `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
-  );
-  socket.setNoDelay(true);
-  const client = {
-    socket,
-    subscriptions: new Set(),
-    buffer: Buffer.alloc(0),
-    sendJson: (value) => wsSendText(socket, JSON.stringify(value)),
-  };
-  state.wsClients.add(client);
-  state.wsConnections += 1;
-  if (state.wsConnections === 1 && scenario.behavior?.disconnectSocketOnceMs) {
-    const timer = setTimeout(() => {
-      timers.delete(timer);
-      log({ kind: 'ws-disconnected' });
-      socket.destroy();
-    }, scenario.behavior.disconnectSocketOnceMs);
-    timer.unref();
-    timers.add(timer);
+function broadcast(sessionId, frame) {
+  for (const client of clients) {
+    if (client.subscriptions.has(sessionId)) client.send({ session_id: sessionId, agent_id: 'main', event_created_at: now(), ...frame });
   }
-  client.sendJson({
-    type: 'server_hello',
-    timestamp: new Date().toISOString(),
-    payload: {
-      ws_connection_id: `conn_${ulid()}`,
-      protocol_version: 2,
-      heartbeat_ms: 10000,
-      max_event_buffer_size: 1000,
-      capabilities: { event_batching: false, compression: false },
-    },
-  });
+}
+function broadcastGlobal(frame) {
+  for (const client of clients) client.send({ ...frame, event_created_at: now() });
+}
+function setActivity(session, activity, pending = 'none') {
+  session.activity = activity; session.pendingInteraction = pending; session.updatedAt = now();
+  persist();
+  broadcastGlobal({ type: 'session', change: 'updated', session: wire(session) });
+}
+
+function snapshot(client, session) {
+  client.send({ type: 'task.list', session_id: session.id, agent_id: 'main', tasks: [] });
+  const base = { session_id: session.id, agent_id: 'main', event_created_at: now() };
+  client.send({ ...base, type: 'agent', status: session.active ? 'running' : 'idle', compacting: false });
+  client.send({ ...base, type: 'context', context_tokens: 0 });
+  client.send({ ...base, type: 'todo', items: [] });
+  client.send({ ...base, type: 'turns', turns: session.turns.slice(-10), has_more: session.turns.length > 10 });
+}
+
+function attachWs(req, socket) {
+  const accept = crypto.createHash('sha1').update(`${req.headers['sec-websocket-key']}${WS_GUID}`).digest('base64');
+  socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+  socket.setNoDelay(true);
+  const client = { subscriptions: new Set(), buffer: Buffer.alloc(0), send: (value) => wsSendText(socket, JSON.stringify(value)) };
+  clients.add(client);
+  log({ kind: 'ws-open' });
+  socket.on('close', () => clients.delete(client));
+  socket.on('error', () => clients.delete(client));
   socket.on('data', (chunk) => {
     client.buffer = Buffer.concat([client.buffer, chunk]);
     for (;;) {
       if (client.buffer.length < 2) return;
       const opcode = client.buffer[0] & 0x0f;
       const masked = (client.buffer[1] & 0x80) !== 0;
-      let length = client.buffer[1] & 0x7f;
-      let offset = 2;
-      if (length === 126) {
-        if (client.buffer.length < 4) return;
-        length = client.buffer.readUInt16BE(2); offset = 4;
-      } else if (length === 127) {
-        if (client.buffer.length < 10) return;
-        length = Number(client.buffer.readBigUInt64BE(2)); offset = 10;
-      }
-      let maskKey = null;
-      if (masked) {
-        if (client.buffer.length < offset + 4) return;
-        maskKey = client.buffer.subarray(offset, offset + 4); offset += 4;
-      }
+      let length = client.buffer[1] & 0x7f; let offset = 2;
+      if (length === 126) { if (client.buffer.length < 4) return; length = client.buffer.readUInt16BE(2); offset = 4; }
+      else if (length === 127) { if (client.buffer.length < 10) return; length = Number(client.buffer.readBigUInt64BE(2)); offset = 10; }
+      let mask = null;
+      if (masked) { if (client.buffer.length < offset + 4) return; mask = client.buffer.subarray(offset, offset + 4); offset += 4; }
       if (client.buffer.length < offset + length) return;
-      let payload = Buffer.from(client.buffer.subarray(offset, offset + length));
-      if (maskKey) {
-        for (let i = 0; i < payload.length; i += 1) payload[i] ^= maskKey[i % 4];
-      }
+      const payload = Buffer.from(client.buffer.subarray(offset, offset + length));
+      if (mask) for (let index = 0; index < payload.length; index += 1) payload[index] ^= mask[index % 4];
       client.buffer = client.buffer.subarray(offset + length);
-      if (opcode === 0x8) { socket.end(); return; }
-      if (opcode === 0x9) {
-        // protocol-level ping → pong
-        const pong = Buffer.concat([Buffer.from([0x8a, payload.length]), payload]);
-        socket.write(pong);
-        continue;
-      }
+      if (opcode === 0x8) { socket.end(); clients.delete(client); return; }
+      if (opcode === 0x9) { socket.write(Buffer.concat([Buffer.from([0x8a, payload.length]), payload])); continue; }
       if (opcode !== 0x1) continue;
-      const frame = JSON.parse(payload.toString('utf8'));
-      log({ kind: 'ws-in', type: frame.type, payload: frame.payload });
-      if (frame.type === 'pong') continue;
-      if (frame.type === 'ping') {
-        client.sendJson({ type: 'pong', payload: { nonce: frame.payload?.nonce ?? '' } });
-        continue;
-      }
-      if (frame.type === 'client_hello' || frame.type === 'subscribe') {
-        const requested = frame.type === 'subscribe'
-          ? (frame.payload?.session_ids ?? [])
-          : (frame.payload?.subscriptions ?? frame.payload?.subscribe_sessions ?? []);
-        const accepted = [];
-        const notFound = [];
-        const cursors = {};
-        for (const sid of requested) {
-          const session = state.sessions.get(sid);
-          if (!session || !session.live || scenario.behavior?.rejectSubscriptions
-            || (scenario.behavior?.rejectReconnectedSubscriptions && state.wsConnections > 1)) {
-            notFound.push(sid);
-            continue;
-          }
-          accepted.push(sid);
-          cursors[sid] = { seq: session.info.last_seq, epoch: `ep_${sid.slice(-8)}` };
-          client.subscriptions.add(sid);
-          const cursor = frame.payload?.cursors?.[sid];
-          if (cursor !== undefined) {
-            for (const event of state.journal.get(sid) ?? []) {
-              if (event.seq > cursor.seq) client.sendJson(event);
-            }
-          }
-        }
-        const sendAck = () => {
-          log({ kind: 'subscription-ack', accepted, notFound });
-          client.sendJson({
-            type: 'ack', id: frame.id ?? '', code: 0, msg: 'success',
-            payload: { accepted, not_found: notFound, resync_required: [], cursors },
-          });
-        };
-        const ackDelay = scenario.behavior?.subscribeAckDelayMs ?? 0;
-        if (scenario.behavior?.dropSubscriptionAck) {
-          log({ kind: 'subscription-ack-dropped', accepted, notFound });
-        } else if (ackDelay > 0) {
-          const timer = setTimeout(() => { timers.delete(timer); sendAck(); }, ackDelay);
-          timer.unref();
-          timers.add(timer);
-        } else sendAck();
-        // A ping right after subscription exercises the pong path.
-        client.sendJson({ type: 'ping', timestamp: new Date().toISOString(), payload: { nonce: ulid() } });
-      }
-      if (frame.type === 'unsubscribe') {
-        for (const sid of frame.payload?.session_ids ?? []) client.subscriptions.delete(sid);
-        client.sendJson({ type: 'ack', id: frame.id ?? '', code: 0, msg: 'success', payload: { accepted: [], not_found: [], resync_required: [] } });
+      let frame;
+      try { frame = JSON.parse(payload.toString('utf8')); } catch { continue; }
+      log({ kind: 'ws-in', frame });
+      if (frame.type === 'subscribe') {
+        const session = sessions.get(frame.session_id);
+        if (!session) { client.send({ type: 'response', request_id: frame.request_id, code: 40401, msg: 'session not found' }); continue; }
+        client.subscriptions.add(session.id);
+        client.send({ type: 'response', request_id: frame.request_id, code: 0 });
+        snapshot(client, session);
+      } else if (frame.type === 'unsubscribe') {
+        client.subscriptions.delete(frame.session_id);
+        client.send({ type: 'response', request_id: frame.request_id, code: 0 });
       }
     }
   });
-  socket.on('close', () => state.wsClients.delete(client));
-  socket.on('error', () => state.wsClients.delete(client));
+}
+
+// ---- scripted turns ----
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function turnHeader(turn) {
+  const { items: _items, ...header } = turn;
+  return header;
+}
+
+async function runTurn(session, promptId, script, text) {
+  const turnNumber = session.nextTurnNumber++;
+  const turn = {
+    turn_id: `turn_${session.id}_${turnNumber}`, ordinal: session.turns.length, turn_number: turnNumber, kind: 'agent',
+    status: 'running', started_at: now(), steps: [], items: [],
+  };
+  session.turns.push(turn);
+  session.active = { promptId, turn, aborted: false };
+  setActivity(session, 'turn');
+  broadcast(session.id, { type: 'agent', status: 'running', compacting: false });
+  broadcast(session.id, { type: 'turn.started', turn: turnHeader(turn) });
+  const opener = { type: 'user_message', item_id: `u_${turnNumber}`, status: 'ended', created_at: now(), prompt_ids: [promptId],
+    placement: 'opener', origin: { kind: 'user' }, text, attachments: [], skills: [] };
+  turn.items.push(opener);
+  broadcast(session.id, { type: 'item.ended', turn_id: turn.turn_id, item: opener });
+  if (script.retry) {
+    broadcast(session.id, { type: 'turn.updated', turn_id: turn.turn_id, retry: { attempt: 1, next_attempt: 2, max_attempts: 3, delay_ms: 1000,
+      error: { name: 'APIError', message: script.retry, status_code: 503 } } });
+    broadcast(session.id, { type: 'turn.updated', turn_id: turn.turn_id, step: { index: 1, outcome: 'completed', started_at: now() } });
+  }
+  if (script.notice) broadcast(session.id, { type: 'notice', ...script.notice });
+  if (script.approval) {
+    const interactionId = `i_${turnNumber}`;
+    const tool = { type: 'tool_call', item_id: `tool_${turnNumber}`, status: 'running', created_at: now(), started_at: now(), name: 'Bash', stage: 'awaiting_approval', interaction_id: interactionId };
+    broadcast(session.id, { type: 'item.started', turn_id: turn.turn_id, item: tool });
+    const decided = new Promise((resolve) => session.interactions.set(interactionId, resolve));
+    setActivity(session, 'turn', 'approval');
+    broadcast(session.id, { type: 'interaction', status: 'pending', kind: 'approval', interaction_id: interactionId, tool_call_id: tool.item_id,
+      request: { tool_name: 'Bash', action: 'pwd', expires_at: new Date(Date.now() + 600_000).toISOString() } });
+    const decision = await decided;
+    broadcast(session.id, { type: 'interaction', status: 'ended', kind: 'approval', interaction_id: interactionId, tool_call_id: tool.item_id, outcome: decision });
+    setActivity(session, 'turn');
+    const ended = { ...tool, status: 'ended', outcome: decision === 'approved' ? 'completed' : 'failed', output: '/tmp', ended_at: now() };
+    turn.items.push(ended);
+    broadcast(session.id, { type: 'item.ended', turn_id: turn.turn_id, item: ended });
+  }
+  if (script.reply !== undefined) {
+    const item = { type: 'assistant_message', item_id: `a_${turnNumber}`, status: 'running', created_at: now(), text: '' };
+    broadcast(session.id, { type: 'item.started', turn_id: turn.turn_id, item });
+    broadcast(session.id, { type: 'item.delta', turn_id: turn.turn_id, item_id: item.item_id, field: 'text', delta: script.reply });
+    const ended = { ...item, status: 'ended', outcome: 'completed', text: script.reply };
+    turn.items.push(ended);
+    broadcast(session.id, { type: 'item.ended', turn_id: turn.turn_id, item: ended });
+  }
+  if (script.hold) {
+    while (!session.active.aborted) await wait(10);
+  }
+  Object.assign(turn, {
+    status: 'ended', ended_at: now(),
+    outcome: session.active.aborted ? 'interrupted' : script.outcome ?? 'completed',
+    ...(session.active.aborted ? { end_reason: 'user_cancelled' } : script.endReason ? { end_reason: script.endReason } : {}),
+    ...(script.error && !session.active.aborted ? { error: script.error } : {}),
+    ...(script.usage ? { usage: script.usage } : {}),
+  });
+  broadcast(session.id, { type: 'turn.ended', turn: turnHeader(turn) });
+  session.active = null;
+  broadcast(session.id, { type: 'agent', status: 'idle', compacting: false });
+  setActivity(session, 'idle');
+  const next = session.queued.shift();
+  if (next) void runTurn(session, next.promptId, next.script, next.text);
+}
+
+/** A background-notification turn owned by nobody (no opener). */
+async function runForeignTurn(session, delayMs) {
+  const turnNumber = session.nextTurnNumber++;
+  const turn = { turn_id: `turn_${session.id}_${turnNumber}`, ordinal: session.turns.length, turn_number: turnNumber, kind: 'agent',
+    status: 'running', started_at: now(), steps: [], items: [] };
+  session.turns.push(turn);
+  session.active = { promptId: null, turn, aborted: false };
+  setActivity(session, 'turn');
+  broadcast(session.id, { type: 'agent', status: 'running', compacting: false });
+  broadcast(session.id, { type: 'turn.started', turn: turnHeader(turn) });
+  await wait(delayMs);
+  Object.assign(turn, { status: 'ended', outcome: 'completed', ended_at: now() });
+  broadcast(session.id, { type: 'turn.ended', turn: turnHeader(turn) });
+  session.active = null;
+  broadcast(session.id, { type: 'agent', status: 'idle', compacting: false });
+  setActivity(session, 'idle');
+  const next = session.queued.shift();
+  if (next) void runTurn(session, next.promptId, next.script, next.text);
 }
 
 // ---- REST ----
 
-function readBody(req) {
-  return new Promise((resolvePromise) => {
-    const chunks = [];
-    req.on('data', (chunk) => chunks.push(chunk));
-    req.on('end', () => {
-      const raw = Buffer.concat(chunks).toString('utf8');
-      try { resolvePromise(raw === '' ? {} : JSON.parse(raw)); } catch { resolvePromise({}); }
-    });
-  });
-}
-
-function sessionView(session) {
-  return { ...session.info, busy: session.busy };
+async function readBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const raw = Buffer.concat(chunks).toString('utf8');
+  return raw === '' ? {} : JSON.parse(raw);
 }
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');
-  const path = url.pathname;
-  const auth = req.headers.authorization ?? '';
-  if (path !== '/api/v1/healthz' && auth !== `Bearer ${TOKEN}`) {
-    envelope(res, 401, 40112, 'unauthorized', null);
-    return;
-  }
-  const body = req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH'
-    ? await readBody(req)
-    : {};
+  const path = decodeURIComponent(url.pathname);
+  if (path === '/api/v1/healthz') return ok(res, { ok: true });
+  if (req.headers.authorization !== `Bearer ${TOKEN}`) return send(res, 401, { code: 40100, msg: 'unauthorized', data: null });
+  const body = req.method === 'POST' ? await readBody(req) : {};
   log({ kind: 'request', method: req.method, path, query: Object.fromEntries(url.searchParams), body });
 
-  const segments = path.split('/').filter(Boolean); // ['api','v1',...]
-  // Glued action paths (`:delete`/`:archive`) put the action inside segment 2.
-  const gluedAction = segments[3]?.match(/^(session_[^:]+):(delete|archive)$/);
-  const sid = gluedAction != null
-    ? gluedAction[1]
-    : segments[3]?.startsWith('session_') ? segments[3] : null;
-  const session = sid !== null ? state.sessions.get(sid) : undefined;
-
-  try {
-    // Health/meta/models/config/workspaces
-    if (req.method === 'GET' && path === '/api/v1/healthz') return ok(res, { ok: true });
-    if (req.method === 'GET' && path === '/api/v1/meta') {
-      return ok(res, {
-        server_version: '2.3.3-fake', server_id: `srv_${ulid()}`,
-        started_at: new Date().toISOString(), capabilities: {}, backend: 'v2',
-      });
-    }
-    if (req.method === 'GET' && path === '/api/v1/models') return ok(res, { items: state.models });
-    if (req.method === 'GET' && path === '/api/v1/config') return ok(res, { default_model: state.defaultModel });
-    if (req.method === 'POST' && path === '/api/v1/workspaces') {
-      const root = body.root ?? '';
-      if (!fs.existsSync(root)) return fail(res, 40409, `workspace root ${root} does not exist`);
-      const existing = state.workspaces.get(root);
-      if (existing) return ok(res, existing);
-      const workspace = { id: `wd_${ulid()}`, root, name: root.split('/').pop() ?? root, created_at: new Date().toISOString(), session_count: 0 };
-      state.workspaces.set(root, workspace);
-      persistState();
-      return ok(res, workspace);
-    }
-    if (req.method === 'POST' && path === '/api/v1/sessions') {
-      const info = makeSessionInfo(body.metadata?.cwd ?? '/tmp/fake-ws');
-      info.workspace_id = body.workspace_id ?? '';
-      if (body.agent_config) info.agent_config = body.agent_config;
-      state.sessions.set(info.id, { info, messages: [], live: true, busy: false, activePrompt: null, turnCounter: 0, childOf: null, turnIdByPrompt: new Map() });
-      persistState();
-      return ok(res, info);
-    }
-    if (req.method === 'GET' && path === '/api/v1/sessions') {
-      const pageSize = Number(url.searchParams.get('page_size') ?? 20);
-      const beforeId = url.searchParams.get('before_id');
-      const afterId = url.searchParams.get('after_id');
-      if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) return fail(res, 40001, 'page_size must be an integer from 1 to 100');
-      if (beforeId && afterId) return fail(res, 40001, 'before_id and after_id are mutually exclusive');
-      const busyOnly = url.searchParams.get('busy');
-      let items = [...state.sessions.values()].map(sessionView)
-        .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)) || b.id.localeCompare(a.id));
-      if (busyOnly === 'false') items = items.filter((info) => info.busy === false);
-      const pivot = beforeId ?? afterId;
-      if (pivot) {
-        const index = items.findIndex((info) => info.id === pivot);
-        if (index >= 0) items = beforeId ? items.slice(index + 1) : items.slice(0, index);
-      }
-      const hasMore = items.length > pageSize;
-      return ok(res, { items: items.slice(0, pageSize), has_more: hasMore });
-    }
-    if (req.method === 'POST' && gluedAction?.[2] === 'delete') {
-      if (!session) return fail(res, 40401, 'session not found');
-      state.sessions.delete(sid);
-      return ok(res, { deleted: true });
-    }
-    if (req.method === 'POST' && gluedAction?.[2] === 'archive') {
-      if (!session) return fail(res, 40401, 'session not found');
-      return ok(res, { archived: true });
-    }
-    if (req.method === 'POST' && path === `/api/v1/sessions/${sid}/children`) {
-      if (!session) return fail(res, 40401, 'session not found');
-      const childInfo = makeSessionInfo(session.info.metadata?.cwd ?? '/tmp/fake-ws');
-      childInfo.title = body.title ?? `Fork of ${session.info.title}`;
-      state.sessions.set(childInfo.id, {
-        info: childInfo, messages: session.messages.map((message) => ({ ...message, session_id: childInfo.id })),
-        live: false, busy: false, activePrompt: null, turnCounter: 0,
-        childOf: sid, turnIdByPrompt: new Map(),
-      });
-      persistState();
-      return ok(res, childInfo);
-    }
-    if (sid !== null && !session) return fail(res, 40401, 'session not found');
-
-    if (req.method === 'GET' && path === `/api/v1/sessions/${sid}`) return ok(res, sessionView(session));
-    if (req.method === 'GET' && path === `/api/v1/sessions/${sid}/tasks`) {
-      const items = [...state.tasks.values()].filter((item) => item.session_id === sid);
-      return ok(res, { items: scenario.behavior?.reconcileTaskSessionMismatch
-        ? items.map((item) => ({ ...item, session_id: 'session_foreign' })) : items });
-    }
-    if (req.method === 'POST' && path === `/api/v1/sessions/${sid}/profile`) {
-      if (typeof body.title === 'string' && body.title !== '') session.info.title = body.title;
-      return ok(res, sessionView(session));
-    }
-    if (req.method === 'GET' && path === `/api/v1/sessions/${sid}/messages`) {
-      const pageSize = Number(url.searchParams.get('page_size') ?? 50);
-      const beforeId = url.searchParams.get('before_id');
-      const afterId = url.searchParams.get('after_id');
-      if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) return fail(res, 40001, 'page_size must be an integer from 1 to 100');
-      if (beforeId && afterId) return fail(res, 40001, 'before_id and after_id are mutually exclusive');
-      if (!session.live) log({ kind: 'materialized', sessionId: sid });
-      session.live = true; // Native listMessages resumes a cold session.
-      // Official messageHistory.listMessages reverses durable history, then
-      // before_id selects older messages and after_id selects newer ones.
-      let items = [...session.messages].reverse();
-      const pivot = beforeId ?? afterId;
-      if (pivot) {
-        const index = items.findIndex((message) => message.id === pivot);
-        if (index >= 0) items = beforeId ? items.slice(index + 1) : items.slice(0, index);
-      }
-      const hasMore = items.length > pageSize;
-      return ok(res, { items: items.slice(0, pageSize), has_more: hasMore });
-    }
-    if (req.method === 'GET' && path === `/api/v1/sessions/${sid}/status`) {
-      return ok(res, {
-        busy: session.busy, model: session.info.agent_config?.model ?? '',
-        thinking_level: session.info.agent_config?.thinking ?? '', permission: 'manual',
-        plan_mode: false, swarm_mode: false, tower_mode: false,
-        context_tokens: session.info.usage?.context_tokens ?? 0, max_context_tokens: 0, context_usage: 0,
-      });
-    }
-    if (req.method === 'POST' && path === `/api/v1/sessions/${sid}/prompts`) {
-      if (scenario.behavior?.rejectPrompts) return fail(res, 40113, 'model not resolved');
-      session.live = true; // Native prompt submission also materializes cold sessions.
-      const promptId = typeof body.prompt_id === 'string' && body.prompt_id !== ''
-        ? body.prompt_id
-        : `msg_${ulid()}`;
-      const userMessageId = `msg_${ulid()}`;
-      const wasBusy = session.busy;
-      const status = wasBusy ? 'queued' : 'running';
-      if (!wasBusy) {
-        session.busy = true;
-        session.activePrompt = promptId;
-        session.info.main_turn_active = true;
-        session.messages.push({
-          id: userMessageId, session_id: sid, role: 'user',
-          content: body.content ?? [], created_at: new Date().toISOString(), prompt_id: promptId,
-        });
-        session.info.message_count += 1;
-        const script = getTurnScript(sid);
-        if (script) scheduleScript(sid, script, promptId);
-      }
-      return ok(res, {
-        prompt_id: promptId, user_message_id: userMessageId, status,
-        content: body.content ?? [], created_at: new Date().toISOString(),
-      });
-    }
-    if (req.method === 'POST' && path === `/api/v1/sessions/${sid}/prompts:steer`) {
-      const ids = body.prompt_ids ?? [];
-      if (!session.busy || ids.length === 0) return fail(res, 40402, 'no active prompt to steer into');
-      emitFrame(sid, 'prompt.steered', { activePromptId: session.activePrompt, promptIds: ids });
-      return ok(res, { steered: true, prompt_ids: ids });
-    }
-    if (req.method === 'POST' && segments[4] === 'prompts' && segments[5] !== undefined && segments[6] === undefined) {
-      if (segments[5].endsWith(':abort')) {
-        const bare = decodeURIComponent(segments[5].replace(/:abort$/, ''));
-        const aborted = scenario.behavior?.abortDeclined === true ? false : abortScript(sid, bare);
-        if (scenario.behavior?.abortResponseDelayMs) {
-          await new Promise((resolve) => setTimeout(resolve, scenario.behavior.abortResponseDelayMs));
-        }
-        return ok(res, { aborted, at_seq: session.info.last_seq });
-      }
-      return fail(res, 40402, 'unknown prompt action');
-    }
-    if (req.method === 'GET' && path === `/api/v1/sessions/${sid}/approvals`) {
-      const items = [...state.approvals.values()]
-        .filter((entry) => entry.record.session_id === sid && entry.decision === null)
-        .map((entry) => entry.record);
-      return ok(res, { items });
-    }
-    if (req.method === 'POST' && segments[4] === 'approvals' && segments[5] !== undefined && segments[6] === undefined) {
-      const entry = state.approvals.get(segments[5]);
-      if (!entry) return fail(res, 40404, 'approval not found');
-      if (entry.decision !== null) return fail(res, 40902, 'approval already resolved');
-      entry.decision = body.decision ?? null;
-      entry.feedback = body.feedback ?? null;
-      return ok(res, { resolved: true });
-    }
-    if (req.method === 'GET' && path === `/api/v1/sessions/${sid}/questions`) {
-      const items = [...state.questions.values()]
-        .filter((entry) => entry.record.session_id === sid && entry.answers === null)
-        .map((entry) => entry.record);
-      return ok(res, { items });
-    }
-    if (req.method === 'POST' && segments[4] === 'questions' && segments[5] !== undefined && segments[6] === undefined) {
-      const entry = state.questions.get(segments[5].replace(/:dismiss$/, ''));
-      if (!entry) return fail(res, 40405, 'question not found');
-      if (segments[5].endsWith(':dismiss')) {
-        if (entry.answers !== null) return fail(res, 40909, 'question already dismissed');
-        const data = scenario.behavior?.questionDismissData ?? {
-          dismissed: true, dismissed_at: new Date().toISOString(),
-        };
-        entry.answers = {};
-        const emitDismissed = () => emitFrame(sid, 'event.question.dismissed', {
-          question_id: entry.record.question_id, agentId: 'main',
-        });
-        if (scenario.behavior?.questionDismissEventOrder === 'before') {
-          emitDismissed();
-          // Let the WS fact arrive before the separate HTTP response.
-          await new Promise((resolve) => setTimeout(resolve, 50));
-        } else if (scenario.behavior?.questionDismissEventOrder !== 'none') {
-          const timer = setTimeout(() => {
-            timers.delete(timer);
-            emitDismissed();
-          }, 50);
-          timer.unref();
-          timers.add(timer);
-        }
-        // The official server deliberately uses QUESTION_DISMISSED even
-        // after successfully resolving the native interaction.
-        return envelope(res, 200, 40909, 'question dismissed', data);
-      }
-      if (scenario.behavior?.questionAnswerReturnsDismissed) {
-        return envelope(res, 200, 40909, 'question already dismissed', {
-          dismissed: true, dismissed_at: new Date().toISOString(),
-        });
-      }
-      if (entry.answers !== null) return fail(res, 40909, 'question dismissed or answered');
-      entry.answers = body.answers ?? null;
-      entry.note = body.note ?? null;
-      return ok(res, { answered: true });
-    }
-    if (req.method === 'GET' && path === `/api/v1/sessions/${sid}/file-history/changes`) {
-      const turnId = url.searchParams.get('turn_id') ?? '';
-      const entry = scenario.fileHistory?.[turnId];
-      return ok(res, entry ? { changes: entry.changes, recorded: true } : { changes: [], recorded: false });
-    }
-    if (req.method === 'GET' && path === `/api/v1/sessions/${sid}/file-history/content`) {
-      const turnId = url.searchParams.get('turn_id') ?? '';
-      const file = url.searchParams.get('path') ?? '';
-      const phase = url.searchParams.get('phase') ?? 'after';
-      const content = scenario.fileHistory?.[turnId]?.content?.[file]?.[phase];
-      if (content === undefined) return fail(res, 40407, 'file not found');
-      return ok(res, { content: { version: 1, content } });
-    }
-    if (req.method === 'GET' && path === `/api/v1/sessions/${sid}/skills`) {
-      return ok(res, { skills: scenario.skills ?? [] });
-    }
-    if (req.method === 'POST' && path === '/api/v1/shutdown') {
-      ok(res, {});
-      setTimeout(() => process.exit(0), 50);
-      return undefined;
-    }
-    return fail(res, 40401, `Method not found: ${req.method} ${path}`);
-  } catch (error) {
-    return envelope(res, 200, 50001, error instanceof Error ? error.message : String(error), null, {
-      stack: String(error?.stack ?? '').slice(0, 500),
-    });
+  if (path === '/api/v1/shutdown') { ok(res, {}); setTimeout(() => process.exit(0), 10); return; }
+  if (path === '/api/v1/models') return ok(res, { items: scenario.models ?? [] });
+  if (path === '/api/v1/config') return ok(res, { default_model: scenario.default_model ?? '' });
+  if (path === '/api/v1/sessions' && req.method === 'POST') {
+    const session = makeSession(body.cwd ?? body.metadata?.cwd);
+    broadcastGlobal({ type: 'session', change: 'created', session: wire(session) });
+    return ok(res, wire(session));
   }
+  if (path === '/api/v1/sessions' && req.method === 'GET') {
+    return ok(res, { items: [...sessions.values()].map(wire), has_more: false });
+  }
+  const action = /^\/api\/v1\/sessions\/([^/:]+):([a-z]+)$/.exec(path);
+  if (action) {
+    const session = sessions.get(action[1]);
+    if (!session) return fail(res, 40401, `session ${action[1]} does not exist`);
+    if (action[2] === 'delete') { sessions.delete(session.id); return ok(res, {}); }
+    if (action[2] !== 'fork') return fail(res, 40001, `unsupported action: ${action[2]}`);
+    let turns = session.turns;
+    if (body.turn_index !== undefined) {
+      if (!session.turns.some(turn => turn.turn_number === body.turn_index)) {
+        return fail(res, 40001, `Turn ${body.turn_index} was not found in session "${session.id}"`);
+      }
+      turns = session.turns.filter(turn => turn.turn_number <= body.turn_index);
+    }
+    const fork = makeSession(session.cwd, { title: body.title ?? `Fork: ${session.title || session.id}`,
+      metadata: body.metadata, turns: structuredClone(turns) });
+    return ok(res, wire(fork));
+  }
+  const match = /^\/api\/v1\/sessions\/([^/:]+)(\/.*)?$/.exec(path);
+  if (!match) return send(res, 404, { message: `Route ${req.method}:${path} not found`, statusCode: 404 });
+  const session = sessions.get(match[1]);
+  const rest = match[2] ?? '';
+  if (!session) return fail(res, 40401, `session ${match[1]} does not exist`);
+  if (rest === '' && req.method === 'GET') return ok(res, wire(session));
+  if (rest === '/profile') { session.title = body.title ?? session.title; return ok(res, wire(session)); }
+  if (rest === '/agents/main/turns') return ok(res, { turns: session.turns, has_more: false });
+  if (rest === '/file-history/changes') return ok(res, { recorded: false, changes: [] });
+  if (rest === '/children') return fail(res, 40001, 'unsupported action: children');
+  if (rest === '/prompts' && req.method === 'GET') {
+    return ok(res, { active: session.active?.promptId ? { prompt_id: session.active.promptId, status: 'running' } : null,
+      queued: session.queued.map(entry => ({ prompt_id: entry.promptId, status: 'queued' })) });
+  }
+  if (rest === '/prompts' && req.method === 'POST') {
+    if (session.prompts.has(body.prompt_id)) return fail(res, 40927, 'prompt_id conflict');
+    session.prompts.add(body.prompt_id);
+    const text = (body.content ?? []).filter(part => part.type === 'text').map(part => part.text).join('');
+    if (session.active && session.active.promptId !== null && session.active.turn) {
+      // Running native turn: the prompt waits (a later prompts:steer may promote it).
+      session.queued.push({ promptId: body.prompt_id, script: {}, text, steer: true });
+      return ok(res, { prompt_id: body.prompt_id, status: 'queued' });
+    }
+    const script = promptScripts.shift() ?? { reply: 'ok' };
+    if (script.postDelayMs) await wait(script.postDelayMs);
+    if (script.status === 'failed') {
+      const turnNumber = session.nextTurnNumber++;
+      session.turns.push({ turn_id: `turn_${session.id}_${turnNumber}`, ordinal: session.turns.length, turn_number: turnNumber,
+        kind: 'agent', status: 'ended', outcome: 'failed', end_reason: 'error', error: script.error, started_at: now(), ended_at: now(), steps: [],
+        items: [{ type: 'user_message', item_id: `u_${turnNumber}`, status: 'ended', created_at: now(), prompt_ids: [body.prompt_id],
+          placement: 'opener', origin: { kind: 'user' }, text, attachments: [], skills: [] }] });
+      return ok(res, { prompt_id: body.prompt_id, status: 'failed' });
+    }
+    if (script.queueBehind) {
+      session.queued.push({ promptId: body.prompt_id, script, text });
+      void runForeignTurn(session, script.queueBehind);
+      return ok(res, { prompt_id: body.prompt_id, status: 'queued' });
+    }
+    void runTurn(session, body.prompt_id, script, text);
+    return ok(res, { prompt_id: body.prompt_id, status: 'running' });
+  }
+  if (rest === '/prompts:steer') {
+    const ids = new Set(body.prompt_ids ?? []);
+    const steered = session.queued.filter(entry => ids.has(entry.promptId));
+    session.queued = session.queued.filter(entry => !ids.has(entry.promptId));
+    if (steered.length === 0 || !session.active) return fail(res, 40402, 'no active turn');
+    for (const entry of steered) {
+      const item = { type: 'user_message', item_id: `steer_${entry.promptId}`, status: 'ended', created_at: now(), prompt_ids: [entry.promptId],
+        placement: 'steer', origin: { kind: 'user' }, text: entry.text, attachments: [], skills: [] };
+      session.active.turn.items.push(item);
+      broadcast(session.id, { type: 'item.ended', turn_id: session.active.turn.turn_id, item });
+    }
+    return ok(res, { steered: true, prompt_ids: [...ids] });
+  }
+  const abort = /^\/prompts\/([^/:]+):abort$/.exec(rest);
+  if (abort) {
+    const queuedIndex = session.queued.findIndex(entry => entry.promptId === abort[1]);
+    if (queuedIndex >= 0) { session.queued.splice(queuedIndex, 1); return ok(res, { aborted: true }); }
+    if (session.active?.promptId === abort[1]) { session.active.aborted = true; return ok(res, { aborted: true }); }
+    return fail(res, 40402, `prompt ${abort[1]} not found`);
+  }
+  const interaction = /^\/interactions\/([^/]+)$/.exec(rest);
+  if (interaction) {
+    const resolve = session.interactions.get(interaction[1]);
+    if (!resolve) return fail(res, 40404, 'interaction not found');
+    session.interactions.delete(interaction[1]);
+    resolve(body.decision);
+    return ok(res, { outcome: body.decision });
+  }
+  return send(res, 404, { message: `Route ${req.method}:${path} not found`, statusCode: 404 });
 });
 
 server.on('upgrade', (req, socket) => {
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');
-  if (url.pathname !== '/api/v1/ws') { socket.destroy(); return; }
-  const auth = req.headers.authorization ?? '';
-  const protocols = String(req.headers['sec-websocket-protocol'] ?? '').split(',');
-  const protocolToken = protocols
-    .map((entry) => entry.trim())
-    .find((entry) => entry.startsWith('kimi-code.bearer.'))
-    ?.slice('kimi-code.bearer.'.length);
-  if (auth !== `Bearer ${TOKEN}` && protocolToken !== TOKEN) {
+  if (url.pathname !== '/api/v1/ws' || req.headers.authorization !== `Bearer ${TOKEN}`) {
     socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
     socket.destroy();
     return;
@@ -731,17 +388,11 @@ server.on('upgrade', (req, socket) => {
   attachWs(req, socket);
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  log({ kind: 'listening', port: PORT });
-  if (!scenario.behavior?.hideTokenBanner) process.stdout.write(`Kimi server: http://127.0.0.1:${PORT}/#token=${TOKEN}\n`);
-  if (scenario.behavior?.selfDestructMs) {
-    const timer = setTimeout(() => process.exit(9), scenario.behavior.selfDestructMs);
-    timer.unref();
-  }
+server.listen(0, '127.0.0.1', () => {
+  const { port } = server.address();
+  const origin = `http://127.0.0.1:${port}`;
+  process.stdout.write(`${JSON.stringify({ origin, ws_url: `ws://127.0.0.1:${port}/api/v1/ws`, token: TOKEN, kimi_agent_protocol_version: '1.0.0' })}\n`);
+  if (scenario.behavior?.exitAfterMs) setTimeout(() => process.exit(9), scenario.behavior.exitAfterMs).unref();
 });
 
-// Drain stdin so the supervisor's spawn does not block on a full pipe.
-createInterface({ input: process.stdin }).on('line', () => undefined);
-
-process.on('exit', persistState);
 process.on('SIGTERM', () => process.exit(0));

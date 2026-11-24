@@ -43,9 +43,9 @@ export interface CodexRuntime extends RuntimeEventSource {
     model?: string | null;
     ephemeral?: boolean;
     config?: Record<string, unknown>;
-  }): Promise<{ thread: { id: string }; configuredPermissions: ConfiguredPermissions }>;
+  }): Promise<{ thread: { id: string; path?: string }; configuredPermissions: ConfiguredPermissions }>;
   resumeThread(threadId: string, options?: { config?: Record<string, unknown> }): Promise<{
-    thread: { id: string };
+    thread: { id: string; path?: string };
     configuredPermissions: ConfiguredPermissions;
   }>;
   forkThread(threadId: string, options?: {
@@ -54,7 +54,7 @@ export interface CodexRuntime extends RuntimeEventSource {
     cwd?: string;
     config?: Record<string, unknown>;
   }): Promise<{
-    thread: { id: string };
+    thread: { id: string; path?: string };
     configuredPermissions: ConfiguredPermissions;
   }>;
   /** Append raw Responses API items without starting a model Turn. */
@@ -101,6 +101,8 @@ export interface CodexRuntime extends RuntimeEventSource {
   listNativeThreads?(cwd?: string): Promise<CodexNativeThreadSummary[]>;
   archiveThread?(threadId: string): Promise<unknown>;
   respond(id: number | string, result: unknown): Promise<unknown>;
+  /** Answer a server request with a JSON-RPC error (fail closed). */
+  respondError?(id: number | string, code: number, message: string): Promise<unknown>;
   listAllModels(): Promise<unknown[]>;
   listSkills(cwd?: string): Promise<SkillsListResponse>;
   /** Native effective Hook inventory (app-server `hooks/list`). Read-only:

@@ -7,7 +7,10 @@
  * on stdin; events, permission prompts (`can_use_tool`) and control responses
  * come back on stdout. The process starts with the session's first turn, is
  * kept for later turns, stops after an idle period, and resumes the native
- * session (`--resume`) when it is needed again.
+ * session (`--resume`) when it is needed again. A process is only idle when no
+ * turn, no run Claude started on its own and no background task (a Bash
+ * command or subagent run in the background) is in progress: stopping it would
+ * kill that work.
  *
  * Turn boundaries: every user message is sent with a uuid, and the CLI echoes
  * it back when it consumes it (`--replay-user-messages`). A turn goes live at
@@ -47,8 +50,9 @@ import { readClaudeOfficialQuota } from './official-quota-control.js';
 import type { ClaudeRuntime, ClaudeRuntimeEvents } from './types.js';
 
 /** How long an idle session keeps its Claude Code process before it is
- *  stopped; the next turn resumes the session in a new process. Override
- *  with `GIAN_CLAUDE_IDLE_TIMEOUT_MS` (`0` keeps processes until the session
+ *  stopped; the next turn resumes the session in a new process. The clock only
+ *  runs while nothing is in progress (see the file comment). Override with
+ *  `GIAN_CLAUDE_IDLE_TIMEOUT_MS` (`0` keeps processes until the session
  *  closes). */
 const DEFAULT_IDLE_TIMEOUT_MS = 10 * 60_000;
 const CONTROL_TIMEOUT_MS = 30_000;
@@ -106,6 +110,14 @@ interface ClaudeProcess {
    *  confirmed, or once the process has been stopped instead. */
   pendingInterrupt: Promise<void> | null;
   agentTasks: Map<string, { toolUseId: string; description?: string; agentType?: string }>;
+  /** Background tasks still running, by task id, from Claude's latest
+   *  `background_tasks_changed` list. They belong to the process, not to a
+   *  turn: they keep running after the turn that started them has ended. */
+  backgroundTasks: Set<string>;
+  /** A run is in progress: between its `system init` and its `result`. Runs
+   *  Claude starts on its own (for example when a background task finishes)
+   *  have no Gian turn. */
+  running: boolean;
 }
 
 /** The turn Gian started, as the runtime sees it. */
@@ -361,7 +373,8 @@ export class ClaudeStreamRuntime extends EventEmitter<ClaudeRuntimeEvents> imple
     let proc = session.process;
     try {
       if (proc && !this.canKeep(proc, settings)) {
-        this.emit('debug', `[runtime] Restarting Claude for ${sessionId}: launch flags changed`);
+        const lost = proc.backgroundTasks.size > 0 ? `; ${proc.backgroundTasks.size} background task(s) stop with it` : '';
+        this.emit('debug', `[runtime] Restarting Claude for ${sessionId}: launch flags changed${lost}`);
         await this.stopProcess(session, proc, 'graceful');
         proc = null;
       }
@@ -572,6 +585,8 @@ export class ClaudeStreamRuntime extends EventEmitter<ClaudeRuntimeEvents> imple
       usageBaseline: claudeModelUsageTotals(savedUsage),
       pendingInterrupt: null,
       agentTasks: new Map(),
+      backgroundTasks: new Set(),
+      running: false,
     };
     session.process = proc;
 
@@ -689,13 +704,21 @@ export class ClaudeStreamRuntime extends EventEmitter<ClaudeRuntimeEvents> imple
     this.armIdleTimer(session);
   }
 
+  /** Whether stopping the process now would cut off work in progress. */
+  private isBusy(session: ManagedSession, proc: ClaudeProcess): boolean {
+    return session.turn !== null || proc.running || proc.backgroundTasks.size > 0;
+  }
+
+  /** Start the idle clock if the process has nothing in progress. Called
+   *  whenever work ends: a turn, a run of Claude's own, the last background
+   *  task. Whatever starts work again clears it. */
   private armIdleTimer(session: ManagedSession): void {
     this.clearIdleTimer(session);
-    if (this.idleTimeoutMs <= 0 || !session.process || session.turn) return;
+    const proc = session.process;
+    if (this.idleTimeoutMs <= 0 || !proc || this.isBusy(session, proc)) return;
     const timer = setTimeout(() => {
       if (session.idleTimer === timer) session.idleTimer = null;
-      const proc = session.process;
-      if (!proc || session.turn) return;
+      if (session.process !== proc || this.isBusy(session, proc)) return;
       this.emit('debug', `[runtime] Stopping idle Claude process for ${session.sessionId}`);
       void this.stopProcess(session, proc, 'graceful');
     }, this.idleTimeoutMs);
@@ -842,6 +865,8 @@ export class ClaudeStreamRuntime extends EventEmitter<ClaudeRuntimeEvents> imple
 
     // `system init` opens every run and reports the model actually running.
     if (eventType === 'system' && event.subtype === 'init') {
+      proc.running = true;
+      this.clearIdleTimer(session);
       session.created = true;
       if (typeof event.model === 'string') {
         session.detectedModelId = event.model;
@@ -855,7 +880,12 @@ export class ClaudeStreamRuntime extends EventEmitter<ClaudeRuntimeEvents> imple
       return;
     }
     if (eventType === 'result') {
+      proc.running = false;
       this.handleResult(session, proc, event);
+      return;
+    }
+    if (eventType === 'system' && event.subtype === 'background_tasks_changed') {
+      this.trackBackgroundTasks(session, proc, event);
       return;
     }
 
@@ -952,6 +982,24 @@ export class ClaudeStreamRuntime extends EventEmitter<ClaudeRuntimeEvents> imple
     }
     if (eventType && eventType !== 'system') {
       this.emit('debug', `[runtime:${sessionId}] ${eventType}${event.subtype ? `:${String(event.subtype)}` : ''}`);
+    }
+  }
+
+  /** Claude lists every background task still running whenever the set
+   *  changes, inside or outside a turn; an empty list means all are done. */
+  private trackBackgroundTasks(session: ManagedSession, proc: ClaudeProcess, event: JsonRecord): void {
+    if (!Array.isArray(event.tasks)) return;
+    const wasBusy = proc.backgroundTasks.size > 0;
+    proc.backgroundTasks = new Set(event.tasks.flatMap((task) => {
+      const taskId = nonEmptyString(record(task).task_id);
+      return taskId ? [taskId] : [];
+    }));
+    if (proc.backgroundTasks.size > 0) {
+      this.clearIdleTimer(session);
+      this.emit('debug', `[runtime] ${proc.backgroundTasks.size} background task(s) running for ${session.sessionId}`);
+    } else if (wasBusy) {
+      this.emit('debug', `[runtime] Background tasks finished for ${session.sessionId}`);
+      this.armIdleTimer(session);
     }
   }
 

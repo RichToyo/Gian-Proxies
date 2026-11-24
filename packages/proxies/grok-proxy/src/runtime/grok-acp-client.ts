@@ -15,7 +15,6 @@ import {
   type ListSessionsResponse,
   type LoadSessionRequest,
   type LoadSessionResponse,
-  type McpServer,
   type NewSessionRequest,
   type NewSessionResponse,
   type PromptRequest,
@@ -25,8 +24,10 @@ import {
   type ResumeSessionRequest,
   type ResumeSessionResponse,
   type SessionNotification,
+  type SetSessionConfigOptionResponse,
 } from '@agentclientprotocol/sdk';
 
+import { redactDiagnostics } from '../core/errors.js';
 import { buildSpawnArgs } from '../core/mcp-isolation.js';
 import { agentHome, grokChildHomeEnv } from '../core/home.js';
 import type { OfficialQuotaReadParams, ProxyOfficialQuotaReadResult } from '@gian/proxy-protocol';
@@ -64,6 +65,10 @@ export const GROK_SPAWN_PREFIX = buildSpawnArgs(GROK_DEFAULT_DENY_RULES);
  *  applies to nobody, and an omitted sender applies to every resident
  *  session in this process. */
 export const GROK_ORIGIN_CLIENT_ID = 'gian-grok-proxy';
+
+/** Fallback ACP clientInfo version when the caller does not pass the Proxy
+ *  package version. */
+export const GROK_CLIENT_VERSION = '0.3.17';
 
 export class GrokExtMethodUnsupportedError extends Error {
   constructor(readonly method: string, reason: string) {
@@ -103,6 +108,52 @@ export interface GrokAcpExit {
   error?: Error;
 }
 
+/** Most recent child stderr kept for failure reports (characters). */
+const STDERR_TAIL_CHARS = 4_000;
+
+/** A bounded, redacted tail of what the Grok child wrote to stderr. */
+export class StderrTail {
+  private text = '';
+
+  push(chunk: string): void {
+    this.text = `${this.text}${chunk}`;
+    if (this.text.length > STDERR_TAIL_CHARS * 2) this.text = this.text.slice(-STDERR_TAIL_CHARS);
+  }
+
+  read(): string {
+    const tail = this.text.slice(-STDERR_TAIL_CHARS).trim();
+    return redactDiagnostics(tail.replace(/\u001b\[[0-9;]*[A-Za-z]/g, ''));
+  }
+}
+
+/** The Grok child stopped (or never started) while a request needed it. */
+export class GrokRuntimeExitError extends Error {
+  constructor(
+    readonly exit: GrokAcpExit,
+    readonly stderrTail: string,
+    phase: 'startup' | 'running',
+  ) {
+    super(describeExit(exit, stderrTail, phase));
+    this.name = 'GrokRuntimeExitError';
+  }
+}
+
+export function describeExit(
+  exit: Pick<GrokAcpExit, 'code' | 'signal' | 'error'>,
+  stderrTail: string,
+  phase: 'startup' | 'running',
+): string {
+  const how = exit.error
+    ? exit.error.message
+    : exit.signal
+      ? `signal ${exit.signal}`
+      : `exit code ${String(exit.code)}`;
+  const head = phase === 'startup'
+    ? `Grok stopped during startup (${how}).`
+    : `Grok stopped unexpectedly (${how}).`;
+  return stderrTail ? `${head} Grok reported: ${stderrTail}` : head;
+}
+
 export interface GrokAcpStopOptions {
   force?: boolean;
 }
@@ -111,6 +162,8 @@ export interface GrokAcpTransport {
   connection: ClientSideConnection;
   exit: Promise<GrokAcpExit>;
   stop(options?: GrokAcpStopOptions): Promise<void>;
+  /** Redacted tail of the child's stderr, when the transport has one. */
+  stderrTail?(): string;
 }
 
 export type GrokAcpTransportFactory = (client: Client) => Promise<GrokAcpTransport>;
@@ -135,10 +188,14 @@ export interface GrokAcpClientOptions {
   /** When false, search_tool and use_tool stay available so a later
    *  fail-closed catalog check can allow Host MCP. Defaults to disallowed. */
   disallowMetaTools?: boolean;
+  /** ACP clientInfo version: the Proxy package version. */
+  clientVersion?: string;
 }
 
 export interface GrokAcpRuntimeStoppedEvent extends GrokAcpExit {
   expected: boolean;
+  /** Redacted tail of the child's stderr. */
+  stderrTail: string;
 }
 
 /** Reverse `x.ai/*` request routed to the Proxy (ask_user_question etc.). */
@@ -236,8 +293,10 @@ function processTransportFactory(
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     const exit = processExit(child);
+    const tail = new StderrTail();
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (chunk: string) => {
+      tail.push(chunk);
       const message = chunk.trim();
       if (message) emitDebug(message);
     });
@@ -249,6 +308,7 @@ function processTransportFactory(
     return {
       connection,
       exit,
+      stderrTail: () => tail.read(),
       async stop(stopOptions?: GrokAcpStopOptions) {
         if (child.exitCode !== null || child.signalCode !== null) return;
         if (stopOptions?.force) {
@@ -282,6 +342,9 @@ export class GrokAcpClient extends EventEmitter<GrokAcpClientEvents> {
   private initializeResponse: InitializeResponse | null = null;
   private startPromise: Promise<InitializeResponse> | null = null;
   private readonly expectedStops = new WeakSet<GrokAcpTransport>();
+  private lastStderrTail = '';
+  private startCount = 0;
+  private configValueShape: 'nested' | 'flat' | null = null;
 
   constructor(options: GrokAcpClientOptions) {
     super();
@@ -329,6 +392,22 @@ export class GrokAcpClient extends EventEmitter<GrokAcpClientEvents> {
     return this.initializeResponse;
   }
 
+  /** Redacted stderr tail of the live child, or of the last one that stopped. */
+  stderrTail(): string {
+    return this.transport?.stderrTail?.() ?? this.lastStderrTail;
+  }
+
+  /** True while a started child is attached. */
+  get running(): boolean {
+    return this.transport !== null && this.initializeResponse !== null;
+  }
+
+  /** Number of children this client has started. A native session loaded
+   *  into one child is not loaded into the next. */
+  get generation(): number {
+    return this.startCount;
+  }
+
   /** Version-gated native x.ai/* extension method support for this runtime. */
   get extensions(): GrokExtensionSupport {
     return this.extSupport;
@@ -358,15 +437,17 @@ export class GrokAcpClient extends EventEmitter<GrokAcpClientEvents> {
         this.initializeResponse = null;
         this.startPromise = null;
       }
+      this.lastStderrTail = transport.stderrTail?.() ?? '';
       this.emit('runtimeStopped', {
         ...exit,
         expected: this.expectedStops.has(transport),
+        stderrTail: this.lastStderrTail,
       });
     });
 
     const initialize = transport.connection.initialize({
       protocolVersion: ACP_PROTOCOL_VERSION,
-      clientInfo: { name: GROK_ORIGIN_CLIENT_ID, version: '0.2.0' },
+      clientInfo: { name: GROK_ORIGIN_CLIENT_ID, version: this.options.clientVersion ?? GROK_CLIENT_VERSION },
       clientCapabilities: {
         fs: { readTextFile: false, writeTextFile: false },
         terminal: false,
@@ -377,15 +458,23 @@ export class GrokAcpClient extends EventEmitter<GrokAcpClientEvents> {
     let response: InitializeResponse;
     try {
       response = await Promise.race([
-        initialize,
-        transport.exit.then((exit) => {
+        // The SDK rejects a pending initialize as soon as stdout closes,
+        // usually before the exit is observed. Report the exit instead.
+        initialize.catch(async (error: unknown) => {
+          if (!(error instanceof Error) || !/ACP connection closed/i.test(error.message)) throw error;
+          const exit = await Promise.race([transport.exit, delay(2_000).then(() => null)]);
+          if (!exit) throw error;
           if (exit.error) throw exit.error;
-          throw new Error(
-            `Grok ACP stopped during initialize (code=${String(exit.code)}, signal=${String(exit.signal)}).`,
-          );
+          throw new GrokRuntimeExitError(exit, transport.stderrTail?.() ?? '', 'startup');
+        }),
+        transport.exit.then((exit) => {
+          // A spawn failure (ENOENT, EACCES) keeps its own error and code.
+          if (exit.error) throw exit.error;
+          throw new GrokRuntimeExitError(exit, transport.stderrTail?.() ?? '', 'startup');
         }),
         delay(this.options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS).then(() => {
-          throw new Error('Timed out waiting for Grok ACP initialize.');
+          const tail = transport.stderrTail?.() ?? '';
+          throw new Error(`Timed out waiting for Grok ACP initialize.${tail ? ` Grok reported: ${tail}` : ''}`);
         }),
       ]);
     } catch (error) {
@@ -404,6 +493,7 @@ export class GrokAcpClient extends EventEmitter<GrokAcpClientEvents> {
 
     this.initializeResponse = response;
     this.extSupport = extensionSupportFromInitialize(response);
+    this.startCount += 1;
     return response;
   }
 
@@ -554,6 +644,40 @@ export class GrokAcpClient extends EventEmitter<GrokAcpClientEvents> {
     });
   }
 
+  /** Standard ACP `session/set_config_option` (Grok 1.0.92: `model`,
+   *  `reasoning_effort`). The response is the complete updated option list. */
+  async setSessionConfigOption(params: {
+    sessionId: string;
+    configId: string;
+    value: string;
+  }): Promise<SetSessionConfigOptionResponse> {
+    const ext = await this.ext();
+    // Grok's own docs show `value: { value }`; the ACP schema flattens the
+    // value id (`value: "high"`). Use whichever this runtime accepts first
+    // and keep it: only an invalid-params refusal switches shape.
+    const shapes = this.configValueShape === 'flat' ? ['flat', 'nested'] as const : ['nested', 'flat'] as const;
+    const refusals: unknown[] = [];
+    for (const shape of shapes) {
+      try {
+        const response = await ext.sendRequest('session/set_config_option', {
+          sessionId: params.sessionId,
+          configId: params.configId,
+          value: shape === 'nested' ? { value: params.value } : params.value,
+        }) as SetSessionConfigOptionResponse;
+        this.configValueShape = shape;
+        return response;
+      } catch (error) {
+        if ((error as { code?: unknown } | null)?.code !== -32602) throw error;
+        refusals.push(error);
+      }
+    }
+    // Both shapes refused: report the refusal about the value itself, not
+    // the one about the request shape.
+    const shapeError = /variant|invalid type|missing field|unknown field/i;
+    throw refusals.find((error) => !shapeError.test(String((error as { message?: unknown }).message ?? '')))
+      ?? refusals.at(-1);
+  }
+
   async setSessionModel(params: {
     sessionId: string;
     modelId: string;
@@ -576,14 +700,6 @@ export class GrokAcpClient extends EventEmitter<GrokAcpClientEvents> {
     return this.extRequest('x.ai/session/delete', {
       sessionId,
       ...(cwd ? { cwd } : {}),
-    });
-  }
-
-  /** Mid-session MCP server swap; the agent admits and merges client servers. */
-  async updateSessionMcpServers(sessionId: string, mcpServers: McpServer[]): Promise<unknown> {
-    return this.extRequest('x.ai/session/update_mcp_servers', {
-      sessionId,
-      mcpServers,
     });
   }
 

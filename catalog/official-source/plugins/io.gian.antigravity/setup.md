@@ -4,7 +4,7 @@ Requires Gian 0.6.7 or later. Older Hosts do not fully support creation with
 the Proxy's native Mode values; upgrade Gian before using this Proxy.
 
 Gian installs the exact signed Catalog combination for darwin-arm64: this
-Proxy with the official Antigravity CLI 1.5.14 as its managed Runtime. You
+Proxy with the official Antigravity CLI 1.5.16 as its managed Runtime. You
 can instead choose an existing `agy` 1.5.9 or later, such as the one the
 official installer puts in `~/.local/bin/agy`. Other managed platforms are
 not provided by this release.
@@ -21,7 +21,7 @@ to the OS account home. The Proxy never copies credentials.
 
 agy processes that Gian starts do not update themselves, so the managed
 Runtime stays at the verified version. Your terminal `agy` keeps updating; a
-version newer than 1.5.14 still runs and is shown as unverified until a later
+version newer than 1.5.16 still runs and is shown as unverified until a later
 Proxy verifies it.
 
 A user-selected standalone `agy_acp_server.par` still works with its

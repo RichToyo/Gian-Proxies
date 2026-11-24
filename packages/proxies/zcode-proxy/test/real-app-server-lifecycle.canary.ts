@@ -5,17 +5,16 @@
  *
  * The code-generated synthetic config (see
  * test/fixtures/synthetic-zcode-config.mjs) must be accepted by the REAL
- * local ZCode app-server — `session/create` then `session/read` succeed with
- * a fresh mkdtemp HOME and workspace.
+ * ZCode app-server — `session/create` then `session/read` succeed with a
+ * fresh mkdtemp HOME and workspace.
  *
- * Since the 0.16.9 open-source baseline (github.com/zai-org/ZCode @
- * 328c1a0c), the standalone runtime requires the built-in provider config at
- * `<entry>/provider/zcode-builtin.json`
- * (packages/cli/src/provider-runtime-env.ts:150). The installed ZCode.app
- * bundle does not ship that file and must never be modified, so with only
- * the app bundle present this canary SKIPS with an explicit unavailable
- * note — an honest "not executed", never a fake PASS. Point ZCODE_CJS at a
- * standalone runtime (e.g. the managed-runtime build) to execute it.
+ * The runtime is the Gian-built ZCode CLI Runtime (App-source v3.18.2 at
+ * fec9759, CLI 0.17.1): point ZCODE_CJS at its `zcode/agent/zcode.cjs`
+ * (scripts/build-managed-runtime-candidates.mjs --provider zcode, or an
+ * installed managed Runtime). ZCode.app is not a runtime source. Without
+ * ZCODE_CJS, or without `provider/zcode-builtin.json` next to the entry,
+ * this canary SKIPS with an explicit unavailable note — an honest "not
+ * executed", never a fake PASS.
  *
  * Hard guarantees enforced by this test:
  *  - NO session/send (never any model/provider traffic, no quota);
@@ -35,27 +34,25 @@ import {
   INNER_PROTOCOL_VERSION,
 } from '../src/identity.js';
 import {
+  buildAppServerEnvironment,
   registerGianReverseHandlers,
   ZCodeTransport,
 } from '../src/inner/transport.js';
 
-const DEFAULT_ZCODE_CJS = '/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs';
-
 test('real app-server accepts the synthetic config: session/create then session/read', async (t) => {
-  const runtimeBin = process.env.ZCODE_CJS ?? DEFAULT_ZCODE_CJS;
-  if (!existsSync(runtimeBin)) {
+  const runtimeBin = process.env.ZCODE_CJS ?? '';
+  if (runtimeBin === '' || !existsSync(runtimeBin)) {
     t.skip(
-      `real ZCode app-server unavailable (no ${runtimeBin}); `
+      `real ZCode app-server unavailable (ZCODE_CJS=${runtimeBin || 'unset'}); `
       + 'synthetic-config lifecycle regression NOT executed — report unavailable, not a pass',
     );
     return;
   }
-  // The standalone 0.16.9 runtime needs its built-in provider config next to
-  // the entry; the installed app bundle neither ships it nor may be modified.
+  // The standalone runtime needs its built-in provider config next to the
+  // entry (provider-runtime-env.ts resolveBundledZCodeBuiltinProviderConfig).
   if (!existsSync(join(runtimeBin, '..', 'provider', 'zcode-builtin.json'))) {
     t.skip(
-      `${runtimeBin} cannot start standalone: provider/zcode-builtin.json is missing `
-      + 'and the app bundle is never modified (provider-runtime-env.ts:150). '
+      `${runtimeBin} cannot start standalone: provider/zcode-builtin.json is missing. `
       + 'synthetic-config lifecycle regression NOT executed — report unavailable, not a pass. '
       + 'Point ZCODE_CJS at a standalone runtime build to execute this canary.',
     );
@@ -72,7 +69,10 @@ test('real app-server accepts the synthetic config: session/create then session/
   // portable short choice for the platforms ZCode supports.
   const home = mkdtempSync('/tmp/zcode-real-home-');
   const workspace = mkdtempSync('/tmp/zcode-real-ws-');
-  t.after(() => {
+  let transport: ZCodeTransport | null = null;
+  // Stop the app-server first: it keeps writing logs below HOME until exit.
+  t.after(async () => {
+    await transport?.stop();
     rmSync(home, { recursive: true, force: true });
     rmSync(workspace, { recursive: true, force: true });
   });
@@ -94,17 +94,15 @@ test('real app-server accepts the synthetic config: session/create then session/
 
   const childTmp = join(home, 'tmp');
   mkdirSync(childTmp, { recursive: true });
-  const transport = new ZCodeTransport({
+  transport = new ZCodeTransport({
     runtimeBin,
     cwd: workspace,
-    env: {
-      home,
-      path: '/usr/bin:/bin:/usr/sbin:/sbin',
-      tmpdir: childTmp,
-      lang: 'en_US.UTF-8',
-    },
+    // Only the basics: never the developer's credentials or proxy settings.
+    env: buildAppServerEnvironment(
+      { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8', TMPDIR: childTmp },
+      { home, tmpdir: childTmp },
+    ),
   });
-  t.after(() => transport.stop());
   const stderrLines: string[] = [];
   transport.on('stderr', (line) => stderrLines.push(String(line)));
   registerGianReverseHandlers(transport);

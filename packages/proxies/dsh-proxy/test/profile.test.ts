@@ -5,7 +5,14 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 
-import { dshHome, ensureGianProfile, gianProfileName, resolveBridgePackageDir } from '../src/runtime/profile.js';
+import {
+  LAUNCH_PATCH,
+  dshHome,
+  ensureGianProfile,
+  gianProfileName,
+  launchPatchPath,
+  resolveBridgePackageDir,
+} from '../src/runtime/profile.js';
 
 async function makeRoot(t: test.TestContext): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'gian-dsh-profile-'));
@@ -39,6 +46,69 @@ function linkPathFor(home: string, bridgeDir: string): string {
 test('dshHome trims DSH_HOME and defaults to ~/.dsh', () => {
   assert.equal(dshHome({ DSH_HOME: '  /tmp/dsh-custom  ' }), '/tmp/dsh-custom');
   assert.match(dshHome({}), /\.dsh$/);
+});
+
+test('dshHome maps the Host Agent Home over an inherited DSH_HOME', () => {
+  assert.equal(dshHome({ GIAN_AGENT_HOME: '/tmp/agent/', DSH_HOME: '/tmp/other' }), '/tmp/agent');
+  assert.equal(dshHome({ GIAN_AGENT_HOME: '', DSH_HOME: '/tmp/other' }), '/tmp/other');
+  assert.equal(dshHome({ GIAN_AGENT_HOME: 'not/absolute', DSH_HOME: '/tmp/other' }), '/tmp/other');
+});
+
+test('the profile carries the launch overlay that disables the Session-log upload', async (t) => {
+  const root = await makeRoot(t);
+  const home = join(root, 'home');
+  const bridge = await makeBridgePackage(root);
+  const env = envFor(home, bridge);
+
+  const result = await ensureGianProfile(env);
+  assert.equal(result.launchPatchPath, join(result.profileDir, 'gian-launch.patch.yml'));
+  assert.equal(result.launchPatchPath, launchPatchPath(env));
+  const patch = await readFile(result.launchPatchPath, 'utf8');
+  assert.equal(patch, LAUNCH_PATCH);
+  assert.match(patch, /^- id: session-log-deepseek\n  disabled: true$/m);
+
+  await writeFile(result.launchPatchPath, '- id: session-log-deepseek\n  disabled: false\n', 'utf8');
+  const repaired = await ensureGianProfile(env);
+  assert.ok(repaired.actions.includes('repaired gian-launch.patch.yml'));
+  assert.equal(await readFile(result.launchPatchPath, 'utf8'), LAUNCH_PATCH);
+});
+
+test('the profile is written below the Host Agent Home', async (t) => {
+  const root = await makeRoot(t);
+  const agentHome = join(root, 'agent-home');
+  const bridge = await makeBridgePackage(root);
+  const env = { GIAN_AGENT_HOME: agentHome, DSH_HOME: join(root, 'inherited'), GIAN_DSH_BRIDGE_PACKAGE_DIR: bridge };
+  const result = await ensureGianProfile(env);
+  assert.equal(result.profileDir, join(agentHome, 'profiles', result.profileName));
+  assert.equal(await lstat(join(root, 'inherited')).catch(() => null), null);
+});
+
+test('stale Gian profiles whose install is gone are removed; live and foreign ones stay', async (t) => {
+  const root = await makeRoot(t);
+  const home = join(root, 'home');
+  const profiles = join(home, 'profiles');
+  const bridge = await makeBridgePackage(root);
+  const liveBridge = await makeBridgePackage(join(root, 'live'));
+  const makeProfile = async (name: string, target: string, manifestName = 'gian-dsh-profile') => {
+    await mkdir(join(profiles, name, 'node_modules', '@gian'), { recursive: true });
+    await writeFile(join(profiles, name, 'package.json'), JSON.stringify({ name: manifestName }), 'utf8');
+    await symlink(target, join(profiles, name, 'node_modules', '@gian', 'dsh-bridge'), 'dir');
+  };
+  await makeProfile('gian-0000000000000001', join(root, 'removed-install', 'bridge'));
+  await makeProfile('gian-0000000000000002', liveBridge);
+  await makeProfile('gian-0000000000000003', join(root, 'removed-install', 'bridge'), 'user-profile');
+  await makeProfile('gian', join(root, 'removed-install', 'bridge'));
+  await mkdir(join(profiles, 'web'), { recursive: true });
+
+  const result = await ensureGianProfile(envFor(home, bridge));
+
+  assert.deepEqual(result.actions.filter(action => action.startsWith('removed')), [
+    'removed stale profile gian-0000000000000001',
+  ]);
+  assert.equal(await lstat(join(profiles, 'gian-0000000000000001')).catch(() => null), null);
+  for (const kept of ['gian-0000000000000002', 'gian-0000000000000003', 'gian', 'web', result.profileName]) {
+    assert.ok(await lstat(join(profiles, kept)), kept);
+  }
 });
 
 test('first boot creates the binding-scoped profile manifest and bridge symlink', async (t) => {

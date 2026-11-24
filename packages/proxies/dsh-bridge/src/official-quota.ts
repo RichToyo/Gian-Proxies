@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const state = (status: string, authRevision: string | null = null, error: string | null = null) =>
@@ -14,7 +14,8 @@ export const DEEPSEEK_BALANCE_TIMEOUT_MS = 20_000;
 /** Runs inside the bound DSH context. Credentials never cross bridge stdio. */
 export async function readDeepSeekBalance(ctx: DeepSeekQuotaContext, params: { provider: string | null; model: string | null; identityNonce: string },
   fetchBalance: typeof fetch = fetch, env: NodeJS.ProcessEnv = process.env): Promise<Record<string, unknown>> {
-  if (!env.DSH_HOME || !isAbsolute(env.DSH_HOME) || env.DSH_HOME !== env.GIAN_AGENT_HOME) return state('unsupported');
+  if (!env.DSH_HOME || !isAbsolute(env.DSH_HOME) || !env.GIAN_AGENT_HOME || !isAbsolute(env.GIAN_AGENT_HOME)
+    || resolve(env.DSH_HOME) !== resolve(env.GIAN_AGENT_HOME)) return state('unsupported');
   let revision: string | null = null;
   const identify = async (): Promise<{ result: Record<string, unknown> } | { key: string; authRevision: string }> => {
     const defaults = ctx.get('agentDefaultModel') as { currentSelection?(): { provider?: string } } | undefined;

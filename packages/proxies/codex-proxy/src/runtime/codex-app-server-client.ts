@@ -18,6 +18,43 @@ function toError(value: unknown, fallback: string) {
   return value instanceof Error ? value : new Error(value ? String(value) : fallback);
 }
 
+/** A JSON-RPC error answered by Codex app-server. Keeps the native `code` and
+ *  `data` so callers can classify the failure instead of matching text. */
+export class CodexAppServerRpcError extends Error {
+  constructor(
+    readonly method: string,
+    message: string,
+    readonly code: number | null,
+    readonly data: unknown,
+  ) {
+    super(message);
+    this.name = 'CodexAppServerRpcError';
+  }
+}
+
+/** One RPC exceeded its own budget. The shared app-server is not torn down
+ *  for it; only a failed liveness probe does that. */
+export class CodexAppServerTimeoutError extends Error {
+  constructor(readonly method: string, readonly timeoutMs: number) {
+    super(`Codex app-server RPC ${JSON.stringify(method)} timed out after ${timeoutMs}ms.`);
+    this.name = 'TimeoutError';
+  }
+}
+
+const STDERR_TAIL_MAX_LINES = 40;
+const STDERR_TAIL_MAX_BYTES = 8 * 1024;
+const STDERR_TAIL_IN_MESSAGE_BYTES = 2 * 1024;
+
+/** Strip credential-shaped text from native diagnostics before they leave
+ *  the Proxy (bearer tokens, OpenAI keys, JWTs, `token=` assignments). */
+export function redactCodexDiagnostic(text: string): string {
+  return text
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, '$1 [redacted]')
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}/g, '[redacted]')
+    .replace(/\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]+/g, '[redacted]')
+    .replace(/\b((?:access|refresh|id)?_?token|api[_-]?key|secret|password)(["']?\s*[:=]\s*["']?)[^\s"',;]+/gi, '$1$2[redacted]');
+}
+
 function abortReason(signal: AbortSignal, fallback: string) {
   return toError(signal.reason, fallback);
 }
@@ -61,7 +98,7 @@ function toSandboxPolicy(sandbox: SandboxMode) {
 }
 
 interface ThreadBootstrapResponse {
-  thread?: { id?: unknown };
+  thread?: { id?: unknown; path?: unknown };
   approvalPolicy?: unknown;
   approvalsReviewer?: unknown;
   sandbox?: unknown;
@@ -203,8 +240,10 @@ function normalizeThreadBootstrap(response: unknown) {
   if (typeof threadId !== 'string' || !threadId) {
     throw new Error('Codex thread response omitted its thread id.');
   }
+  // `thread.path` is marked unstable upstream; it is only a lookup hint.
+  const path = record.thread?.path;
   return {
-    thread: { id: threadId },
+    thread: { id: threadId, ...(typeof path === 'string' && path ? { path } : {}) },
     configuredPermissions: normalizeConfiguredPermissions(record),
   };
 }
@@ -254,6 +293,7 @@ function normalizeNativeThread(
 }
 
 interface PendingRequest {
+  method: string;
   resolve: (value: unknown) => void;
   reject: (error: unknown) => void;
   timer?: ReturnType<typeof setTimeout>;
@@ -263,8 +303,19 @@ interface PendingRequest {
 export interface CodexAppServerDeadlines {
   /** Entire spawn → initialized handshake. */
   startupMs: number;
-  /** Every JSON-RPC request, including `initialize`. */
+  /** Ordinary control RPCs (config, models, skills, steer, rename, ...). */
   rpcMs: number;
+  /** RPCs that scale with native history or MCP startup: thread start,
+   *  resume, fork and read, and every `thread/list` page. */
+  historyRpcMs: number;
+  /** `thread/compact/start` stays open for the whole provider compaction. */
+  compactMs: number;
+  /** `turn/interrupt`. Codex answers it once the turn has actually stopped;
+   *  past this budget the caller recovers only that thread. */
+  interruptMs: number;
+  /** Liveness probe sent after any RPC timeout. Only a probe that also gets
+   *  no answer retires the shared app-server. */
+  probeMs: number;
   /** Grace after SIGTERM before a still-live child receives SIGKILL. */
   terminateGraceMs: number;
 }
@@ -272,8 +323,23 @@ export interface CodexAppServerDeadlines {
 const DEFAULT_DEADLINES: CodexAppServerDeadlines = {
   startupMs: 30_000,
   rpcMs: 60_000,
+  historyRpcMs: 300_000,
+  compactMs: 30 * 60_000,
+  interruptMs: 20_000,
+  probeMs: 20_000,
   terminateGraceMs: 2_000,
 };
+
+const HISTORY_METHODS = new Set([
+  'thread/start',
+  'thread/resume',
+  'thread/fork',
+  'thread/read',
+  'thread/list',
+]);
+
+/** Probe that every app-server answers without touching threads or history. */
+const LIVENESS_PROBE = { method: 'config/read', params: { includeLayers: false } } as const;
 
 function normalizeDeadlines(overrides: Partial<CodexAppServerDeadlines> | undefined) {
   const deadlines = { ...DEFAULT_DEADLINES, ...overrides };
@@ -309,6 +375,10 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
   private startPromise: Promise<void> | null = null;
   private writeChain: Promise<void> = Promise.resolve();
   private startupDiagnostics: { generation: number; text: string } | null = null;
+  /** Bounded, redacted tail of the current runtime's stderr, kept for the
+   *  life of the process so later failures can carry Codex's own words. */
+  private stderrTail: { generation: number; lines: string[]; bytes: number; partial: string } | null = null;
+  private liveness: { generation: number; probe: Promise<void> } | null = null;
   private nextId = 1;
   private readonly pending = new Map<number, PendingRequest>();
   private readonly retiringProcesses = new Set<ReturnType<typeof spawn>>();
@@ -360,6 +430,7 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
       if (process.platform !== 'win32' && child.pid) this.ownedProcessGroups.add(child);
       this.process = child;
       this.startupDiagnostics = { generation, text: '' };
+      this.stderrTail = { generation, lines: [], bytes: 0, partial: '' };
       this.attachProcess(child, generation);
 
       await this.requestInternal('initialize', buildInitializeParams(), {
@@ -394,6 +465,7 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
     child.stderr?.on('data', (chunk) => {
       const text = chunk.toString().trim();
       if (text) this.emit('debug', text);
+      this.recordStderr(generation, chunk.toString());
       const diagnostics = this.startupDiagnostics;
       if (diagnostics?.generation === generation && diagnostics.text.length < MAX_STARTUP_DIAGNOSTIC_BYTES) {
         diagnostics.text = `${diagnostics.text}${chunk.toString()}`.slice(
@@ -513,6 +585,50 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
     });
   }
 
+  private recordStderr(generation: number, text: string) {
+    let tail = this.stderrTail;
+    if (!tail || tail.generation !== generation) {
+      if (this.activeGeneration !== generation) return;
+      tail = { generation, lines: [], bytes: 0, partial: '' };
+      this.stderrTail = tail;
+    }
+    const parts = `${tail.partial}${text}`.split(/\r?\n/);
+    tail.partial = (parts.pop() ?? '').slice(-STDERR_TAIL_MAX_BYTES);
+    for (const raw of parts) {
+      const line = redactCodexDiagnostic(raw.trimEnd()).slice(0, STDERR_TAIL_MAX_BYTES);
+      if (!line.trim()) continue;
+      tail.lines.push(line);
+      tail.bytes += line.length + 1;
+      while (
+        tail.lines.length > STDERR_TAIL_MAX_LINES
+        || (tail.bytes > STDERR_TAIL_MAX_BYTES && tail.lines.length > 1)
+      ) {
+        tail.bytes -= (tail.lines.shift()?.length ?? 0) + 1;
+      }
+    }
+  }
+
+  /** Recent Codex stderr (redacted, bounded) for the given or current runtime. */
+  recentStderr(generation = this.activeGeneration): string {
+    const tail = this.stderrTail;
+    if (!tail || generation === null || tail.generation !== generation) return '';
+    const lines = [...tail.lines];
+    const partial = redactCodexDiagnostic(tail.partial.trim());
+    if (partial) lines.push(partial);
+    const text = lines.join('\n');
+    return text.length <= STDERR_TAIL_IN_MESSAGE_BYTES
+      ? text
+      : `...${text.slice(-STDERR_TAIL_IN_MESSAGE_BYTES)}`;
+  }
+
+  private withStderr(generation: number, error: Error): Error {
+    const tail = this.recentStderr(generation);
+    if (!tail || error.message.includes(tail)) return error;
+    const enriched = new Error(`${error.message} Recent Codex stderr:\n${tail}`);
+    enriched.name = error.name;
+    return enriched;
+  }
+
   private processExitError(
     generation: number,
     code: number | null,
@@ -521,15 +637,18 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
     const diagnostics = this.startupDiagnostics?.generation === generation
       ? this.startupDiagnostics.text.trim()
       : '';
+    // Messages carry the redacted, bounded tail; the raw startup text is only
+    // inspected here.
+    const tail = this.recentStderr(generation);
     if (diagnostics && isUnsupportedStdioDiagnostic(diagnostics)) {
       return new Error(
-        `Installed Codex CLI does not support app-server stdio transport. Upgrade to Codex CLI ${MIN_CODEX_STDIO_VERSION} or newer. ${diagnostics}`,
+        `Installed Codex CLI does not support app-server stdio transport. Upgrade to Codex CLI ${MIN_CODEX_STDIO_VERSION} or newer. ${tail}`,
       );
     }
     const exit = signal ? `signal ${signal}` : `exit code ${code ?? 'unknown'}`;
     if (this.startupAbort?.generation === generation) {
       return new Error(
-        `Codex app-server failed to start over stdio (${exit}).${diagnostics ? ` ${diagnostics}` : ''}`,
+        `Codex app-server failed to start over stdio (${exit}).${tail ? ` ${tail}` : ''}`,
       );
     }
     return new Error(`Codex app-server stopped (${exit}).`);
@@ -537,7 +656,7 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
 
   private handleRuntimeFailure(generation: number, cause: unknown) {
     if (this.activeGeneration !== generation) return false;
-    const error = toError(cause, 'Codex app-server stopped.');
+    const error = this.withStderr(generation, toError(cause, 'Codex app-server stopped.'));
     const child = this.process;
     const startupAbort = this.startupAbort?.generation === generation
       ? this.startupAbort.controller
@@ -551,6 +670,7 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
     this.writeChain = Promise.resolve();
     if (this.startupDiagnostics?.generation === generation) this.startupDiagnostics = null;
     if (this.startupAbort?.generation === generation) this.startupAbort = null;
+    if (this.liveness?.generation === generation) this.liveness = null;
     this.rejectAllPending(error);
     if (startupAbort && !startupAbort.signal.aborted) startupAbort.abort(error);
 
@@ -604,14 +724,25 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('Codex app-server message must be a JSON object.');
     }
-    const message = parsed as { id?: number; method?: string; result?: unknown; error?: { message?: string } };
+    const message = parsed as {
+      id?: number;
+      method?: string;
+      result?: unknown;
+      error?: { message?: unknown; code?: unknown; data?: unknown };
+    };
     if (typeof message.id === 'number' && !message.method) {
       const pending = this.takePending(message.id);
       if (!pending) {
         return;
       }
       if (message.error) {
-        pending.reject(new Error(message.error.message || 'Unknown JSON-RPC error.'));
+        const error = message.error && typeof message.error === 'object' ? message.error : {};
+        pending.reject(new CodexAppServerRpcError(
+          pending.method,
+          typeof error.message === 'string' && error.message ? error.message : 'Unknown JSON-RPC error.',
+          typeof error.code === 'number' && Number.isFinite(error.code) ? error.code : null,
+          error.data ?? null,
+        ));
         return;
       }
       pending.resolve(message.result);
@@ -681,24 +812,58 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
     for (const pending of entries) pending.reject(error);
   }
 
+  /** Budget for one RPC. A slow history operation or a long compaction must
+   *  never share the short control-plane deadline. */
+  private budgetFor(method: string): number {
+    if (HISTORY_METHODS.has(method)) return this.deadlines.historyRpcMs;
+    if (method === 'thread/compact/start') return this.deadlines.compactMs;
+    if (method === 'turn/interrupt') return this.deadlines.interruptMs;
+    return this.deadlines.rpcMs;
+  }
+
+  /** After a timeout, ask the app-server something trivial. An answer proves
+   *  it is alive, so only the timed-out request failed; silence retires the
+   *  runtime (every session then reattaches on its next request). */
+  private checkLiveness(generation: number, cause: CodexAppServerTimeoutError) {
+    if (this.activeGeneration !== generation || this.liveness?.generation === generation) return;
+    const probe = this.requestInternal(LIVENESS_PROBE.method, LIVENESS_PROBE.params, {
+      generation,
+      timeoutMs: this.deadlines.probeMs,
+      probe: true,
+    }).then(
+      () => undefined,
+      (error) => {
+        if (error instanceof CodexAppServerTimeoutError) {
+          this.handleRuntimeFailure(generation, new Error(
+            `Codex app-server stopped answering: ${cause.message} A liveness probe got no reply within ${this.deadlines.probeMs}ms.`,
+          ));
+        }
+      },
+    ).finally(() => {
+      if (this.liveness?.probe === probe) this.liveness = null;
+    });
+    this.liveness = { generation, probe };
+  }
+
   private async requestInternal(
     method: string,
     params: unknown,
-    options: { generation?: number; signal?: AbortSignal } = {},
+    options: { generation?: number; signal?: AbortSignal; timeoutMs?: number; probe?: boolean } = {},
   ) {
     const generation = options.generation ?? this.activeGeneration;
     if (generation === null || this.activeGeneration !== generation) {
       throw new Error('Codex app-server runtime is not started.');
     }
     const id = this.nextId++;
+    const timeoutMs = options.timeoutMs ?? (method === 'initialize' ? this.deadlines.rpcMs : this.budgetFor(method));
     return new Promise<unknown>((resolve, reject) => {
-      const pending: PendingRequest = { resolve, reject };
+      const pending: PendingRequest = { method, resolve, reject };
       pending.timer = setTimeout(() => {
-        const error = new Error(
-          `Codex app-server RPC ${JSON.stringify(method)} timed out after ${this.deadlines.rpcMs}ms.`,
-        );
-        if (!this.handleRuntimeFailure(generation, error)) this.rejectPending(id, error);
-      }, this.deadlines.rpcMs);
+        const error = new CodexAppServerTimeoutError(method, timeoutMs);
+        this.rejectPending(id, error);
+        // Startup owns its own failure path; probes never probe themselves.
+        if (!options.signal && !options.probe) this.checkLiveness(generation, error);
+      }, timeoutMs);
       if (options.signal) {
         const signal = options.signal;
         const onAbort = () => {
@@ -726,13 +891,13 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
     });
   }
 
-  private async request(method: string, params: unknown) {
+  private async request(method: string, params: unknown, options: { timeoutMs?: number } = {}) {
     await this.ensureStarted();
     const generation = this.activeGeneration;
     if (generation === null) {
       throw new Error('Codex app-server stopped during startup.');
     }
-    return this.requestInternal(method, params, { generation });
+    return this.requestInternal(method, params, { generation, ...options });
   }
 
   async readOfficialQuota(params: import('@gian/proxy-protocol').OfficialQuotaReadParams) {
@@ -962,13 +1127,24 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
   }
 
   async respond(id: number | string, result: unknown) {
+    await this.reply({ jsonrpc: '2.0', id, result });
+  }
+
+  /** Refuse a server request Gian does not implement. Codex treats a
+   *  JSON-RPC error as a failed callback, so the native operation fails
+   *  closed instead of waiting forever or guessing a result shape. */
+  async respondError(id: number | string, code: number, message: string) {
+    await this.reply({ jsonrpc: '2.0', id, error: { code, message } });
+  }
+
+  private async reply(payload: Record<string, unknown>) {
     await this.ensureStarted();
     const generation = this.activeGeneration;
     if (generation === null) {
       throw new Error('Codex app-server stopped before the response could be sent.');
     }
     try {
-      await this.send({ jsonrpc: '2.0', id, result }, generation);
+      await this.send(payload, generation);
     } catch (cause) {
       const error = toError(cause, 'Failed to send Codex app-server response.');
       this.handleRuntimeFailure(generation, error);
@@ -1029,6 +1205,7 @@ export class CodexAppServerClient extends EventEmitter implements CodexRuntime {
     this.startPromise = null;
     this.writeChain = Promise.resolve();
     this.startupDiagnostics = null;
+    this.liveness = null;
     this.rejectAllPending(new Error('Codex app-server stopped.'));
     if (child) this.terminateProcess(child);
     await this.waitForRetiringProcesses();

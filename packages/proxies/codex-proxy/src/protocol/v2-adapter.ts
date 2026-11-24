@@ -3,6 +3,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { OpaqueSidechatResumeStore, officialQuotaReadParamsSchema } from '@gian/proxy-protocol';
 
 import { AppError } from '../core/errors.js';
+import { isCodexAuthFailure, signInRequiredMessage } from '../core/codex-errors.js';
+import { CodexAppServerRpcError } from '../runtime/codex-app-server-client.js';
 import { CodexProxyService } from '../core/service.js';
 import type {
   ApprovalPolicy,
@@ -489,8 +491,23 @@ function isConfigValue(value: unknown): value is ConfigValue {
     || (typeof value === 'number' && Number.isFinite(value));
 }
 
-function standardError(error: unknown): CodexProtocolError | CodexJsonRpcError {
+export function standardError(error: unknown): CodexProtocolError | CodexJsonRpcError {
   if (error instanceof CodexProtocolError || error instanceof CodexJsonRpcError) return error;
+  if (error instanceof CodexAppServerRpcError) {
+    // Codex's own text stays the message; its native code rides in details.
+    const details = {
+      method: error.method,
+      ...(error.code !== null ? { nativeCode: error.code } : {}),
+    };
+    if (isCodexAuthFailure({ message: error.message })) {
+      return new CodexProtocolError('RUNTIME_AUTH_REQUIRED', signInRequiredMessage(error.message), false, details);
+    }
+    return new CodexProtocolError('RUNTIME_ERROR', error.message, false, details);
+  }
+  if (error instanceof Error && error.name === 'TimeoutError') {
+    // One slow request; the shared runtime stays up and a retry may succeed.
+    return new CodexProtocolError('RUNTIME_UNAVAILABLE', error.message, true);
+  }
   if (error instanceof AppError) {
     const code: DomainCode = (() => {
       switch (error.code) {
@@ -518,6 +535,18 @@ function standardError(error: unknown): CodexProtocolError | CodexJsonRpcError {
     'INTERNAL',
     error instanceof Error ? error.message : String(error),
   );
+}
+
+/** Native identifiers of a failure: Codex's error variant and HTTP status. */
+function failureDetails(data: Record<string, unknown>): Record<string, string | number> {
+  const providerCode = nonEmptyString(data.code);
+  const httpStatusCode = typeof data.httpStatusCode === 'number' && Number.isSafeInteger(data.httpStatusCode)
+    ? data.httpStatusCode
+    : undefined;
+  return {
+    ...(providerCode ? { providerCode } : {}),
+    ...(httpStatusCode !== undefined ? { httpStatusCode } : {}),
+  };
 }
 
 function sessionUpdatedData(data: Record<string, unknown>): Record<string, unknown> {
@@ -1927,9 +1956,20 @@ export class CodexProtocolV2Adapter {
     const session = this.requireAttached(String(params.sessionId ?? ''), String(params.streamId ?? ''));
     const turnId = String(params.turnId ?? '');
     this.requireActiveTurn(session.id, turnId);
-    await this.service.interruptTurn({ sessionId: session.serviceSessionId });
-    this.interruptedTurns.add(this.turnKey(session.id, turnId));
-    this.resolveInteractionsForTurn(session, turnId, 'cancelled');
+    // Mark before asking: Codex reports the stopped turn before it answers
+    // turn/interrupt, and the terminal event must already see the mark.
+    // clearTurn drops the mark with the rest of the turn's state.
+    const key = this.turnKey(session.id, turnId);
+    this.interruptedTurns.add(key);
+    try {
+      await this.service.interruptTurn({ sessionId: session.serviceSessionId });
+    } catch (error) {
+      if (this.activeTurnBySession.get(session.id) === turnId) this.interruptedTurns.delete(key);
+      throw standardError(error);
+    }
+    if (this.activeTurnBySession.get(session.id) === turnId) {
+      this.resolveInteractionsForTurn(session, turnId, 'cancelled');
+    }
     return { accepted: true as const, turnId };
   }
 
@@ -2387,21 +2427,24 @@ export class CodexProtocolV2Adapter {
         if (turnId) {
           this.completeTurn(session, turnId, true, data);
         } else {
+          const authRequired = data.authRequired === true;
+          const nativeMessage = String(data.message ?? 'Codex runtime error.');
           this.updateSession(session, {
             state: 'error',
-            lastError: String(data.message ?? 'Codex runtime error.'),
+            lastError: authRequired ? signInRequiredMessage(nativeMessage) : nativeMessage,
           });
           this.emitSessionEvent('runtime.error', session, {
-            domainCode: 'RUNTIME_ERROR',
+            domainCode: authRequired ? 'RUNTIME_AUTH_REQUIRED' : 'RUNTIME_ERROR',
             message: session.lastError ?? 'Codex runtime error.',
             retryable: false,
-            details: {},
+            details: failureDetails(data),
           });
         }
         return;
       case 'turn.failed':
         if (turnId) {
           this.completeTurn(session, turnId, true, {
+            ...data,
             message: String(data.message ?? 'Codex turn failed.'),
           });
         }
@@ -2455,27 +2498,33 @@ export class CodexProtocolV2Adapter {
     this.resolveInteractionsForTurn(session, turnId, failed ? 'runtime_ended' : 'turn_ended');
     this.closeOpenWork(session, turnId, failed ? 'failed' : 'succeeded');
     if (failed) {
-      const message = String(data.message ?? 'Codex turn failed.');
-      const retryable = data.retryable === true;
-      const providerCode = nonEmptyString(data.code);
+      // Codex's own text always reaches the failure; a sign-in failure leads
+      // with what to do so the Host can open its account repair.
+      const nativeMessage = String(data.message ?? 'Codex turn failed.');
+      const authRequired = data.authRequired === true;
+      const message = authRequired ? signInRequiredMessage(nativeMessage) : nativeMessage;
+      const retryable = !authRequired && data.retryable === true;
       this.updateSession(session, {
         state: retryable ? 'idle' : 'error',
         lastError: retryable ? null : message,
       });
       this.emitTurnEvent('turn.failed', session, turnId, {
         error: {
-          domainCode: retryable ? 'RUNTIME_UNAVAILABLE' : 'RUNTIME_ERROR',
+          domainCode: authRequired ? 'RUNTIME_AUTH_REQUIRED' : retryable ? 'RUNTIME_UNAVAILABLE' : 'RUNTIME_ERROR',
           message,
           retryable,
-          details: providerCode ? { providerCode } : {},
+          details: failureDetails(data),
         },
       });
     } else {
       const interrupted = this.interruptedTurns.has(this.turnKey(session.id, turnId));
       const nativeReason = String(data.stopReason ?? data.status ?? '');
-      const stopReason = interrupted
-        ? 'interrupted'
-        : nativeReason === 'cancelled' || nativeReason === 'interrupted' ? 'cancelled'
+      // A stop Gian asked for is `interrupted`; one Codex made on its own is
+      // `cancelled`. A turn that finished before the stop took effect keeps
+      // its own reason.
+      const stopReason = nativeReason === 'cancelled' || nativeReason === 'interrupted'
+        ? (interrupted ? 'interrupted' : 'cancelled')
+        : interrupted && nativeReason !== 'completed' && nativeReason !== 'end_turn' ? 'interrupted'
           : nativeReason === 'length' || nativeReason === 'max_tokens' ? 'limit_reached'
             : nativeReason === 'refused' ? 'refused'
               : nativeReason === 'end_turn' || nativeReason === 'completed' ? 'completed' : 'other';

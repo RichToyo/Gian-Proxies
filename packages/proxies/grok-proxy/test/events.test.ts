@@ -10,6 +10,7 @@ import {
   grokDiffUpdatedData,
   isExcludedExtension,
   parsePromptUsage,
+  promptTurnUsage,
   translateExtension,
   translateSessionUpdate,
 } from '../src/core/events.js';
@@ -335,4 +336,37 @@ test('known native bookkeeping updates never masquerade as tool activities', () 
   for (const method of ['x.ai/settings/update', 'x.ai/session/prompt_complete']) {
     assert.deepEqual(translateExtension(method, {}).map(event => event.method), ['session.updated']);
   }
+});
+
+test('standard PromptResponse.usage is the turn delta and unknown or partial shapes invent nothing', async () => {
+  const fixtures = await import('./fixtures/acp-v0-23-usage.js');
+  assert.deepEqual(promptTurnUsage({ stopReason: 'end_turn', usage: fixtures.ACP_V0_23_PROMPT_USAGE.usage }), {
+    inputTokens: 1_100_000,
+    outputTokens: 14_000,
+    cachedInputTokens: 900_000,
+    totalTokens: 1_114_000,
+  });
+  assert.equal(promptTurnUsage({ stopReason: 'end_turn', usage: fixtures.ACP_UNKNOWN_PROMPT_USAGE.usage }), null);
+  assert.deepEqual(promptTurnUsage({ stopReason: 'end_turn', usage: fixtures.ACP_MALFORMED_V0_23_PROMPT_USAGE.usage }), {
+    inputTokens: 1_100_000,
+    outputTokens: 14_000,
+  });
+  // The standard field wins over Grok's _meta; _meta remains the fallback.
+  assert.deepEqual(promptTurnUsage({
+    stopReason: 'end_turn',
+    usage: { inputTokens: 5, outputTokens: 1, totalTokens: 6 },
+    _meta: { inputTokens: 99, outputTokens: 99, totalTokens: 198 },
+  }), { inputTokens: 5, outputTokens: 1, totalTokens: 6 });
+  assert.deepEqual(promptTurnUsage({ stopReason: 'end_turn', _meta: { inputTokens: 3, totalTokens: 4 } }), {
+    inputTokens: 3,
+    totalTokens: 4,
+  });
+});
+
+test('usage_update is the only context occupancy source', async () => {
+  const fixtures = await import('./fixtures/acp-v0-23-usage.js');
+  assert.deepEqual(translateSessionUpdate(fixtures.ACP_V0_23_COMPACTION.summarizationUsageUpdate), [{
+    method: 'usage.updated',
+    data: { context: { used: 999_999, window: 1_048_576 } },
+  }]);
 });

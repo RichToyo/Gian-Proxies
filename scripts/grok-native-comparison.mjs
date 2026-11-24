@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const versions = [
-  { version: '1.0.77', sha256: '197c66a63e5ac46e07450b0ca21d141ce665050a412180f185dadfae1c7a5b2a', size: 184995488 },
   { version: '1.0.89', sha256: 'f149e6ad81339491f8d6e0c5fd712f2813042c0dfbb595c28d5767e4567c17a1', size: 190386368 },
+  { version: '1.0.92', sha256: '8b5f67b24f2cc9a4341d8e2eb7f67e3228d7d647ed04752a4f932f7133e5ab08', size: 190640272 },
 ];
 const root = await mkdtemp(join(tmpdir(), 'gian-grok-compare-'));
 async function inspect(item) {

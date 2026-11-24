@@ -26,7 +26,7 @@ export class Harness {
   private readonly resolvers: Waiter[] = [];
   private readonly logPath: string;
 
-  constructor(scenario: Record<string, unknown>, interactionEnabled: boolean) {
+  constructor(scenario: Record<string, unknown>, interactionEnabled: boolean, extraEnv: Record<string, string> = {}) {
     this.dir = mkdtempSync(join(tmpdir(), 'zcode-proxy-test-'));
     const scenarioPath = join(this.dir, 'scenario.json');
     this.logPath = join(this.dir, 'fake-log.jsonl');
@@ -71,6 +71,7 @@ export class Harness {
         GIAN_ZCODE_DISABLE_INTERACTION: interactionEnabled ? '' : '1',
         FAKE_SCENARIO: scenarioPath,
         FAKE_LOG: this.logPath,
+        ...extraEnv,
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     }) as ChildProcessWithoutNullStreams;
@@ -207,6 +208,7 @@ export class Harness {
 export function startHarness(options: {
   scenario: Record<string, unknown>;
   interactionEnabled?: boolean;
+  env?: Record<string, string>;
 }): Harness {
-  return new Harness(options.scenario, options.interactionEnabled ?? true);
+  return new Harness(options.scenario, options.interactionEnabled ?? true, options.env ?? {});
 }

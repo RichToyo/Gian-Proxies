@@ -4,6 +4,8 @@ import { homedir } from 'node:os';
 import { delimiter, isAbsolute, join, resolve } from 'node:path';
 import { runBoundedCommand } from '@gian/proxy-protocol/node';
 
+import { resolveCodexHome } from './home.js';
+
 const COMMAND = 'codex';
 const SETUP_URL = 'https://chatgpt.com/codex/install.sh';
 
@@ -79,8 +81,7 @@ export async function probeCodexRuntime(path: string): Promise<{
   if (!isAbsolute(path)) throw new Error('Codex runtime path must be absolute.');
   await access(path, constants.X_OK);
   const version = await runVersion(path);
-  const configured = process.env.CODEX_HOME;
-  const configHome = configured && isAbsolute(configured) ? configured : join(homeDir(), '.codex');
+  const configHome = resolveCodexHome();
   return {
     runtimeId: 'codex',
     displayName: 'Codex CLI',

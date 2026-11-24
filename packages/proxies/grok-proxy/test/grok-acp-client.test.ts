@@ -22,9 +22,11 @@ import {
   type SetSessionConfigOptionRequest,
 } from '@agentclientprotocol/sdk';
 
+import { GrokProxyService } from '../src/core/service.js';
 import {
   GROK_SPAWN_PREFIX,
   GrokAcpClient,
+  GrokRuntimeExitError,
   grokChildProcessEnv,
   type GrokAcpExit,
   type GrokAcpTransportFactory,
@@ -242,6 +244,50 @@ test('fails startup promptly when the managed binary does not exist', async () =
   );
 });
 
+test('a startup failure reports the exit and the CLI stderr instead of a bare code', async (t) => {
+  const home = await mkdtemp(join(tmpdir(), 'grok-startup-fail-'));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const client = new GrokAcpClient({
+    binaryPath: resolve('test/fixtures/fake-grok-cli.mjs'),
+    cwd: home,
+    env: { HOME: home, GIAN_AGENT_HOME: home, GROK_TEST_STARTUP_FAIL: '1' },
+  });
+  await assert.rejects(client.ensureStarted(), (error: unknown) => {
+    assert.ok(error instanceof GrokRuntimeExitError);
+    assert.match(error.message, /Grok stopped during startup \(exit code 2\)/);
+    assert.match(error.message, /seatbelt unavailable/);
+    return true;
+  });
+});
+
+test('a child that dies mid-turn fails the turn with its own stderr', async (t) => {
+  const home = await mkdtemp(join(tmpdir(), 'grok-prompt-crash-'));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const service = new GrokProxyService({
+    binaryPath: resolve('test/fixtures/fake-grok-cli.mjs'),
+    createRuntime: (cwd) => new GrokAcpClient({
+      binaryPath: resolve('test/fixtures/fake-grok-cli.mjs'),
+      cwd,
+      env: { HOME: home, GIAN_AGENT_HOME: home, GROK_TEST_PROMPT: 'crash' },
+    }),
+  });
+  const events: Array<{ method: string; params: Record<string, unknown> }> = [];
+  service.setEventSink((method, params) => { events.push({ method, params }); });
+  t.after(() => service.close());
+  const created = await service.createSession({ cwd: home });
+  await service.beginTurn({ sessionId: created.session.id, input: [{ type: 'text', text: 'hi' }] });
+  const deadline = Date.now() + 5_000;
+  while (!events.some((event) => event.method === 'turn.failed') && Date.now() < deadline) {
+    await new Promise((settle) => setTimeout(settle, 20));
+  }
+  const failed = events.find((event) => event.method === 'turn.failed');
+  const data = failed?.params.data as { code?: string; message?: string; details?: Record<string, unknown> } | undefined;
+  assert.equal(data?.code, 'RUNTIME_ERROR');
+  assert.match(data?.message ?? '', /Grok stopped unexpectedly \(exit code 3\)/);
+  assert.match(data?.message ?? '', /model stream ended unexpectedly/);
+  assert.equal(data?.details?.exitCode, 3);
+});
+
 test('force-stop reaps an inspection child without the EOF and SIGTERM grace periods', async (t) => {
   const home = await mkdtemp(join(tmpdir(), 'grok-inspection-stop-'));
   const client = new GrokAcpClient({
@@ -264,7 +310,7 @@ test('force-stop reaps an inspection child without the EOF and SIGTERM grace per
   await client.stop({ force: true });
   const elapsed = performance.now() - started;
   assert.ok(elapsed < 2_000, `inspection stop waited ${elapsed}ms for graceful shutdown`);
-  assert.deepEqual(await stopped.promise, { code: null, signal: 'SIGKILL', expected: true });
+  assert.deepEqual(await stopped.promise, { code: null, signal: 'SIGKILL', expected: true, stderrTail: '' });
   assert.equal(client.negotiated, null);
 });
 
@@ -287,7 +333,7 @@ test('ordinary process stop preserves the graceful EOF shutdown path', async (t)
   client.on('runtimeStopped', event => { stopped.resolve(event); });
   await client.ensureStarted();
   await client.stop();
-  assert.deepEqual(await stopped.promise, { code: 0, signal: null, expected: true });
+  assert.deepEqual(await stopped.promise, { code: 0, signal: null, expected: true, stderrTail: '' });
 });
 
 test('negotiates ACP v1 without filesystem or terminal reverse capabilities', async () => {
@@ -295,6 +341,7 @@ test('negotiates ACP v1 without filesystem or terminal reverse capabilities', as
   const client = new GrokAcpClient({
     binaryPath: '/managed/grok',
     cwd: '/workspace',
+    clientVersion: '9.8.7',
     transportFactory: inMemoryTransport((remoteClient) => {
       agent = new RecordingAgent(remoteClient);
       return agent as unknown as Agent;
@@ -308,7 +355,8 @@ test('negotiates ACP v1 without filesystem or terminal reverse capabilities', as
     protocolVersion: 1,
     clientInfo: {
       name: 'gian-grok-proxy',
-      version: '0.2.0',
+      // The Proxy package version, not a stale constant.
+      version: '9.8.7',
     },
     clientCapabilities: {
       auth: {

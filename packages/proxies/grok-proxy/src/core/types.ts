@@ -57,6 +57,9 @@ export interface SessionRecord {
    */
   model: string | null;
   effort: string | null;
+  /** Generation of the Grok child this native session is loaded into; null
+   *  when it is loaded into none (idle stop, crash, forced interrupt). */
+  attachedGeneration: number | null;
   createdAt: string;
   updatedAt: string;
 }

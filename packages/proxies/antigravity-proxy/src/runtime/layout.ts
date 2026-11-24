@@ -25,7 +25,7 @@ export const ANTIGRAVITY_CLI_ACP_ARGS = ['acp'] as const;
  * spawns a background updater that replaces its own binary, which would
  * break a managed Runtime's content fingerprint and move a user's Runtime
  * past the verified version mid-session. A user's own terminal `agy` keeps
- * updating normally. Checked in `agy` 1.5.14 (`auto_updater.go`).
+ * updating normally. Checked in `agy` 1.5.16 (`auto_updater.go`).
  */
 export const ANTIGRAVITY_CLI_DISABLE_AUTO_UPDATE_ENV = 'AGY_CLI_DISABLE_AUTO_UPDATE';
 export const POSIX_CLI_ENTRY = 'agy';

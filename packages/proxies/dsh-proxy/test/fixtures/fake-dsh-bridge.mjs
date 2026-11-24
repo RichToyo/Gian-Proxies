@@ -1,6 +1,17 @@
 #!/usr/bin/env node
 
 import { createInterface } from 'node:readline';
+import { writeFileSync } from 'node:fs';
+
+// Launch-environment probe for the Proxy tests: record what the Proxy handed
+// to its DSH child.
+if (process.env.DSH_FAKE_ENV_FILE) {
+  writeFileSync(process.env.DSH_FAKE_ENV_FILE, JSON.stringify({
+    DSH_TELEMETRY_DISABLED: process.env.DSH_TELEMETRY_DISABLED ?? null,
+    DSH_HOME: process.env.DSH_HOME ?? null,
+    argv: process.argv.slice(2),
+  }));
+}
 
 const script = process.env.DSH_FAKE_SCRIPT ?? 'success';
 const sessions = new Map();

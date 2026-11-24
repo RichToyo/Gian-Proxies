@@ -4,7 +4,9 @@ import { homedir } from 'node:os';
 import { delimiter, isAbsolute, join, resolve } from 'node:path';
 import { runBoundedCommand } from '@gian/proxy-protocol/node';
 
+import { kimiChildEnvironment, resolveKimiCodeHome } from './home.js';
 import { KimiDataVersionError, KimiSessionStoreGuard } from './session-store.js';
+import { parseKimiVersion, SUPPORTED_KIMI_VERSIONS, unsupportedKimiVersionMessage } from './versions.js';
 
 const COMMAND = 'kimi';
 const SETUP_URL = 'https://code.kimi.com/kimi-code/install.sh';
@@ -17,17 +19,12 @@ interface KimiStoreDecision {
 
 const activationMemo = new Map<string, Promise<void>>();
 
-function firstVersion(text: string): string | null {
-  return text.match(/\b\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?\b/)?.[0] ?? null;
-}
-
 function homeDir(): string {
   return process.env.HOME && isAbsolute(process.env.HOME) ? process.env.HOME : homedir();
 }
 
 function kimiCodeHome(): string {
-  const configured = process.env.KIMI_CODE_HOME;
-  return configured && isAbsolute(configured) ? configured : join(homeDir(), '.kimi-code');
+  return resolveKimiCodeHome(process.env);
 }
 
 async function existsExecutable(path: string): Promise<boolean> {
@@ -84,9 +81,9 @@ export async function discoverKimiRuntimes(): Promise<{
 async function runVersion(path: string): Promise<string> {
   const result = await runBoundedCommand(path, ['--version'], {
     timeoutMs: 8_000,
-    env: { ...process.env, KIMI_CODE_NO_AUTO_UPDATE: '1', KIMI_CODE_HOME: kimiCodeHome() },
+    env: kimiChildEnvironment(process.env),
   });
-  const version = firstVersion(`${result.stdout}\n${result.stderr}`);
+  const version = parseKimiVersion(`${result.stdout}\n${result.stderr}`);
   if (!version) throw new Error('`kimi --version` did not report a semantic version');
   return version;
 }
@@ -182,6 +179,9 @@ export async function probeKimiRuntime(path: string): Promise<{
   if (!isAbsolute(path)) throw new Error('Kimi runtime path must be absolute.');
   await access(path, constants.X_OK);
   const decision = await evaluateKimiStore(path, 'read-only');
+  // Discovery offers PATH and user installs too; only reviewed 2.7 server
+  // protocols are accepted, so the choice fails here, not mid-turn.
+  if (!SUPPORTED_KIMI_VERSIONS.includes(decision.version)) throw new Error(unsupportedKimiVersionMessage(decision.version));
   return {
     runtimeId: 'kimi',
     displayName: 'Kimi Code',

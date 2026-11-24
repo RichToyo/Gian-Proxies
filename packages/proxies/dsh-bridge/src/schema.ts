@@ -68,6 +68,13 @@ export interface BridgeRequest {
   id: string;
   method: BridgeMethod;
   params: Record<string, unknown>;
+  /**
+   * Optional envelope member (epoch milliseconds): the moment after which
+   * the Proxy no longer waits for this request. The Bridge refuses to start
+   * the request afterwards, and state-changing methods re-check it before
+   * they commit, so a timed-out request never executes late.
+   */
+  deadlineAt?: number;
 }
 
 export interface BridgeSuccessResponse {
@@ -159,6 +166,9 @@ export function validateBridgeRequest(
       id: record.id,
       method: record.method as BridgeMethod,
       params,
+      ...(typeof record.deadlineAt === 'number' && Number.isFinite(record.deadlineAt)
+        ? { deadlineAt: record.deadlineAt }
+        : {}),
     },
   };
 }

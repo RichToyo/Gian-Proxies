@@ -28,16 +28,14 @@ class FakeSocket extends EventEmitter {
   close(): void { this.status = 'closed'; this.emit('close'); }
 }
 
-test('2.6.2 admission orders fast native output after turn.started without sending permissions', async t => {
+test('2.7 admission orders fast native output after turn.started without sending permissions', async t => {
   const socket = new FakeSocket();
   t.mock.method(WsSocket, 'connect', async () => socket as unknown as WsSocket);
   const requests: Array<{ method: string; path: string; body: unknown }> = [];
   let acceptedPrompt = '';
   t.mock.method(KimiServerRestClient.prototype, 'request', async function <T>(method: string, path: string, options: RestRequestOptions = {}): Promise<T> {
     requests.push({ method, path, body: options.json });
-    if (path === '/api/v1/workspaces') return { id: 'workspace' } as T;
     if (path === '/api/v1/sessions' && method === 'POST') return { id: 'native' } as T;
-    if (path.endsWith('/messages')) return { items: [], has_more: false } as T;
     if (path.endsWith('/prompts') && method === 'POST') {
       const body = options.json as { prompt_id: string };
       acceptedPrompt = body.prompt_id;
@@ -59,7 +57,7 @@ test('2.6.2 admission orders fast native output after turn.started without sendi
     if (path.endsWith('/file-history/changes')) return { recorded: false, changes: [] } as T;
     throw new Error(`Unexpected fixture request: ${method} ${path}`);
   });
-  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' }, protocolMode: 'conversation' });
+  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' } });
   const events: Array<{ method: string; params: Record<string, unknown> }> = [];
   service.setEmitSink(event => events.push(event));
   try {
@@ -82,7 +80,7 @@ test('2.6.2 admission orders fast native output after turn.started without sendi
   } finally { await service.shutdown(); }
 });
 
-test('2.6.2 sends an approval only after an explicit host response, including WS/HTTP race', async t => {
+test('2.7 sends an approval only after an explicit host response, including WS/HTTP race', async t => {
   const socket = new FakeSocket();
   t.mock.method(WsSocket, 'connect', async () => socket as unknown as WsSocket);
   const requests: Array<{ method: string; path: string; body: unknown }> = [];
@@ -90,9 +88,7 @@ test('2.6.2 sends an approval only after an explicit host response, including WS
     request: { tool_name: 'Bash', action: 'pwd', expires_at: '2026-11-16T12:10:00Z' } };
   t.mock.method(KimiServerRestClient.prototype, 'request', async function <T>(method: string, path: string, options: RestRequestOptions = {}): Promise<T> {
     requests.push({ method, path, body: options.json });
-    if (path === '/api/v1/workspaces') return { id: 'workspace' } as T;
     if (path === '/api/v1/sessions' && method === 'POST') return { id: 'native' } as T;
-    if (path.endsWith('/messages')) return { items: [], has_more: false } as T;
     if (path.endsWith('/prompts') && method === 'POST') {
       const body = options.json as { prompt_id: string };
       socket.frame({ ...interaction, status: 'pending' });
@@ -107,7 +103,7 @@ test('2.6.2 sends an approval only after an explicit host response, including WS
     }
     throw new Error(`Unexpected fixture request: ${method} ${path}`);
   });
-  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' }, protocolMode: 'conversation' });
+  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' } });
   const events: Array<{ method: string; params: Record<string, unknown> }> = [];
   service.setEmitSink(event => events.push(event));
   try {
@@ -126,21 +122,19 @@ test('2.6.2 sends an approval only after an explicit host response, including WS
   } finally { await service.shutdown(); }
 });
 
-test('2.6.2 skill-only input preserves the selected native skill path', async t => {
+test('2.7 skill-only input preserves the selected native skill path', async t => {
   const socket = new FakeSocket();
   t.mock.method(WsSocket, 'connect', async () => socket as unknown as WsSocket);
   let submitted: Record<string, unknown> | undefined;
   t.mock.method(KimiServerRestClient.prototype, 'request', async function <T>(method: string, path: string, options: RestRequestOptions = {}): Promise<T> {
-    if (path === '/api/v1/workspaces') return { id: 'workspace' } as T;
     if (path === '/api/v1/sessions' && method === 'POST') return { id: 'native' } as T;
-    if (path.endsWith('/messages')) return { items: [], has_more: false } as T;
     if (path.endsWith('/prompts') && method === 'POST') {
       submitted = options.json as Record<string, unknown>;
       return { prompt_id: submitted.prompt_id, status: 'running' } as T;
     }
     throw new Error(`Unexpected fixture request: ${method} ${path}`);
   });
-  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' }, protocolMode: 'conversation' });
+  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' } });
   try {
     const { snapshot } = await service.createSession({ sessionId: 's', cwd: '/workspace' });
     await service.startTurn({ sessionId: 's', streamId: snapshot.streamId as string, turnId: 't1',
@@ -153,15 +147,13 @@ test('2.6.2 skill-only input preserves the selected native skill path', async t 
   } finally { await service.shutdown(); }
 });
 
-test('2.6.2 socket reconnect restores the active turn without resending the prompt', async t => {
+test('2.7 socket reconnect restores the active turn without resending the prompt', async t => {
   const sockets = [new FakeSocket(), new FakeSocket()];
   let connection = 0, promptId = '', submissions = 0;
   sockets[1]!.agentStatus = 'running';
   t.mock.method(WsSocket, 'connect', async () => sockets[connection++] as unknown as WsSocket);
   t.mock.method(KimiServerRestClient.prototype, 'request', async function <T>(method: string, path: string, options: RestRequestOptions = {}): Promise<T> {
-    if (path === '/api/v1/workspaces') return { id: 'workspace' } as T;
     if (path === '/api/v1/sessions' && method === 'POST') return { id: 'native' } as T;
-    if (path.endsWith('/messages')) return { items: [], has_more: false } as T;
     if (path.endsWith('/prompts') && method === 'POST') {
       submissions += 1;
       promptId = (options.json as { prompt_id: string }).prompt_id;
@@ -176,7 +168,7 @@ test('2.6.2 socket reconnect restores the active turn without resending the prom
     if (path.endsWith('/file-history/changes')) return { recorded: false, changes: [] } as T;
     throw new Error(`Unexpected fixture request: ${method} ${path}`);
   });
-  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' }, protocolMode: 'conversation' });
+  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' } });
   const events: Array<{ method: string; params: Record<string, unknown> }> = [];
   service.setEmitSink(event => events.push(event));
   try {
@@ -196,16 +188,14 @@ test('2.6.2 socket reconnect restores the active turn without resending the prom
   } finally { await service.shutdown(); }
 });
 
-test('2.6.2 reconnect during prompt admission keeps ordering and does not resend', async t => {
+test('2.7 reconnect during prompt admission keeps ordering and does not resend', async t => {
   const sockets = [new FakeSocket(), new FakeSocket()];
   sockets[1]!.agentStatus = 'running';
   let connection = 0, submissions = 0, finishPost!: (value: unknown) => void, enteredPost!: () => void;
   const entered = new Promise<void>(resolve => { enteredPost = resolve; });
   t.mock.method(WsSocket, 'connect', async () => sockets[connection++] as unknown as WsSocket);
   t.mock.method(KimiServerRestClient.prototype, 'request', async function <T>(method: string, path: string, options: RestRequestOptions = {}): Promise<T> {
-    if (path === '/api/v1/workspaces') return { id: 'workspace' } as T;
     if (path === '/api/v1/sessions' && method === 'POST') return { id: 'native' } as T;
-    if (path.endsWith('/messages')) return { items: [], has_more: false } as T;
     if (path.endsWith('/prompts') && method === 'POST') {
       submissions += 1;
       const promptId = (options.json as { prompt_id: string }).prompt_id;
@@ -221,7 +211,7 @@ test('2.6.2 reconnect during prompt admission keeps ordering and does not resend
     if (path.endsWith('/file-history/changes')) return { recorded: false, changes: [] } as T;
     throw new Error(`Unexpected fixture request: ${method} ${path}`);
   });
-  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' }, protocolMode: 'conversation' });
+  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' } });
   const events: Array<{ method: string; params: Record<string, unknown> }> = [];
   service.setEmitSink(event => events.push(event));
   try {
@@ -245,7 +235,7 @@ test('2.6.2 reconnect during prompt admission keeps ordering and does not resend
   } finally { await service.shutdown(); }
 });
 
-test('2.6.2 reconnect preserves a pending permission without answering it', async t => {
+test('2.7 reconnect preserves a pending permission without answering it', async t => {
   const sockets = [new FakeSocket(), new FakeSocket()];
   sockets[1]!.agentStatus = 'running';
   let connection = 0;
@@ -256,9 +246,7 @@ test('2.6.2 reconnect preserves a pending permission without answering it', asyn
   t.mock.method(WsSocket, 'connect', async () => sockets[connection++] as unknown as WsSocket);
   t.mock.method(KimiServerRestClient.prototype, 'request', async function <T>(method: string, path: string, options: RestRequestOptions = {}): Promise<T> {
     requests.push({ path, body: options.json });
-    if (path === '/api/v1/workspaces') return { id: 'workspace' } as T;
     if (path === '/api/v1/sessions' && method === 'POST') return { id: 'native' } as T;
-    if (path.endsWith('/messages')) return { items: [], has_more: false } as T;
     if (path.endsWith('/prompts') && method === 'POST') {
       const promptId = (options.json as { prompt_id: string }).prompt_id;
       const opener = { type: 'user_message', item_id: 'u', status: 'ended', placement: 'opener', prompt_ids: [promptId] };
@@ -273,7 +261,7 @@ test('2.6.2 reconnect preserves a pending permission without answering it', asyn
     if (path.endsWith('/interactions/i1')) return { outcome: 'rejected' } as T;
     throw new Error(`Unexpected fixture request: ${method} ${path}`);
   });
-  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' }, protocolMode: 'conversation' });
+  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' } });
   const events: Array<{ method: string; params: Record<string, unknown> }> = [];
   service.setEmitSink(event => events.push(event));
   try {

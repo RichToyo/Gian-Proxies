@@ -6,11 +6,13 @@ Protocol v1 / v4 commands** (the NDJSON protocol of the open-source ZCode CLI
 ZCode-specific vocabulary: no ZCode method names, permission words, or bundle
 types leak into Host/Web.
 
-## Runtime baseline: open-source ZCode CLI 0.17.0
+## Runtime baseline: open-source ZCode CLI 0.17.1 (App-source v3.18.2)
 
-- Upstream repository `https://github.com/zai-org/ZCode`, commit
-  `3c5b227649371507ddc4eb46ac5133afe6db1cab`, CLI `0.17.0`
-  (`runtime.verifiedVersions` / `src/identity.ts`). All capability claims
+- Upstream repository `https://github.com/zai-org/ZCode`, tag `v3.18.2`,
+  commit `fec975905a2abd4c07e35c40d51fa097a2258ec9`, CLI `0.17.1`
+  (`runtime.verifiedVersions`). Every build from 3.17.1 through 3.18.2
+  reports CLI 0.17.1, so the commit, lock and entrypoint digests in
+  `src/runtime/source.json` are the identity, not the version number. All capability claims
   below retain their original baseline references where noted; the current
   upgrade review covers the protocol, standalone authentication, model selection,
   dependency lock and build entrypoint.
@@ -37,9 +39,51 @@ types leak into Host/Web.
 
 ## Prerequisites the user must satisfy themselves
 
-- Configure a Provider through the installed CLI's login or TUI. The pinned
-  CLI uses `~/.zcode/v2/provider_config.json` and can import legacy
-  `~/.zcode/cli/config.json`. The Proxy never writes Provider credentials.
+- Configure a Provider. `zcode login` signs in Z.ai or BigModel accounts
+  only; API-key Providers (the `openai`, `anthropic`, `deepseek`, … templates
+  of the built-in config, or a custom OpenAI-compatible endpoint) are added
+  in the ZCode TUI/Desktop or written to `<HOME>/.zcode/v2/provider_config.json`.
+  The CLI can import legacy `~/.zcode/cli/config.json`. The Proxy never
+  writes Provider credentials.
+
+## Credentials and the macOS Keychain (3.18)
+
+- 3.18 encrypts `credentials.json` values as `enc:v2:<source>:<fingerprint>:…`
+  with an AES-256-GCM key held in the system key store (service
+  "ZCode Credential Encryption", account = SHA-256 of the credentials path),
+  through `@napi-rs/keyring`. `enc:v1` values are migrated on first read.
+  The pinned 3.16 Runtime passed `enc:v2` ciphertext through as the token
+  (its legacy cipher returns non-`enc:v1` values unchanged); 3.18 decrypts it.
+- `build:zcode` does not ship the native binding; the Gian builder stages
+  `@napi-rs/keyring` and `@napi-rs/keyring-darwin-arm64` next to `zcode.cjs`,
+  as upstream does for the Desktop agent bundle, and fails without it.
+- In app-server mode upstream sends `interaction/requestCredentialCipher` to
+  its Host (Desktop main owns the key). Gian has no such owner. The
+  integration uses the standalone in-process cipher for the MCP OAuth store
+  too, exactly like the Prompt CLI/TUI and like the standalone Provider
+  registry in the same process. If the request still arrives, the Proxy
+  answers like an upstream Host without a cipher provider (`-32602` for
+  malformed params, otherwise a typed `CREDENTIAL_SECURE_STORAGE_UNAVAILABLE`
+  result); it never reads the Keychain or invents a key, so nothing can be
+  re-encrypted under a wrong key.
+- Keychain prompts: the Runtime process is Gian's Node binary. Reading a
+  sign-in whose key was created by ZCode Desktop or the CLI (default HOME)
+  prompts once per Runtime process until the user chooses Always Allow; a
+  denial is cached for that process and surfaces as RUNTIME_AUTH_REQUIRED.
+  Keys created under a Gian-managed HOME belong to Gian's Node and do not
+  prompt. API-key Providers never touch the Keychain.
+
+## Built-in Provider refresh (kept)
+
+The standalone lifecycle refreshes the built-in Provider config from
+`https://zcode.z.ai/api/v1/client/configs` (keyed by `app_version` and
+platform; with the ZCode JWT when signed in) about once an hour, coordinated
+across processes by `<HOME>/.zcode/v2/…/zcode-builtin-refresh.json`. Gian keeps
+it: it is the upstream CLI behaviour, the server answers per client version,
+and it keeps Coding Plan models and endpoints current. Consequently the
+built-in model list can change without a new pin; `catalog.list` reads it
+live and its revision changes with it. Failures keep the bundled config.
+With the idle stop, no refresh runs while no Runtime is up.
 
 ## Capability map
 
@@ -81,6 +125,31 @@ types leak into Host/Web.
 | MCP tool-level detail | `mcp/list` returns statuses + `toolCount` only; no protocol method returns a server's tool list (`McpPort.listTools` is in-process only, `mcp.port.ts:308`). |
 | `session.create.forkBoundaries` (capability) | Fork boundaries are resolved live from the conversation projection at fork time; the create-time boundary list has no upstream source. |
 | Model marketplace beyond observed snapshots | 0.16.9 deliberately keeps the provider registry out of read/setModel snapshots (`session-mapper.ts:215` comment); `catalog.list` before any session therefore shows only the presentation-backed approval mode, and model choices grow from real runtime snapshots. The proxy does not parse `~/.zcode/cli/config.json` to invent a marketplace. |
+
+## Changes in Proxy 0.5.0
+
+- Pin App-source v3.18.2 (`fec9759`, CLI 0.17.1): new lock and entrypoint
+  digests; the three existing integration anchors still match once each, a
+  fourth keeps the MCP OAuth credential store on the standalone cipher, and
+  `gian/modelCatalog` errors carry the Registry's own (masked) reason.
+- Failed turns end: 3.18's `session/event` `turn.failed` (`{error,
+  turnPhase}`) is a terminal; sign-in, API-key and Keychain failures are
+  RUNTIME_AUTH_REQUIRED with actionable text, other errors keep the native
+  type/code/provider code in details.
+- Usage: per-call usage is context occupancy against the call's
+  `contextWindow`; the turn total is one `delta`; session replay uses one
+  delta per turn, attach replay one context sample per turn.
+- Interrupt checks the stop ack (unguarded retry after a stale foreground
+  guard) and ends the turn locally 10 s after a confirmed stop without a
+  native terminal. A stderr ProviderBusinessError is only a hint for the
+  runtime's single active turn.
+- Runtime exits and startup failures carry a bounded stderr tail;
+  initialize probes the app-server once.
+- The app-server inherits the Proxy environment minus Gian internals.
+- Idle app-servers stop after 10 min (`GIAN_ZCODE_IDLE_TIMEOUT_MS`, 0 off)
+  and restart transparently on the same streams.
+- Wire loop on `@gian/proxy-kit`: per-session lanes, overtaking
+  interaction.respond/turn.interrupt/shutdown, initialize barrier.
 
 ## Changes in Proxy 0.4.6
 
@@ -141,6 +210,8 @@ state, release ownership — provider history stays visible via
   is not a qualification of this source-built candidate.
 - Official MCP auth (`interaction/requestOfficialMcpAuthHeaders`) is answered
   with a structured `official_auth_unavailable`; ZCode degrades gracefully.
+  3.18's official-plugin command endpoint uses the same headers and is
+  equally unavailable.
 - `interaction/requestProviderRuntimeHeaders` and the browser-control reverse
   requests (`interaction/browserList` / `browserExecute`) fail closed: Gian
   does not supply provider headers or drive a browser over this surface.

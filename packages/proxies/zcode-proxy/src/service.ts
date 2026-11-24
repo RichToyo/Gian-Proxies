@@ -40,15 +40,28 @@ export interface ZcodeSharedServiceOptions {
   dataDir: string | null;
   catalogWorkspace: string;
   interactionEnabled: boolean;
-  env: {
-    home: string;
-    path: string;
-    tmpdir: string;
-    lang?: string;
-    gian?: Readonly<Record<string, string>>;
-  };
+  /** Complete app-server environment (buildAppServerEnvironment). */
+  env: Readonly<Record<string, string>>;
+  /** Stop an app-server after this long without requests, turns or native
+   *  activity; it restarts with the next request. 0 disables. */
+  idleTimeoutMs?: number;
+  /** Interrupt confirmation deadline (tests). */
+  interruptDeadlineMs?: number;
   onStderr?: (runtimeKey: string, line: unknown) => void;
   onDiagnostic?: (runtimeKey: string, info: unknown) => void;
+}
+
+/** How long an app-server may sit idle before it is stopped. */
+export const DEFAULT_IDLE_TIMEOUT_MS = 10 * 60_000;
+/** Budget for initialize's runtime liveness probe. A slow start does not fail
+ *  initialize; only an app-server that exits or cannot answer does. */
+const STARTUP_PROBE_TIMEOUT_MS = 20_000;
+
+/** Holds keep a session's notifications behind the Response of every
+ *  request in flight for that session (Response-before-Notification). */
+interface Hold {
+  depth: number;
+  buffer: OuterNotification[];
 }
 
 const SESSION_METHODS = new Set([
@@ -74,17 +87,68 @@ export class ZcodeSharedService {
    *  model, and the provider registry never crosses the protocol). */
   private readonly modelFacts = new ModelFactStore();
   private catalogRuntime: RuntimeEntry | null = null;
+  private catalogRuntimePending: Promise<RuntimeEntry> | null = null;
   private readonly workspaceRuntimes = new Map<string, RuntimeEntry>();
+  private readonly workspaceRuntimesPending = new Map<string, Promise<RuntimeEntry>>();
   private readonly sessionRoutes = new Map<string, SessionRoute>();
   private readonly nativeOwners = new Map<string, string>();
+  private readonly holds = new Map<string, Hold>();
   private emitSink: (notification: OuterNotification) => void = () => undefined;
+  private idleTimer: NodeJS.Timeout | null = null;
+  private closed = false;
 
-  constructor(private readonly options: ZcodeSharedServiceOptions) {}
+  constructor(private readonly options: ZcodeSharedServiceOptions) {
+    const idleMs = this.idleTimeoutMs();
+    if (idleMs > 0) {
+      this.idleTimer = setInterval(() => { void this.stopIdleRuntimes(); }, Math.max(250, Math.min(60_000, Math.floor(idleMs / 4))));
+      this.idleTimer.unref?.();
+    }
+  }
+
+  private idleTimeoutMs(): number {
+    return this.options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+  }
 
   setEmitSink(sink: (notification: OuterNotification) => void): void {
     this.emitSink = sink;
-    if (this.catalogRuntime) this.catalogRuntime.adapter.setEmitSink(sink);
-    for (const runtime of this.workspaceRuntimes.values()) runtime.adapter.setEmitSink(sink);
+  }
+
+  /** Every adapter emits here: a notification for a session with a request
+   *  in flight waits for that request's Response; anything else goes out at
+   *  once. Session-less notifications (catalog.changed) follow '*' holds. */
+  private route(notification: OuterNotification): void {
+    const hold = this.holds.get(holdKeyOf(notification.params));
+    if (hold !== undefined) hold.buffer.push(notification);
+    else this.emitSink(notification);
+  }
+
+  /** Dispatch with adapter-owned ordering for the Proxy Kit: `respond` writes
+   *  the Response, then the notifications that the request (or concurrent
+   *  native activity on the same session) produced are released in order. */
+  async dispatchOrdered(
+    request: WireRequest,
+    respond: (result: unknown, error?: unknown) => void,
+  ): Promise<void> {
+    const keys = requestHoldKeys(request);
+    for (const key of keys) {
+      const hold = this.holds.get(key) ?? { depth: 0, buffer: [] };
+      hold.depth += 1;
+      this.holds.set(key, hold);
+    }
+    try {
+      const outcome = await this.dispatch(request);
+      if (outcome.ok) respond(outcome.result);
+      else respond(undefined, outcome.error);
+    } finally {
+      for (const key of keys) {
+        const hold = this.holds.get(key);
+        if (hold === undefined) continue;
+        hold.depth -= 1;
+        if (hold.depth > 0) continue;
+        this.holds.delete(key);
+        for (const notification of hold.buffer) this.emitSink(notification);
+      }
+    }
   }
 
   async dispatch(request: WireRequest): Promise<DispatchOutcome> {
@@ -120,7 +184,18 @@ export class ZcodeSharedService {
     }
     const runtime = await this.getOrCreateCatalogRuntime();
     const outcome = await runtime.adapter.dispatch(request);
-    if (outcome.ok) this.initializationParams = { ...request.params };
+    if (!outcome.ok) return outcome;
+    // Contact the app-server once: a Runtime that cannot start (missing
+    // builtin config, broken install, bad environment) fails initialize with
+    // its own stderr instead of a later, opaque "exited" error.
+    const probe = await runtime.adapter.probeLiveness(STARTUP_PROBE_TIMEOUT_MS);
+    if (probe !== null) {
+      runtime.stopping = true;
+      if (this.catalogRuntime === runtime) this.catalogRuntime = null;
+      await runtime.transport.stop();
+      throw new ServiceError('RUNTIME_UNAVAILABLE', probe, true);
+    }
+    this.initializationParams = { ...request.params };
     return outcome;
   }
 
@@ -186,6 +261,14 @@ export class ZcodeSharedService {
   }
 
   private async shutdown(request: WireRequest): Promise<DispatchOutcome> {
+    this.closed = true;
+    if (this.idleTimer !== null) clearInterval(this.idleTimer);
+    this.idleTimer = null;
+    // Runtimes still starting must not outlive shutdown.
+    await Promise.allSettled([
+      ...this.catalogRuntimePending ? [this.catalogRuntimePending] : [],
+      ...this.workspaceRuntimesPending.values(),
+    ]);
     const runtimes = [
       ...this.catalogRuntime ? [this.catalogRuntime] : [],
       ...this.workspaceRuntimes.values(),
@@ -203,8 +286,37 @@ export class ZcodeSharedService {
     return first ?? { ok: true, result: { ok: true }, notifications: [] };
   }
 
-  private async getOrCreateCatalogRuntime(): Promise<RuntimeEntry> {
-    if (this.catalogRuntime) return this.catalogRuntime;
+  /** Stop the app-server of every idle runtime; requests restart it. */
+  private async stopIdleRuntimes(): Promise<void> {
+    if (this.closed) return;
+    const idleMs = this.idleTimeoutMs();
+    const now = Date.now();
+    const runtimes = [
+      ...this.catalogRuntime ? [this.catalogRuntime] : [],
+      ...this.workspaceRuntimes.values(),
+    ];
+    for (const runtime of runtimes) {
+      if (runtime.stopping || !runtime.adapter.isIdle(now, idleMs)) continue;
+      this.options.onDiagnostic?.(runtime.key, { kind: 'idle-stop', idleMs });
+      await runtime.adapter.park().catch(() => undefined);
+    }
+  }
+
+  /** Release every app-server (kit close, EOF or signal). */
+  async close(): Promise<void> {
+    if (this.closed && this.catalogRuntime === null && this.workspaceRuntimes.size === 0) return;
+    await this.shutdown({ id: 'internal-close', method: 'shutdown', params: {} });
+  }
+
+  private getOrCreateCatalogRuntime(): Promise<RuntimeEntry> {
+    if (this.catalogRuntime) return Promise.resolve(this.catalogRuntime);
+    // Concurrent catalog requests share one start.
+    this.catalogRuntimePending ??= this.createCatalogRuntime()
+      .finally(() => { this.catalogRuntimePending = null; });
+    return this.catalogRuntimePending;
+  }
+
+  private async createCatalogRuntime(): Promise<RuntimeEntry> {
     const workspace = resolve(this.options.catalogWorkspace);
     mkdirSync(workspace, { recursive: true });
     const runtime = this.createRuntime('catalog', workspace);
@@ -225,11 +337,22 @@ export class ZcodeSharedService {
     return runtime;
   }
 
-  private async getOrCreateWorkspaceRuntime(cwd: string): Promise<RuntimeEntry> {
+  private getOrCreateWorkspaceRuntime(cwd: string): Promise<RuntimeEntry> {
     const workspace = resolve(cwd);
     const key = `workspace:${workspace}`;
     const existing = this.workspaceRuntimes.get(key);
-    if (existing) return existing;
+    if (existing) return Promise.resolve(existing);
+    // Two sessions of one workspace starting together share one app-server.
+    let pending = this.workspaceRuntimesPending.get(key);
+    if (pending === undefined) {
+      pending = this.createWorkspaceRuntime(key, workspace)
+        .finally(() => { this.workspaceRuntimesPending.delete(key); });
+      this.workspaceRuntimesPending.set(key, pending);
+    }
+    return pending;
+  }
+
+  private async createWorkspaceRuntime(key: string, workspace: string): Promise<RuntimeEntry> {
     const runtime = this.createRuntime(key, workspace);
     const initialized = await runtime.adapter.dispatch({
       id: `internal-initialize-${runtimeId(key)}`,
@@ -264,13 +387,15 @@ export class ZcodeSharedService {
       runtimeBin: this.options.runtimeBin,
       isNativeSessionOwned: nativeSessionId => this.nativeOwners.has(nativeSessionId),
       modelFacts: this.modelFacts,
+      onDiagnostic: info => this.options.onDiagnostic?.(key, info),
+      ...(this.options.interruptDeadlineMs !== undefined ? { interruptDeadlineMs: this.options.interruptDeadlineMs } : {}),
     });
-    adapter.setEmitSink(notification => this.emitSink(notification));
+    adapter.setEmitSink(notification => this.route(notification));
     const runtime: RuntimeEntry = { key, adapter, transport, sessionIds: new Set(), stopping: false };
     transport.on('stderr', (line: unknown) => this.options.onStderr?.(key, line));
     transport.on('diagnostic', (info: unknown) => this.options.onDiagnostic?.(key, info));
     transport.on('exit', () => {
-      if (runtime.stopping) return;
+      if (runtime.stopping || adapter.isParked()) return;
       if (this.catalogRuntime === runtime) this.catalogRuntime = null;
       if (this.workspaceRuntimes.get(key) === runtime) this.workspaceRuntimes.delete(key);
       for (const sessionId of runtime.sessionIds) {
@@ -298,6 +423,21 @@ export class ZcodeSharedService {
       throw new ServiceError('NOT_INITIALIZED', 'initialize must be the first request.');
     }
   }
+}
+
+function holdKeyOf(params: Record<string, unknown>): string {
+  return typeof params.sessionId === 'string' && params.sessionId !== '' ? `session:${params.sessionId}` : '*';
+}
+
+/** The sessions whose notifications a request must not overtake. */
+function requestHoldKeys(request: WireRequest): string[] {
+  const keys = new Set<string>();
+  for (const field of ['sessionId', 'sourceSessionId']) {
+    const value = request.params[field];
+    if (typeof value === 'string' && value !== '') keys.add(`session:${value}`);
+  }
+  if (keys.size === 0) keys.add('*');
+  return [...keys];
 }
 
 function runtimeId(value: string): string {

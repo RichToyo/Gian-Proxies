@@ -9,7 +9,7 @@ settings without rewriting one another's Runtime or Bridge composition.
 ## Layout
 
 - `manifest.json` — Manifest v4 (`id: ai.deepseek.harness`, `process.scope:
-  shared`, protocol range `>=2.2 <3.0`, verified runtime `0.2.2-rc.3`).
+  shared`, protocol range `>=2.2 <3.0`, verified runtime `0.2.2-rc.5`).
 - `src/core/service.ts` — session/turn projection, stable `sourceTurnId` /
   `stepId` / `eventId` identity, terminal-state enforcement, runtime-exit
   terminalization.
@@ -22,9 +22,11 @@ settings without rewriting one another's Runtime or Bridge composition.
 
 ## Runtime baseline
 
-The source candidate targets `@deepseek-ai/dsh@0.2.2-rc.3` at official
-tag `dsh-v0.2.2-rc.3` (commit `38a6a5c965aa99ab525161efb7cc5cf1fe62fced`).
-The published baseline is 0.2.2-rc.3 after exact-artifact qualification.
+The source candidate targets `@deepseek-ai/dsh@0.2.2-rc.5` at official
+tag `dsh-v0.2.2-rc.5` (commit `9c2670d3bce5275e0d1610272958121af87787bb`).
+The published baseline is still 0.2.2-rc.3 until rc.5 passes exact-artifact
+qualification. rc.4 added the `CONTENT_REFUSED` LLM error; rc.5 chooses the
+web_search provider per model route.
 Capabilities are advertised only when the connected Bridge reports the native
 boundary; other operations fail closed with `CAPABILITY_NOT_SUPPORTED`.
 
@@ -54,6 +56,34 @@ Catalog Provider, model, and reasoning selections use the native Agent model
 API when available and the legacy per-Agent waterfall on older DSH versions;
 per-model reasoning choices regenerate on model switch and stale effort clears.
 Catalog input descriptors mirror the runtime-truth attachment/skill surfaces.
+
+## Launch, lifecycle and errors
+
+- **Launch policy** — every DSH runs with `DSH_TELEMETRY_DISABLED=1` and
+  `DSH_HOME` mapped from the Host's `GIAN_AGENT_HOME`; the managed launch adds
+  `--patch <profile>/gian-launch.patch.yml`, which disables
+  `session-log-deepseek` (the official-API Session-log upload) above the home
+  patch. The Bridge host patch disables the same row for any other launch of
+  the profile. Stale `gian-<hash>` profiles (Bridge link dangling) are removed.
+- **Requests** — `@gian/proxy-kit` with one lane per Gian session;
+  `interaction.respond`, `turn.interrupt` and `shutdown` overtake,
+  `initialize` is a barrier, process-level reads are pipelined. The adapter
+  holds a session's notifications only while one of its own requests is in
+  flight. Bridge requests carry `deadlineAt` 2 s before the client timeout;
+  the Bridge refuses or rolls back work after it.
+- **Lifecycle** — `start()` waits for the Bridge `initialize` handshake (60 s);
+  boot failures and runtime exits report DSH's exit status and a 4 KiB stderr
+  tail. EOF, `shutdown`, SIGINT/SIGTERM and crashes close stdin, SIGTERM the DSH
+  process group, SIGKILL it after 1.5 s and reap stragglers; a Proxy killed
+  outright closes the pipe and the Bridge exits DSH on EOF.
+- **Errors** — DSH's own failure text reaches `turn.failed`; credential codes
+  become `RUNTIME_AUTH_REQUIRED` naming `<HOME>/.credentials.yaml`, transient
+  codes are retryable, and a HOME without a usable Provider answers
+  `RUNTIME_AUTH_REQUIRED` from `catalog.list` / `session.create` instead of
+  failing `initialize`.
+- **Usage** — `inputTokens` includes cache reads/writes (`cachedInputTokens`
+  is that part); each step reports context occupancy against the latest
+  `request/context` window.
 
 ## Identity and replay
 

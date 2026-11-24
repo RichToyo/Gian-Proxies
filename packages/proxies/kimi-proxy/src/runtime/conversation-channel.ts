@@ -3,7 +3,7 @@ import { conversationSubscription, parseConversationControl } from './conversati
 type Frame = Record<string, unknown>;
 type Pending = { sessionId: string; operation: 'subscribe' | 'unsubscribe'; acknowledged: boolean; resolve: () => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> };
 
-/** One connected 2.6.2 socket. The owner creates a fresh channel after a
+/** One connected Kimi 2.7 socket. The owner creates a fresh channel after a
  * disconnect and re-subscribes; the native server then sends a new snapshot. */
 export class KimiConversationChannel {
   private nextRequest = 1;
@@ -64,6 +64,16 @@ export class KimiConversationChannel {
         clearTimeout(pending.timer); this.pending.delete(message.requestId);
         pending.reject(new Error(`Kimi conversation subscription rejected (${message.code}).`));
       }
+      return;
+    }
+    if (message.frame.type === 'session') {
+      // 2.7 publishes session work state as an unwrapped global event to
+      // every connection; only attached sessions are delivered, tagged with
+      // their native id like every per-session frame.
+      const session = message.frame.session;
+      if (typeof session !== 'object' || session === null || Array.isArray(session)) return;
+      const nativeId = (session as Frame).id;
+      if (typeof nativeId === 'string' && this.active.has(nativeId)) this.deliver({ ...message.frame, session_id: nativeId });
       return;
     }
     const sessionId = message.frame.session_id;

@@ -32,6 +32,7 @@ import {
   buildAppServerArgs,
   buildInitializeParams,
   CodexAppServerClient,
+  CodexAppServerRpcError,
   MAX_APP_SERVER_JSONL_LINE_BYTES,
   MIN_CODEX_STDIO_VERSION,
 } from '../src/runtime/codex-app-server-client.js';
@@ -61,11 +62,7 @@ interface ClientInternals {
   startPromise: Promise<void> | null;
   activeGeneration: number | null;
   nextGeneration: number;
-  deadlines: {
-    startupMs: number;
-    rpcMs: number;
-    terminateGraceMs: number;
-  };
+  deadlines: Record<string, number>;
   start(generation: number): Promise<void>;
   attachProcess(child: FakeChild, generation: number): void;
   handleMessage(raw: string): void;
@@ -645,19 +642,56 @@ test('PROXY-005: stdout stream error drains pending immediately and only once', 
   assert.equal(stops, 1);
 });
 
-test('PROXY-005: a never-returning RPC times out, tears down, and the next request recovers', async () => {
+test('PROXY-005: a timed-out RPC fails alone while a live app-server keeps serving', async () => {
   const client = new CodexAppServerClient({
-    deadlines: { rpcMs: 25, terminateGraceMs: 500 },
+    deadlines: { historyRpcMs: 25, probeMs: 500, terminateGraceMs: 500 },
   });
-  const firstRuntime = await installRuntime(client);
+  const { child } = await installRuntime(client);
   const i = internals(client);
   let stops = 0;
   client.on('runtimeStopped', () => { stops += 1; });
+  // The app-server answers everything except the hung thread/read.
+  child.stdin.onWrite = (raw) => {
+    const request = JSON.parse(raw) as { id?: number; method?: string; params?: { threadId?: string } };
+    if (typeof request.id !== 'number' || request.params?.threadId === 'thread-hung') return;
+    queueMicrotask(() => child.stdout.write(`${JSON.stringify({
+      id: request.id,
+      result: request.method === 'config/read' ? { config: {} } : { thread: { id: request.params?.threadId } },
+    })}\n`));
+  };
+  await assert.rejects(client.readThread('thread-hung'), (error: unknown) => {
+    assert.match(String(error), /RPC "thread\/read" timed out after 25ms/);
+    assert.equal((error as Error).name, 'TimeoutError');
+    return true;
+  });
+  // The liveness probe is answered, so the shared runtime stays up.
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(stops, 0);
+  assert.equal(i.activeGeneration, 1);
+  assert.deepEqual(child.killSignals, []);
+  assert.ok(child.stdin.writes.some(line => line.includes('"config/read"')), 'a liveness probe was sent');
+  assert.deepEqual(await client.readThread('thread-ok'), { thread: { id: 'thread-ok' } });
+  await stopClient(client);
+  child.exit();
+});
+
+test('PROXY-005: a silent app-server is retired only after its liveness probe also times out', async () => {
+  const client = new CodexAppServerClient({
+    deadlines: { historyRpcMs: 25, probeMs: 25, terminateGraceMs: 500 },
+  });
+  const firstRuntime = await installRuntime(client);
+  const i = internals(client);
+  const causes: Error[] = [];
+  client.on('runtimeStopped', (cause) => { causes.push(cause); });
+  firstRuntime.child.stderr.write('codex: backend wedged token=abc123\n');
+  await new Promise(resolve => setImmediate(resolve));
   await assert.rejects(client.readThread('thread-hung'), /RPC "thread\/read" timed out after 25ms/);
-  assert.equal(i.pending.size, 0);
+  await new Promise(resolve => setTimeout(resolve, 60));
+  assert.equal(causes.length, 1);
+  assert.match(causes[0]!.message, /stopped answering: .*thread\/read.*liveness probe/);
+  assert.match(causes[0]!.message, /Recent Codex stderr:\ncodex: backend wedged token=\[redacted\]/);
   assert.equal(i.activeGeneration, null);
   assert.deepEqual(firstRuntime.child.killSignals, ['SIGTERM']);
-  assert.equal(stops, 1);
 
   const recoveredChild = new FakeChild();
   recoveredChild.stdin.onWrite = (raw) => {
@@ -679,9 +713,70 @@ test('PROXY-005: a never-returning RPC times out, tears down, and the next reque
   assert.equal(i.activeGeneration, 2);
   firstRuntime.child.exit();
   assert.equal(i.activeGeneration, 2, 'a stale generation exit must not stop the recovered runtime');
-  assert.equal(stops, 1);
+  assert.equal(causes.length, 1);
   await stopClient(client);
   recoveredChild.exit();
+});
+
+test('PROXY-005: each RPC class has its own budget', () => {
+  const client = new CodexAppServerClient({
+    deadlines: { rpcMs: 11, historyRpcMs: 22, compactMs: 33, interruptMs: 44 },
+  });
+  const budget = (method: string) => (client as unknown as { budgetFor(method: string): number }).budgetFor(method);
+  assert.equal(budget('config/read'), 11);
+  assert.equal(budget('turn/steer'), 11);
+  for (const method of ['thread/start', 'thread/resume', 'thread/fork', 'thread/read', 'thread/list']) {
+    assert.equal(budget(method), 22, method);
+  }
+  assert.equal(budget('thread/compact/start'), 33);
+  assert.equal(budget('turn/interrupt'), 44);
+});
+
+test('PROXY-004: error frames keep the native JSON-RPC code and data', async () => {
+  const client = new CodexAppServerClient();
+  const { child } = await installRuntime(client);
+  child.stdin.onWrite = (raw) => {
+    const request = JSON.parse(raw) as { id?: number };
+    queueMicrotask(() => child.stdout.write(`${JSON.stringify({
+      id: request.id,
+      error: { code: -32600, message: 'chatgpt authentication required', data: { reason: 'auth' } },
+    })}\n`));
+  };
+  await assert.rejects(client.readThread('thread-x'), (error: unknown) => {
+    assert.ok(error instanceof CodexAppServerRpcError);
+    assert.equal(error.method, 'thread/read');
+    assert.equal(error.code, -32600);
+    assert.deepEqual(error.data, { reason: 'auth' });
+    assert.equal(error.message, 'chatgpt authentication required');
+    return true;
+  });
+  await stopClient(client);
+  child.exit();
+});
+
+test('PROXY-004: a runtime that dies after startup reports its recent stderr', async () => {
+  const client = new CodexAppServerClient();
+  const { child } = await installRuntime(client);
+  const causes: Error[] = [];
+  client.on('runtimeStopped', cause => { causes.push(cause); });
+  child.stderr.write('thread panicked at core/src/codex.rs\nAuthorization: Bearer sk-secretsecretsecret\n');
+  await new Promise(resolve => setImmediate(resolve));
+  child.exit(101);
+  assert.equal(causes.length, 1);
+  assert.match(causes[0]!.message, /Codex app-server stopped \(exit code 101\)\. Recent Codex stderr:\nthread panicked/);
+  assert.doesNotMatch(causes[0]!.message, /secretsecret/);
+});
+
+test('PROXY-004: respondError answers a server request with a JSON-RPC error', async () => {
+  const client = new CodexAppServerClient();
+  const { child } = await installRuntime(client);
+  await client.respondError(77, -32601, 'Gian does not handle attestation/generate.');
+  assert.deepEqual(JSON.parse(child.stdin.writes.at(-1)!), {
+    id: 77,
+    error: { code: -32601, message: 'Gian does not handle attestation/generate.' },
+  });
+  await stopClient(client);
+  child.exit();
 });
 
 test('PROXY-005: successful response clears its RPC timer', async () => {
@@ -710,6 +805,10 @@ test('PROXY-005: startup, RPC, and termination deadlines are configurable', () =
   assert.deepEqual(internals(client).deadlines, {
     startupMs: 101,
     rpcMs: 104,
+    historyRpcMs: 300_000,
+    compactMs: 1_800_000,
+    interruptMs: 20_000,
+    probeMs: 20_000,
     terminateGraceMs: 105,
   });
   assert.throws(

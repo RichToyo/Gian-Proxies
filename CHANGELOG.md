@@ -1,5 +1,65 @@
 # Gian Proxies Changelog
 
+## Claude Proxy 0.4.3 candidate - 2026-11-24
+
+- Keep the Claude Code process while a Bash command or subagent started in the background, or a run Claude starts on its own when one finishes, is in progress. The 10-minute idle stop used to kill them. The runtime now follows Claude's `background_tasks_changed` list and its in-progress runs, and starts the idle clock only when nothing runs. Runs Claude starts on its own reach Gian through native history replay.
+- Runtime unchanged: Claude Code 2.1.330.
+- Exact-artifact hosted qualification and publication remain required.
+
+## Codex Proxy 0.4.1 candidate - 2026-11-24
+
+- Upgrade the managed Codex Runtime from 0.169.1 to official 0.171.0 (`rust-v0.171.0` archive `58c88032…`, 176190739 bytes).
+- Serve sessions on per-session lanes of the shared proxy-kit: a slow session no longer stalls turns, steering or approvals in other sessions.
+- A timed-out app-server request fails only that request instead of restarting the shared app-server. `turn.interrupt` is bounded by a watchdog, and Host stops end as `interrupted`.
+- Keep Codex's own error text. Sign-in failures and HTTP 401 report `RUNTIME_AUTH_REQUIRED`, and unknown server requests are refused.
+- Map `GIAN_AGENT_HOME` onto `CODEX_HOME` in the Proxy, log the cause of quota failures, and cache rollout paths instead of rescanning history.
+- 0.4.0 is withdrawn and is skipped.
+- Exact-artifact hosted qualification and publication remain required.
+
+## Kimi Proxy 0.5.0 candidate - 2026-11-24
+
+- Port to Kimi Code 2.7 and upgrade the managed Runtime from 2.6.3 to 2.7.2 (`46cb6bf4…`, 61167615 bytes). The Proxy drives `kimi web --json --port 0`, the 2.7 session API and its `context` usage frame, and forks through `:fork` (Side Chat and turn forks). Only Kimi Code 2.7.1 and 2.7.2 are accepted; the legacy and 2.6 runtimes are removed.
+- Serve sessions on per-session lanes of the shared proxy-kit. A prompt queued behind a background or foreign native turn binds to its own turn.
+- Keep Kimi's own error text; `auth.*` and provider authentication errors report `RUNTIME_AUTH_REQUIRED`.
+- Report usage as one delta per Gian turn. Gian 0.6.16 or later records it; earlier Gian versions drop Kimi delta usage.
+- Map `GIAN_AGENT_HOME` onto `KIMI_CODE_HOME` in the Proxy; automatic updates stay off.
+- Exact-artifact hosted qualification and publication remain required.
+
+## DeepSeek Harness Proxy 0.4.1 candidate - 2026-11-24
+
+- Upgrade the managed Runtime from 0.2.2-rc.3 to 0.2.2-rc.5 and bundle Bridge 0.1.12 with Agent presets synced to rc.5.
+- Launch DSH with telemetry and the DeepSeek Session-log upload disabled, in the Agent Home (`DSH_HOME`).
+- Serve sessions on per-session lanes in the Proxy and the Bridge. The Bridge fences execution that arrives after its request deadline and exits on EOF. Shutdown, signals and crashes stop the DSH process group, and a failed start reports DSH's exit status and a bounded stderr tail.
+- Keep DSH's own failure text; credential errors report `RUNTIME_AUTH_REQUIRED`.
+- Count cached prompt tokens as input, report context occupancy, derive the catalog revision from its content and announce only real catalog changes.
+- 0.4.0 is withdrawn and is skipped.
+- Exact-artifact hosted qualification and publication remain required.
+
+## Grok Proxy 0.4.0 candidate - 2026-11-24
+
+- Upgrade the managed Grok CLI from 1.0.89 to 1.0.92 (`8b5f67b2…`, 190640272 bytes; xAI publishes no digest, so the bytes are matched independently).
+- Serve gian.proxy/2 through the shared proxy-kit.
+- Keep Grok's own error text with a bounded stderr tail, and decide sign-in by the ACP authentication error code.
+- After a crash, a forced interrupt or an idle stop, resume the native session in a new child. Interrupts are bounded by a 10-second watchdog. An idle child stops after 10 minutes (`GIAN_GROK_IDLE_TIMEOUT_MS`), but never while a background task or a turn Grok runs on its own is in progress.
+- Change model and effort through `session/set_config_option`; take turn usage from `PromptResponse.usage` and context only from `usage_update`; discover binaries under the machine HOME.
+- With Gian 0.6.16 or later, `grok login` in the Agent terminal signs in the Agent HOME.
+- Exact-artifact hosted qualification and publication remain required.
+
+## ZCode Proxy 0.5.0 candidate - 2026-11-24
+
+- Upgrade the Gian-built Runtime from App-source 3.16.2 (`3c5b227`, CLI 0.17.0) to v3.18.2 (`fec9759`, CLI 0.17.1). ZCode 3.18 encrypts `credentials.json` with a Keychain key; the Proxy stages the keyring binding and answers `interaction/requestCredentialCipher` as the upstream Host does.
+- End failed turns (3.18 `turn.failed`) with ZCode's own text instead of leaving the session busy; sign-in, API-key and Keychain failures report `RUNTIME_AUTH_REQUIRED`.
+- Report per-call context occupancy and one usage delta per turn; scope provider failures to their turn; bound interrupts with a watchdog; inherit the environment (including `PATH` and proxy variables) minus Gian internals.
+- Serve sessions through the shared proxy-kit. An idle app-server stops after 10 minutes and restarts transparently, but never while a background task runs.
+- Exact-artifact hosted qualification and publication remain required.
+
+## Antigravity Proxy 0.1.1 candidate - 2026-11-24
+
+- Upgrade the managed Runtime from agy 1.5.14 to the official Antigravity CLI 1.5.16 (Google release manifest; archive SHA-512 `33f5617d…`, 86506312 bytes; binary signed by Google LLC), repacked byte-for-byte as `agy` (asset `42490dbd…`, 86463263 bytes, deterministic).
+- Upstream `agy acp` fixes (1.5.15): a turn now stays open until the non-daemon background tasks and subagents it started finish, and reports their combined usage; in-progress tool calls are closed on cancel; `session/load` finishes history replay before answering; an unknown session id answers `-32002` instead of `-32603`.
+- No Proxy code change. `AGY_CLI_DISABLE_AUTO_UPDATE=true` is still honoured by 1.5.16, and sessions, the model list and quota keep reusing the user's own agy sign-in.
+- Exact-artifact hosted qualification and publication remain required.
+
 ## Claude Proxy 0.4.2 candidate - 2026-11-23
 
 - Upgrade the managed Claude Code Runtime from 2.1.327 to official 2.1.330 (`f7c5093b…`, 363855808 bytes, from Anthropic's release manifest). Upstream fixes include a multi-minute freeze after compacting a very long conversation, `--resume` failing when the last saved message has an invalid timestamp, lower memory use in long SDK sessions, and background agents left waiting after an interrupt.

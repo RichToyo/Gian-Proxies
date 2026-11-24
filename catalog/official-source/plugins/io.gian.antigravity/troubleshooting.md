@@ -14,7 +14,7 @@
   `localharness_external` sibling from the same archive. Another ACP agent
   reporting the same version is not the Antigravity Runtime.
 - Runtime shown as unverified: your own `agy` updated past the verified
-  1.5.14. It still runs; choose the managed Runtime for the verified version.
+  1.5.16. It still runs; choose the managed Runtime for the verified version.
 - Approval no longer pending: reopen the current request. Do not replay an
   option from an older turn or Inbox occurrence.
 - Interrupted or crashed turn: inspect native/session state before sending

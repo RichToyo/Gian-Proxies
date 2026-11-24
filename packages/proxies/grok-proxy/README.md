@@ -1,15 +1,23 @@
 # @gian/grok-proxy
 
-Runtime candidate 1.0.67 (Proxy 0.3.13) is pinned to exact official bytes.
-The npm platform archive passes its published SHA-512 integrity, and its Brotli-decoded binary matches x.ai byte for byte.
-Isolated ACP initialize comparison against 1.0.62 retains the existing capability shape and newly advertises image input.
-Real Provider/image turns and authenticated approval behavior remain separate acceptance checks.
+Proxy 0.4.0 targets the managed Grok CLI **1.0.92** (stable on 2026-11-19),
+pinned to the official raw macOS arm64 bytes from
+`https://x.ai/cli/grok-1.0.92-macos-aarch64` (190640272 bytes, sha256
+`8b5f67b24f2cc9a4341d8e2eb7f67e3228d7d647ed04752a4f932f7133e5ab08`; xAI
+publishes no digest, so it was computed and re-verified independently).
+Credential-free ACP `initialize` and `session/new` were checked against 1.0.92;
+real Provider turns remain a separate acceptance check.
 
 Shared structured-runtime adapter for Grok Build's ACP server.
 
 The process bridges two newline-delimited JSON protocols:
 
-- stdin/stdout facing Gian Host: `gian.proxy/2.1`-`2.3`.
+- stdin/stdout facing Gian Host: `gian.proxy/2.1`-`2.3`, served by
+  `@gian/proxy-kit`. Requests are serialized per session; approval answers,
+  interrupt, steer and shutdown overtake a busy session; `initialize` is a
+  barrier; customization and quota reads run beside the sessions. A
+  notification waits only for in-flight requests of its own session, and
+  outbound lines are capped at the 16 MiB frame limit.
 - a session-scoped child `grok [--deny <rules>...] [--disallowed-tools search_tool,use_tool] agent --no-leader stdio`:
   official ACP v1 via `@agentclientprotocol/sdk`. The Proxy process starts only
   after the Gian session cwd and sandbox profile are known. The default profile
@@ -34,8 +42,6 @@ that was never created. Unsupported methods are
 - `x.ai/session/delete` — native delete, guarded: attached or
   Side-Chat-backed sessions and sessions missing from the native directory
   listing are never deleted.
-- `x.ai/session/update_mcp_servers` — mid-session MCP swap for admitted Host
-  servers.
 - `x.ai/mcp/list`, `x.ai/skills/list`, `x.ai/hooks/list` — read-only
   inventory backing `customization.list`/`customization.detail`. Nothing is
   executed and no MCP server is contacted by the inventory paths.
@@ -65,10 +71,38 @@ Known model/config bookkeeping notifications stay session-scoped. Sparse tool
 updates and turn-end closure retain the original tool title and presentation;
 Question cancellation resolves as cancelled on the Host wire.
 
-Model and reasoning effort are per-session state. A fresh session starts at
-the runtime default; a loaded/resumed session reports its model only once the
-runtime proves it, and fork children inherit the parent's values at fork
-time. The MCP disk scan and the child process resolve the same Provider Home
+Model and reasoning effort are per-session state. Grok 1.0.92 returns a
+typed `configOptions` list (`model`, and `reasoning_effort` when the model
+takes one) from `session/new`, `session/load` and `session/resume`; the Proxy
+adopts it as the session's evidence and changes it with the standard
+`session/set_config_option`. `config_option_update` and
+`current_model_update` are tracked outside a turn too, so a model Grok
+switches on its own (for example when it leaves the list) is republished as
+the session's turn options. Fork children inherit the parent's values at fork
+time. A BYOK model without an effort option refuses a thinking level.
+
+Turn usage comes from the standard `PromptResponse.usage` (Grok's `_meta`
+token fields are only a fallback) and is reported as a per-turn conversation
+delta. Context occupancy comes only from `usage_update` (`used`/`size`).
+
+## Process lifecycle and errors
+
+One Grok child serves the session (and its Side Chats). It is stopped after
+10 idle minutes (`GIAN_GROK_IDLE_TIMEOUT_MS`, `0` disables); the next turn
+resumes the native session with `session/resume` in a new child and
+re-applies the selected model and effort. The same path recovers a session
+after the child exits unexpectedly: the session is reported `stale` with the
+exit and the child's stderr, and the next turn resumes it instead of
+prompting a child that never loaded it. `turn.interrupt` sends
+`session/cancel`; a prompt that has not settled 10 s later ends as
+interrupted and the child is stopped, so the session can take a new turn.
+
+The Proxy keeps a bounded, redacted tail of the child's stderr and attaches
+it to startup failures and to turns that die with the child. Sign-in is
+decided by the ACP auth code `-32000` (what 1.0.92 sends for `session/new`
+without a credential) and surfaces as `RUNTIME_AUTH_REQUIRED` with the CLI's
+own text; any other error keeps its message and its native JSON-RPC code in
+`details.nativeCode`. The MCP disk scan and the child process resolve the same Provider Home
 (`GIAN_AGENT_HOME`, then legacy `GROK_HOME`, then the default directory).
 
 Native fork is never probed speculatively (a probe could create session

@@ -11,7 +11,10 @@ You choose a workspace and task settings in Gian; DSH executes through its own A
 - Supports text tasks, native-state replay, configuration resolution, reasoning, usage, Step and Request events.
 - Trusted existing Gian sessions can resume with binding proof. This is not permission to import arbitrary external native DSH session IDs.
 - Permission interactions are available only when the Bridge declares them and can round-trip native requests. Permission presets retain DSH semantics.
-- Does not declare arbitrary native-history discovery/deletion, renaming, images, ordinary file attachments, Sidechat or forks. Internal methods are not automatically public Host capabilities.
+- Image and file attachments, skill invocation, steering, fork (head or at a turn), Side Chat and listing native sessions are supported when the connected Bridge reports the native boundary; image input also needs a model that accepts images. Native-history deletion and renaming are not declared. Internal methods are not automatically public Host capabilities.
+- Interrupts and approvals never wait behind another session's work: each Gian session has its own request lane in the Proxy and the Bridge.
+- Failures show DSH's own error text. A missing or rejected credential is reported as sign-in/credential required with the file to edit; rate limits and transient server errors are marked retryable; quota exhaustion and content refusals are not.
+- Usage counts cached prompt tokens inside input tokens and reports context occupancy against the model's advertised window.
 - Customization inventory distinguishes readable, partially visible and upstream-unsupported data. Unsupported does not mean absent.
 
 Do not treat all tool activity as successful or claim complete question/MCP integration without Bridge evidence.
@@ -45,13 +48,37 @@ The complete installation needs Gian's Node environment, managed DSH Runtime, DS
 
 These are program components, not account settings. Install the complete signed Catalog archive and plan; do not run npm update inside managed directories or replace the Bridge independently. An unchanged component version still needs to belong to the current combination.
 
-Before actual startup, the Proxy prepares/checks the gian profile in DSH_HOME so the Bridge resolves. This controlled profile is distinct from the user's model-service configuration.
+Before actual startup, the Proxy prepares/checks its `gian-<hash>` profile in DSH_HOME so the Bridge resolves. This controlled profile is distinct from the user's model-service configuration.
+
+Every DSH the Proxy starts runs with `DSH_TELEMETRY_DISABLED=1` (no OpenTelemetry export) and with the DeepSeek Session-log upload (`session-log-deepseek`, the `dsh_session_log` field DSH otherwise adds to official DeepSeek API requests) disabled. The upload switch is a `--patch` overlay the Proxy writes as `gian-launch.patch.yml` in its profile, so it outranks `$DSH_HOME/cordis.patch.yml`. Other DSH instances you run yourself keep their own settings.
 
 ## 5. First use
 
 1. Install DeepSeek Harness Integration and wait for the Proxy, DSH Runtime and dependencies to pass checks and activate.
 2. Add an Agent. The default HOME is `~/.dsh`; choose a new managed HOME for isolation.
-3. Configure a Provider through the current DSH Web settings flow for this HOME. DSH has no general CLI login command; a working configuration in another profile does not prove the gian profile is ready.
+3. Give that HOME a Provider credential. DSH lists a Provider's models only once its key resolves; until then Gian reports that a credential is required and names the file. For DeepSeek, put the key in `<HOME>/.credentials.yaml`:
+
+   ```yaml
+   version: 1
+   refs:
+     DEEPSEEK_API_KEY: sk-...
+   ```
+
+   Other Providers (for example OpenAI through DSH's pi-ai adapter) also need a route in `<HOME>/cordis.patch.yml`, which every profile of that HOME reads:
+
+   ```yaml
+   - id: llm-pi-ai
+     config:
+       providers:
+         openai:
+           apiKeyEnv: OPENAI_API_KEY
+   - id: agent-default-model
+     config:
+       provider: openai
+       model: gpt-5.4-mini
+   ```
+
+   with `OPENAI_API_KEY` under `refs:` in `.credentials.yaml`. DSH Web (`DSH_HOME=<HOME> dsh web`) can save keys, because keys go to the shared `.credentials.yaml`, but its other settings (Provider routes, default model) are saved into the `web` profile and are not seen by Gian's profile.
 4. Check the Provider, Model, Reasoning and Agent Preset options actually returned by DSH/Bridge.
 5. Try a small workspace task and inspect tools, permission presets and completion. Program installation does not complete Provider account setup.
 
@@ -63,8 +90,16 @@ DSH_HOME points to the Agent's state directory. It defaults to `~/.dsh`; a separ
 
 ```text
 <dataDir>/homes/ai.deepseek.harness/<agentId>/
-  profiles/gian/
+  .credentials.yaml
+  cordis.patch.yml
+  profiles/gian-<hash>/
+    package.json
+    gian-launch.patch.yml
 ```
+
+The Proxy maps Gian's Agent HOME to `DSH_HOME` itself. The `<hash>` follows the Gian data directory, Runtime and Proxy paths, so each update or a side-by-side development install gets its own profile; on launch the Proxy removes earlier `gian-<hash>` profiles whose Bridge link points at a removed install, and leaves live and foreign profiles alone. Credentials, `cordis.patch.yml` and sessions stay in the HOME, not in the profile.
+
+`~/.agents` (global `AGENTS.md` and skills) is shared by every HOME on purpose: it is your cross-tool instruction root and holds no credentials or sessions. Set `DSH_AGENTS_HOME` in the environment Gian starts from if a HOME must not see it.
 
 DSH manages configuration, authentication and sessions in its HOME/profile; exact files depend on the DSH version. The Bridge in the Proxy archive is program code. Do not mix these locations or copy them over one another as a dependency repair.
 
@@ -72,7 +107,7 @@ Choose a separate managed HOME for another account or configuration. Gian does n
 
 ## 7. Reverse proxies and custom endpoints
 
-Custom endpoints belong to DSH Provider configuration. Configure the selected HOME and actual gian profile using the current DSH format, and verify the model's association with that Provider.
+Custom endpoints belong to DSH Provider configuration. Configure them in the selected HOME's `cordis.patch.yml` (for example a `baseURL` on an `llm-pi-ai` provider route) using the current DSH format, and verify the model's association with that Provider.
 
 The Bridge stdio channel and Gian Catalog URL are not model Base URLs. DSH has its own Provider and Agent Preset layers; another CLI's environment-variable names are not automatically equivalent.
 
@@ -92,8 +127,9 @@ Verify DSH can read the Provider configuration before diagnosing the Bridge/Prox
 | --- | --- | --- |
 | @gian/dsh-bridge missing | Complete published Proxy package | Restore/reinstall the complete Integration, not an unknown Bridge copy |
 | gian profile will not start | Profile completeness and matched components | Repair through normal installation/startup; retain HOME |
-| Empty models or Providers | Current HOME and gian profile settings | Configure in the same maintenance terminal, not another profile |
+| Credential required / empty models | `<HOME>/.credentials.yaml` and `<HOME>/cordis.patch.yml` of the Agent's HOME | Add the key (and route) there; settings saved in DSH Web's `web` profile do not reach Gian's profile |
 | Native restoration rejected | Active owner and Gian binding proof | End the old owner normally; do not bypass binding proof |
-| Attachments or forks unavailable | Declared public capabilities | Use supported text/workspace tools; do not silently discard attachments |
+| Attachments, forks or Side Chat unavailable | Capabilities the connected Bridge declared; image input also needs an image-capable model | Update to the certified Proxy/Runtime combination; do not silently discard attachments |
+| DSH fails to start | The error text, which ends with DSH's own stderr | Fix the reported profile/Runtime problem, then retry |
 | Permission interaction missing | Bridge declaration and native round trip | Report redacted protocol/version evidence, not invented permission labels |
 | Node/program startup fails | Gian Node, DSH and Bridge integrity | Restore the certified combination for the failed stage, not the machine-wide Node installation |

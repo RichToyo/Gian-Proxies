@@ -1,27 +1,38 @@
 import { createHash } from 'node:crypto';
-import { inputItemsOf, terminalEventIdFor, type ReplayEvent } from '../core/replay.js';
-import type { KimiMessage } from '../core/types.js';
+import { conversationTurnError } from './conversation-error.js';
 import { projectConversationItem } from './conversation-item.js';
-import { projectConversationUsage } from './conversation-usage.js';
+import { conversationUsageEventSource, sumConversationUsage } from './conversation-usage.js';
 import { restoreConversationInput } from './conversation-input-metadata.js';
+
+export type ReplayEvent = {
+  method: string;
+  eventId: string;
+  sessionId: string;
+  replayStreamId: string;
+  sequence: number;
+  sourceTurnId: string;
+  emittedAt: string;
+  data: Record<string, unknown>;
+};
+
+/** Terminal identity shared by live turns and replay. */
+export function terminalEventIdFor(nativeSessionId: string, sourceTurnId: string, method: 'turn.completed' | 'turn.failed'): string {
+  return `evt-${createHash('sha256').update(JSON.stringify([nativeSessionId, sourceTurnId, method])).digest('hex').slice(0, 16)}`;
+}
 
 type Frame = Record<string, unknown>;
 function object(value: unknown): value is Frame { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function id(value: unknown): value is string { return typeof value === 'string' && value !== ''; }
 function digest(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16); }
 
-/** Build replay from the same native items as live projection. If native
- * history cannot faithfully identify an input, fail instead of fabricating it. */
-export function buildConversationReplay(context: { sessionId: string; nativeSessionId: string; replayStreamId: string;
-  turns: Frame[]; messages: KimiMessage[] }): ReplayEvent[] {
-  const events: ReplayEvent[] = [];
-  const push = (sourceTurnId: string, method: string, eventId: string, data: Frame, emittedAt: string) => {
-    events.push({ method, eventId, sessionId: context.sessionId, replayStreamId: context.replayStreamId,
-      sequence: events.length + 1, sourceTurnId, emittedAt, data });
-  };
+/** Group native turns into Gian turns: an opener's single prompt id names
+ * the group, background-task continuations join the turn that owns the
+ * task, and system-only turns (compaction) stand alone. Unattributable
+ * history throws instead of being guessed. */
+export function groupConversationTurns(turns: Frame[]): Array<{ promptId: string; turns: Frame[] }> {
   const groups: Array<{ promptId: string; turns: Frame[] }> = [];
   const owners = new Map<string, number>();
-  for (const turn of context.turns) {
+  for (const turn of turns) {
     if (!id(turn.turn_id) || !id(turn.started_at) || !Array.isArray(turn.items)) throw new Error('Invalid Kimi conversation history turn.');
     const opener = turn.items.find(item => object(item) && item.type === 'user_message' && item.placement === 'opener');
     let index: number;
@@ -53,11 +64,25 @@ export function buildConversationReplay(context: { sessionId: string; nativeSess
       }
     }
   }
+  return groups;
+}
+
+/** Build replay from the same native items as live projection. If native
+ * history cannot faithfully identify an input, fail instead of fabricating it. */
+export function buildConversationReplay(context: { sessionId: string; nativeSessionId: string; replayStreamId: string;
+  turns: Frame[] }): ReplayEvent[] {
+  const events: ReplayEvent[] = [];
+  const push = (sourceTurnId: string, method: string, eventId: string, data: Frame, emittedAt: string) => {
+    events.push({ method, eventId, sessionId: context.sessionId, replayStreamId: context.replayStreamId,
+      sequence: events.length + 1, sourceTurnId, emittedAt, data });
+  };
+  const groups = groupConversationTurns(context.turns);
   for (const group of groups) {
     const promptId = group.promptId;
     const first = group.turns[0]!;
     push(promptId, 'turn.started', `evt-${digest([context.nativeSessionId, promptId, 'turn.started'])}`, {}, first.started_at as string);
     let lastEnd: { turn: Frame; time: string } | null = null;
+    let failure: ReturnType<typeof conversationTurnError> | null = null;
     let anyFailure = false;
     let anyLimit = false;
     for (const turn of group.turns) {
@@ -68,10 +93,9 @@ export function buildConversationReplay(context: { sessionId: string; nativeSess
           let input = restoreConversationInput(value);
           const gaps: string[] = [];
           if (input === null) {
-            const matches = context.messages.filter(message => message.role === 'user'
-              && (message.id === value.item_id || (id(message.prompt_id) && Array.isArray(value.prompt_ids) && value.prompt_ids.includes(message.prompt_id))));
-            if (matches.length > 1) gaps.push('The original message identity is ambiguous.');
-            input = matches.length === 1 ? inputItemsOf(matches[0]!) : value.text ? [{ type: 'text', text: value.text }] : [];
+            // Not sent by Gian (or sent before input metadata existed): only
+            // the native text survives; 2.7 has no raw message history.
+            input = value.text ? [{ type: 'text', text: value.text }] : [];
             const mediaCount = input.filter(item => item.type === 'localFile' || item.type === 'localImage').length;
             if (mediaCount !== value.attachments.length) {
               input = input.filter(item => item.type !== 'localFile' && item.type !== 'localImage');
@@ -103,17 +127,23 @@ export function buildConversationReplay(context: { sessionId: string; nativeSess
       }
       if (turn.status !== 'ended' || !['completed', 'interrupted', 'failed'].includes(String(turn.outcome))) throw new Error('Kimi history contains an unfinished native turn.');
       const endTime = id(turn.ended_at) ? turn.ended_at : turn.started_at as string;
-      const usage = projectConversationUsage(turn.usage);
-      if (usage) push(promptId, 'usage.updated', `evt-${digest([context.nativeSessionId, promptId, ['turn-usage', turn.turn_id, usage]])}`, usage, endTime);
-      if (turn.outcome === 'failed' && turn.end_reason !== 'max_steps') anyFailure = true;
+      if (turn.outcome === 'failed' && turn.end_reason !== 'max_steps') {
+        anyFailure = true;
+        failure = conversationTurnError(turn.error, typeof turn.end_reason === 'string' ? turn.end_reason : undefined);
+      }
       if (turn.end_reason === 'max_steps') anyLimit = true;
       lastEnd = { turn, time: endTime };
     }
     if (!lastEnd) throw new Error('Kimi history group has no terminal turn.');
     const { turn, time: endTime } = lastEnd;
+    const usage = sumConversationUsage(group.turns.map(value => value.usage));
+    if (usage) {
+      const ids = group.turns.filter(value => value.usage !== undefined).map(value => value.turn_id as string);
+      push(promptId, 'usage.updated', `evt-${digest([context.nativeSessionId, promptId, conversationUsageEventSource(ids, usage)])}`, usage, endTime);
+    }
     const failed = anyFailure;
     const method = failed ? 'turn.failed' : 'turn.completed';
-    const data = failed ? { error: { domainCode: 'RUNTIME_ERROR', message: 'Kimi turn failed.', retryable: false, details: {} } }
+    const data = failed ? { error: failure ?? conversationTurnError(undefined) }
       : { stopReason: anyLimit ? 'limit_reached' : turn.outcome === 'interrupted' ? 'cancelled'
         : turn.end_reason === 'blocked' ? 'other' : 'completed' };
     push(promptId, method, terminalEventIdFor(context.nativeSessionId, promptId, method), data, endTime);

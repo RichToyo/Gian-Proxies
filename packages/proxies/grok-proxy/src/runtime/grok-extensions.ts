@@ -18,7 +18,6 @@ export const GROK_EXT_METHODS = [
   'x.ai/session/fork',
   'x.ai/session/rename',
   'x.ai/session/delete',
-  'x.ai/session/update_mcp_servers',
   'x.ai/session/usage',
   'x.ai/mcp/list',
   'x.ai/skills/list',

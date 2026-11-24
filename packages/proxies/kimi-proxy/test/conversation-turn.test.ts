@@ -18,7 +18,7 @@ test('native turn binds its prompt, holds approval for the user, and waits for o
   turn.receive(f({ type: 'item.started', turn_id: 'native-turn', item: { type: 'tool_call', item_id: 'tool1', name: 'Bash', status: 'running' } }));
   assert.deepEqual(events.map(event => event.method), ['interaction.requested', 'activity.updated']);
   turn.receive(f({ type: 'todo', items: [{ title: 'Inspect', status: 'in_progress' }] }));
-  turn.receive(f({ type: 'usage', context_tokens: 12, max_context_tokens: 100 }));
+  turn.receive(f({ type: 'context', context_tokens: 12, max_context_tokens: 100 }));
   assert.deepEqual(events.slice(-2).map(event => event.method), ['plan.updated', 'usage.updated']);
   assert.deepEqual(turn.response('apr:i1', 'approved', {}), { path: '/api/v1/sessions/native/interactions/i1', json: { kind: 'approval', decision: 'approved' } });
   assert.equal(events.some(event => event.method === 'interaction.resolved'), false);
@@ -29,7 +29,7 @@ test('native turn binds its prompt, holds approval for the user, and waits for o
   assert.equal(turn.acknowledge('apr:i1', 'approved', '2026-11-16T12:00:01Z'), true);
   assert.equal(finalized, 0);
   turn.receive(f({ type: 'task', task_id: 'background', kind: 'subagent', status: 'ended', outcome: 'completed', parent_tool_call_id: 'tool1' }));
-  turn.receive({ type: 'event.session.work_changed', session_id: 'native', payload: { busy: false, main_turn_active: false, pending_interaction: 'none' } });
+  turn.receive({ type: 'session', change: 'updated', session_id: 'native', session: { id: 'native', activity: 'idle', pending_interaction: 'none' } });
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(finalized, 1);
   assert.equal(events.at(-1)?.method, 'turn.completed');
@@ -88,7 +88,7 @@ test('new background work during file-history lookup prevents premature completi
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(finalized, 0);
   turn.receive(f({ type: 'task', task_id: 'late', kind: 'other', status: 'ended', outcome: 'completed' }));
-  turn.receive({ type: 'event.session.work_changed', session_id: 'native', payload: { busy: false, main_turn_active: false, pending_interaction: 'none' } });
+  turn.receive({ type: 'session', change: 'updated', session_id: 'native', session: { id: 'native', activity: 'idle', pending_interaction: 'none' } });
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(finalized, 1);
   assert.deepEqual(events.map(event => event.method), ['diff.updated', 'turn.completed']);
@@ -135,7 +135,7 @@ test('owned background notification and continuation remain on the admitted turn
   const turn = new KimiConversationTurn({ sessionId: 's', nativeSessionId: 'native', streamId: 'stream', turnId: 'gian-turn', promptId: 'p',
     nextSequence: () => ++sequence, emit: event => events.push(event), onFinalized: () => { finalized += 1; } });
   const f = (value: Record<string, unknown>) => ({ session_id: 'native', agent_id: 'main', event_created_at: '2026-11-16T12:00:00Z', ...value });
-  const work = (busy: boolean) => ({ type: 'event.session.work_changed', session_id: 'native', payload: { busy, main_turn_active: busy, pending_interaction: 'none' } });
+  const work = (busy: boolean) => ({ type: 'session', change: 'updated', session_id: 'native', session: { id: 'native', activity: busy ? 'turn' : 'idle', pending_interaction: 'none' } });
   turn.receive(f({ type: 'task.list', tasks: [] }));
   turn.receive(f({ type: 'turn.started', turn: { turn_id: 'primary', turn_number: 0 } }));
   turn.receive(f({ type: 'item.ended', turn_id: 'primary', item: { type: 'user_message', item_id: 'u', placement: 'opener', prompt_ids: ['p'] } }));

@@ -44,10 +44,21 @@ export class GrokProtocolError extends Error {
     readonly domainCode: DomainCode,
     message: string,
     retryable = false,
+    /** Native facts (e.g. the ACP error code) carried in `data.details`. */
+    readonly details: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = 'GrokProtocolError';
     this.retryable = retryable;
+  }
+}
+
+/** An outbound line that would exceed the negotiated NDJSON frame limit. The
+ *  line is never written. */
+export class GrokFrameLimitError extends GrokProtocolError {
+  constructor() {
+    super('RUNTIME_ERROR', 'Proxy output exceeds the negotiated frame limit.');
+    this.name = 'GrokFrameLimitError';
   }
 }
 
@@ -59,10 +70,6 @@ export class GrokJsonRpcError extends Error {
     super(message);
     this.name = 'GrokJsonRpcError';
   }
-}
-
-export function writeJsonLine(stream: NodeJS.WritableStream, payload: unknown): void {
-  stream.write(`${JSON.stringify(payload)}\n`);
 }
 
 export function jsonRpcError(error: unknown) {
@@ -79,7 +86,7 @@ export function jsonRpcError(error: unknown) {
       data: {
         domainCode: error.domainCode,
         retryable: error.retryable,
-        details: {},
+        details: error.details,
       },
     };
   }
@@ -92,56 +99,5 @@ export function jsonRpcError(error: unknown) {
       retryable: false,
       details: {},
     },
-  };
-}
-
-export function createProtocolWriter(outputStream: NodeJS.WritableStream) {
-  return {
-    result(id: string, result: unknown) {
-      writeJsonLine(outputStream, { jsonrpc: JSONRPC, id, result });
-    },
-    error(id: string | null, error: unknown) {
-      writeJsonLine(outputStream, { jsonrpc: JSONRPC, id, error: jsonRpcError(error) });
-    },
-    notification(method: string, params: unknown) {
-      writeJsonLine(outputStream, { jsonrpc: JSONRPC, method, params });
-    },
-  };
-}
-
-export function parseRequestLine(line: string): {
-  jsonrpc: '2.0';
-  id: string;
-  method: string;
-  params: Record<string, unknown>;
-} {
-  let value: unknown;
-  try {
-    value = JSON.parse(line);
-  } catch {
-    throw new GrokJsonRpcError(JSONRPC_ERROR_CODES.PARSE_ERROR, 'Request is not valid JSON.');
-  }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new GrokJsonRpcError(JSONRPC_ERROR_CODES.INVALID_REQUEST, 'Request must be a JSON object.');
-  }
-  const record = value as Record<string, unknown>;
-  if (record.jsonrpc !== JSONRPC) {
-    throw new GrokJsonRpcError(JSONRPC_ERROR_CODES.INVALID_REQUEST, 'jsonrpc must be "2.0".');
-  }
-  if (typeof record.id !== 'string' || record.id.length === 0) {
-    throw new GrokJsonRpcError(JSONRPC_ERROR_CODES.INVALID_REQUEST, 'Request id must be a non-empty string.');
-  }
-  if (typeof record.method !== 'string' || record.method.length === 0) {
-    throw new GrokJsonRpcError(JSONRPC_ERROR_CODES.INVALID_REQUEST, 'method is required.');
-  }
-  const params = record.params;
-  if (params !== undefined && (typeof params !== 'object' || params === null || Array.isArray(params))) {
-    throw new GrokJsonRpcError(JSONRPC_ERROR_CODES.INVALID_PARAMS, 'params must be an object.');
-  }
-  return {
-    jsonrpc: JSONRPC,
-    id: record.id,
-    method: record.method,
-    params: (params ?? {}) as Record<string, unknown>,
   };
 }

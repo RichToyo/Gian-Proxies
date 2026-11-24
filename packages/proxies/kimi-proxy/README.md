@@ -1,178 +1,115 @@
 # @gian/kimi-proxy
 
-Shared Gian Proxy for Kimi Code, driven by the **Kimi local server API**
-(`kimi web` HTTP REST + `/api/v1/ws` WebSocket). The previous ACP transport
-(`kimi acp` over `@agentclientprotocol/sdk`) is retired.
+Shared Gian Proxy for Kimi Code, driven by the **Kimi Code 2.7 local server
+API**: a supervised `kimi web --json` child, its REST routes and the
+`/api/v1/ws` conversation feed.
 
-The process has two newline-delimited JSON protocols:
-
-- stdin/stdout facing the Gian host: the same request/notification envelope
-  used by the other Gian proxies (`gian.proxy/2.1–2.3`).
-- HTTP + WebSocket facing a supervised child `kimi web --no-open` process.
-
-The entry point requires an absolute managed binary path:
+- Host side: newline-delimited JSON-RPC `gian.proxy/2.1–2.3`, served by
+  `@gian/proxy-kit`.
+- Runtime side: HTTP + WebSocket to the proxy's own loopback `kimi web`.
 
 ```sh
 node dist/src/cli/spawn.js --kimi-bin /absolute/path/to/kimi
 ```
 
-Candidate Proxy version: **0.4.17**, targeting the official Kimi Code
-Runtime **2.6.3**. The new conversation feed uses native snapshot barriers,
-unsequenced turn identities, explicit interaction responses and native history
-pagination. Temporary event-channel loss is reconciled without resending the
-prompt. Exact hosted qualification and publication are still required.
+Proxy **0.5.0**, targeting the
+official Kimi Code Runtime **2.7.2** (`@moonshot-ai/kimi-code@2.7.2`,
+darwin-arm64). Hosted qualification and publication are still required.
 
-Legacy 2.3.3 behavior: successful question dismissal
-accepts the native 40909 response only for the dismiss endpoint with its
-verified success payload; REST and WebSocket resolution share one terminal
-fact, including when the native event arrives before the response.
-Native message and session list requests use their verified maximum of
-100 entries. They follow newest-first pages with `before_id` to fetch older
-records; message history is reversed into chronological replay order before
-Gian's independent event pagination.
-Cold native sessions are resumed by a bounded message-list read before WS
-subscription. Attach waits for an accepted subscription ACK, so a cold child
-cannot silently run prompts without an event stream. Every subsequent send
-rechecks this barrier on the current connection; a failed check leaves the
-binding stale and submits no prompt. Cached Side Chat resumes report live
-state and reattach stale bindings to the same native child after a restart.
-Turn-scoped live facts include the native prompt in their identity; replay
-tool facts also distinguish reused tool-call ids across turns. Replay snapshot
-identity is v2 for this change; terminal identities are unchanged. Existing
-stored transcripts are not rewritten.
+## Supported Runtime versions
 
-## Legacy Runtime baseline
+Only **2.7.1 and 2.7.2** are accepted, by `runtime.probe` and again before
+`kimi web` starts; anything else fails with a message naming the supported
+versions. Reasons:
 
-- Kimi Code CLI `2.3.3` (the Manifest and pinned Runtime candidate select
-  the same exact official archive). The native probes below cover earlier
-  baselines, not acceptance of the 2.3.3 Runtime. Evidence baseline: the
-  server's own OpenAPI 3.0.3 (`/openapi.json`) and AsyncAPI 3.1.0
-  (`/asyncapi.json`) documents, plus `packages/kap-server` sources embedded in
-  the official binary (`protocol/error-codes.ts`, `transport/ws/*`,
-  `middleware/*`). Re-verified for 2.3.0: the published server-api reference
-  diff from 2.2.0 adds optional fields, endpoints and native concurrency
-  errors. Codes 40931/40932 map to SESSION_BUSY/CONFLICT without automatic retry.
-  A live 2.3.0 `/openapi.json` + `/asyncapi.json` probe confirms
-  every REST route and WS message type this proxy uses. For the 2.3.1 patch,
-  the exact kap-server source diff (rest-session.ts, sessions.ts,
-  workspaces.ts, openapi/transforms.ts) shows: an added optional
-  session-takeover action this Proxy never calls, and a workspace trust
-  lookup that now reads the trust store directly instead of creating a
-  workspace instance first. Session/message/WS surfaces are unchanged. A
-  live 2.3.1 native server probe (isolated HOME, production supervisor and
-  token path, no user locks, no Provider turn) confirms 112 REST paths: the
-  only addition is `/api/v1/sessions/{session_id}:takeover`, with no existing
-  path or method removed. The 2.3.2 patch changes no kap-server file at all
-  (22 changed files across agent-core swarm/tooling, transcript folding and
-  docs; the swarm removal disables tool-driven swarm entry until the user
-  enables swarm mode - shared code that CAN affect web-runtime behavior, so
-  this Proxy declares and enables no swarm policy and relies on generic
-  isError/replay handling).
-- The proxy spawns its own dedicated server instance on a proxy-chosen free
-  port (loopback only, `--no-open --log-level silent`). The bearer token comes
-  from `$KIMI_CODE_HOME/server.token` (persisted by the CLI; rotated
-  via `kimi web rotate-token`). A crashed server is detected via the child
-  exit promise and surfaced as retryable `runtime.error`.
-- Sessions live in the shared Kimi store (`~/.kimi-code/sessions`); the proxy
-  is a client, never the owner of history.
+- 2.7 changed the server the Proxy drives: the session wire (`activity`
+  replaces `busy`/`main_turn_active`, `cwd` left `metadata`), unwrapped global
+  `session` events replace `event.session.work_changed` envelopes, the
+  `usage` occupancy feed became `context`, a main agent can report `ended`,
+  and `/messages` and `/children` are gone.
+- 2.7.0 is excluded: its turn-boundary fork mis-slices restored sessions with
+  in-turn steers (fixed in 2.7.1, upstream #5165).
+- Unknown versions, including later 2.7.x patches, are refused: Kimi changed
+  its event protocol in a patch release before (2.6.2).
+- The legacy protocol (2.1–2.3) and the 2.6 conversation generation were
+  removed. Both depended on endpoints 2.7 deleted, were exercised only by
+  fakes, and a store written by 2.7 is not readable by them anyway.
+
+## Runtime and home
+
+- The proxy spawns `kimi web --json --no-open --port 0 --host 127.0.0.1
+  --log-level silent`. `--json` mints a private in-memory bearer token and
+  prints one ready line (`{origin, ws_url, token,
+  kimi_agent_protocol_version}`); the shared `server.token` is never read, so
+  `kimi web rotate-token` cannot break a running Proxy. `--port 0` avoids the
+  silent port+1 fallback of a fixed port. Startup failure reports the CLI's
+  stderr tail. A crashed server marks sessions `stale` with a retryable
+  `runtime.error`; the next request starts a new server.
+- `GIAN_AGENT_HOME` (absolute) becomes `KIMI_CODE_HOME` inside the Proxy for
+  every reader: the version check, `kimi web`, the probe, customization
+  scans and quota. The Host's own `KIMI_CODE_HOME` is only a fallback.
+  Every child also gets `KIMI_CODE_NO_AUTO_UPDATE=1`.
 
 ## Architecture
 
 ```
-src/cli/spawn.ts            outer NDJSON loop, task queue (session-serial +
-                            pipelined scans), drain-on-EOF/shutdown
-src/protocol/v2-adapter.ts  gian.proxy surface, idempotency ledgers, catalog
-src/core/service.ts         orchestration: session lifecycle, turns,
-                            interactions, fork/sidechat, diff fetch
-src/core/projector.ts       per-session WS frame → gian notification
-                            projection (native IDs, seq-guard dedup)
-src/core/replay.ts          persisted messages → replay events (identity
-                            shared with the live stream)
-src/core/diff.ts            LCS unified diff from file-history checkpoints
-src/core/input.ts           outer input items → prompt content blocks
-src/core/customization.ts   read-only skills/mcp/hooks/rules inventory scan
-src/runtime/server-supervisor.ts  spawns/stops `kimi web`, token discovery
-src/runtime/rest-client.ts  envelope client + numeric error codes
-src/runtime/kimi-server.ts  WS facade: subscribe/cursors/reconnect/resync
-src/runtime/ws.ts           minimal RFC 6455 client (text frames)
+src/cli/spawn.ts                 proxy-kit server: per-session lanes, overtaking
+                                 replies, initialize barrier, pipelined scans
+src/protocol/v2-adapter.ts       gian.proxy surface, ledgers, catalog, per-session
+                                 notification barriers (Response first)
+src/core/service.ts              sessions, turns, interactions, fork/Side Chat,
+                                 replay, native list/rename/delete
+src/runtime/kimi-runtime.ts      version gate + lazy conversation runtime
+src/runtime/server-supervisor.ts `kimi web --json` spawn/ready/stop
+src/runtime/conversation-*.ts    channel, binding, settlement, turn projection,
+                                 replay, usage, errors
+src/runtime/home.ts, versions.ts home mapping and supported versions
 ```
-
-Deleted with ACP: the proxy-owned tool-terminal service (~900 lines +
-drain/fence machinery), the turn-identity persistence, the replay capture
-window, the hidden `/usage`–`/status` capture turns, and the ACP SDK
-dependency.
 
 ## Capability map
 
-### Supported (all evidenced against the 2.2.0 server surface)
-
 | Capability | Mechanism |
 |---|---|
-| `input.text` | `POST /sessions/{id}/prompts` content `{type:"text"}`. |
-| `input.localImage` | Content part `{type:"image", source:{kind:"path", path}}` — the server reads the local file itself (OpenAPI image source union). Validated (absolute path, regular file) before submission; no staging, nothing to roll back. |
-| `input.localFile` | Content part `{type:"file", path, name?, media_type?}` (same union). |
-| `input.skill` | Prompt-level `skills: [{name, args?}]` — the native per-turn activation (REST analogue of the `/<skill>` slash command). |
-| `turn.start` | `POST prompts` with a client-derived deterministic `prompt_id`; `PROMPT_ID_CONFLICT` (40927) makes retries idempotent. Turn config (model/thinking/permission_mode) rides the prompt as server-native turn-scoped overrides. A `queued` status means the server already had an active prompt → `SESSION_BUSY` instead of a silently queued turn. |
-| Turn events | `turn.started/ended` (native numeric turnId), `assistant.delta`/`thinking.delta` (volatile; Kimi 2.1.1 reuses the current durable seq and stamps `offset`, reset by `turn.step.started`), `tool.call.started` (args + structured display), `tool.result`, `agent.status.updated` usage. A native turn ending while owned background work or interactions remain does not end the admitted Gian turn; owned task continuations retain that turn until native work is idle. A bounded, backoff-based read-only session/task/interaction check reconciles missing terminal events only against a stable native cursor. Missing interaction outcomes remain unknown rather than being auto-answered. Retired or foreign work cannot emit events into the finished or next turn. |
-| `turn.interrupt` | `POST prompts/{prompt_id}:abort` → `{aborted, at_seq}`; an accepted abort maps `turn.ended(cancelled)` to `stopReason:"interrupted"` and starts a 15 s settle watchdog. A rejected abort reports an explicit conflict rather than claiming containment. If a background continuation supplies no native prompt ID, interrupt reports that the capability is unavailable instead of guessing an ID. |
-| `turn.steer` | Queue a prompt (`prompt_id` deterministic; 40927 ⇒ identical replay) then `POST prompts:steer {prompt_ids}`. Without a running turn the proxy fails with `TURN_NOT_FOUND` before submitting (upstream would silently queue). `prompt.steered` surfaces as a notice activity; the steered turn keeps its identity and terminal. |
-| `interaction` (permissions) | `event.approval.requested` → `interaction.requested` (`Allow`/`Deny`), `POST /approvals/{id} {decision, feedback?}`; expiry/foreign resolution → honest `interaction.resolved(cancelled)`; 40902/41001 → `INTERACTION_NOT_FOUND`. |
-| `interaction` (structured questions) | `event.question.requested` keeps every question/header/options/multi_select/allow_other as gian `inputs`; accept wraps each value into the native kind-discriminated answer record (`single`/`multi`/`other`, top-level `note` passes through), decline posts `:dismiss`. responseId ledger replays duplicates and CONFLICTs on reuse with different content. |
-| `session.rename` | `POST /sessions/{id}/profile {title}` — native rename. |
-| `session.fork` (head) | `POST /sessions/{id}/children` (the upstream head fork); child adopted (resume + subscribe), origin anchored on the last completed native turn. |
-| `session.fork.atTurn` | **Unsupported**: the engine `forkSessionOptionsSchema` has `turnIndex`, but the REST surface exposes no turn boundary (only head children). Refused with `FORK_BOUNDARY_UNAVAILABLE` naming the evidence. |
-| `sidechat.*` | Create = head child of the parent with an opaque encrypted resume ref (`OpaqueSidechatResumeStore`, GIAN_PLUGIN_DATA_DIR key); resume reattaches the child; close detaches + tombstones the ref, `providerDataDeleted:false` (child `:delete` permanence unverified). |
-| `session.native.list` | `GET /sessions` (cursor pagination mapped to the outer cursor; busy sessions excluded — they are not adoptable; owned sessions filtered). |
-| `session.native.delete` | `POST /sessions/{id}:delete` (`{deleted:true}`). Attached sessions refuse with `SESSION_BUSY`. |
-| `session.replay` + adoption | `GET /messages` (cursor-paged) → replay events keyed by native `prompt_id` when available; attach history is pull-only. Kimi 2.3.3's message projection does not supply `prompt_id` and can expose task-origin notifications as user messages. Their attribution to the earlier admitted Gian turn is not established by the live continuation fix and is not guaranteed on replay. |
-| `event.plan` | Native `tool.call.started display.kind:"todo_list"` items → `plan.updated` (status map done→completed); `plan_review` displays carry the plan text. Adjacent identical content is suppressed; distinct native calls retain distinct event identities, including A→B→A changes. |
-| `event.diff` | Per-owned-native-turn `GET /file-history/changes?turn_id` (path/status/additions/deletions) + before/after `file-history/content` checkpoints rendered as a bounded LCS unified diff. All terminal facets share a 10 s deadline; a wedged call skips the facet instead of stalling the terminal. |
-| Subagent/task activity | Owned `subagent.*`, `task.*` and `background.task.*` become `activity.updated` with `presentation.type:"agent"`; duplicate native lifecycle frames are coalesced and old or unowned task IDs are not assigned to a new turn. Subagent streams do not pollute the main transcript. |
-| `event.usage` | `agent.status.updated.usage.total` is projected live. Placeholder session metadata is never queried at finalization; session-scoped usage remains available when no turn is active. |
-| `catalog.list/resolve` | `GET /models` (provider aliases, `support_efforts`, `default_effort`, `max_context_size`) + `GET /config` default model. Model/thinking/approval options follow the selected model: declared efforts, or on/off when `thinking` is supported without efforts; `always_thinking` cannot offer off. The native default is the declared effort (otherwise the middle effort), or on for boolean models. Switching model-specific Catalog revisions drops stale thinking values in either direction; turn submission rejects unadvertised thinking before REST. |
-| `customization.list/detail` (2.3) | Read-only filesystem inventory (skills/mcp/hooks/rules), unchanged from the ACP generation. Hooks stay scan-only: the server API has no hook enumeration either. |
+| `input.text/localFile/localImage/skill` | `POST /sessions/{id}/prompts` content parts (`image` with a `path` source, `file` with `path`) and prompt-level `skills`. Gian input metadata rides the prompt so replay restores the exact input. |
+| `turn.start` | Deterministic `prompt_id`; 40927 is a duplicate. A Gian turn binds to native work only through the prompt id in the native opener. `queued` (2.7.1: another native turn, e.g. a background-notification turn, finishes first) is admitted: the turn binds when its own opener appears, and a foreign turn that ends unclaimed is excluded. `failed` reports the native turn error. |
+| `turn.interrupt` | `POST prompts/{id}:abort`; accepted aborts settle as `interrupted` with a 15 s watchdog. A prompt still queued when aborted ends as `interrupted` without a native turn. |
+| `turn.steer` | Queue a prompt, then `POST prompts:steer`. If no native prompt is running the steer prompt is withdrawn and the request fails. |
+| `interaction` | Native approval/question `interaction` frames; answers only for explicit Host actions via `POST /sessions/{id}/interactions/{iid}`. |
+| `session.fork` / `session.fork.atTurn` | `POST /sessions/{id}:fork`. `turn_index` is the **native turn number** (`turn_number`; agent-core `sliceMainRecordsAtTurn` matches the persisted wire turn id, and upstream's own test passes `turns.at(-1).turn_number`), not a position. A Gian turn that spans background continuations forks after its last native turn; older turns are resolved from native history. Unknown or unfinished boundaries → `FORK_BOUNDARY_UNAVAILABLE`. |
+| `sidechat.*` | `:fork` of the parent with the child metadata (`parent_session_id`, `child_session_kind: child`) that 2.6's `/children` wrote; opaque encrypted resume refs; close tombstones the ref (`providerDataDeleted:false`). Side Chat children are not offered by `session.native.list`. |
+| `session.replay` / attach | `GET /sessions/{id}/agents/main/turns` pages. Cold sessions resume through the WebSocket `subscribe` itself (2.6+ `resumeSessionById`); 2.7 has no raw message history, so input not sent by Gian replays as its native text. |
+| `session.rename` / `native.list` / `native.delete` | `POST /profile {title}`, `GET /sessions?busy=false&archived=false`, `POST /sessions/{id}:delete`. |
+| `event.usage` | One `delta` per Gian turn: the sum of its native turns' `turn.usage` (input includes cache read/creation). 2.7 exposes no conversation totals (the session wire dropped `usage`; 2.6.3 always sent zeros). Context occupancy comes from the `context` feed. |
+| `event.plan` / `event.diff` / reasoning | Native `todo` frames; per-turn `file-history` diffs; reasoning items. |
+| Retries and notices | Native `turn.updated` retry state is a `kimi:retry` activity until the step succeeds or the turn ends; `notice` frames become `kimi:notice` activities. |
+| `account.quota.read` | Managed Kimi provider only (`excluded` for others). |
+| `customization.list/detail` | Read-only filesystem inventory. |
 
-### Unsupported (with upstream evidence)
+Unsupported: Host MCP injection (`POST /sessions` accepts no inline MCP
+servers; writing the user's `mcp.json` would exceed Gian's boundary) and MCP
+elicitation (no server route).
 
-| Capability | Reason |
-|---|---|
-| Host MCP injection (`hostServices`) | `POST /api/v1/sessions` accepts no inline MCP servers: the engine's ephemeral per-session `mcpServers` (`klient` createSessionOptionsSchema) never crossed to the REST surface, and `POST /v2/mcp/servers` writes the user-level `mcp.json`, which exceeds Gian's "never modify user config" boundary. Refused with `CAPABILITY_NOT_SUPPORTED` naming the evidence. |
-| `session.fork.atTurn` | See above: no REST turn boundary. |
-| MCP elicitation | Not present in the server API (no elicitation route or ws event); Kimi's question channel is the agent's own AskUserQuestion, which the proxy already surfaces. |
+## Errors
 
-## Error mapping
-
-Numeric business codes (`kap-server/src/protocol/error-codes.ts`) map to gian
-DomainCodes in `normalizeKimiError`: 40001/40002/40409/41301 → `INVALID_PARAMS`,
-40401 → `SESSION_NOT_FOUND`, 40901 → `SESSION_BUSY`, 40402 → `TURN_NOT_FOUND`,
-40404/40405/40902/40909/41001/41002 → `INTERACTION_NOT_FOUND`, 40927 →
-`CONFLICT`, 40110–40113 → `RUNTIME_AUTH_REQUIRED`, 40926 → retryable
-`RUNTIME_ERROR`. WS `error` events map by string code
-(`auth.*` → `RUNTIME_AUTH_REQUIRED`, `context.overflow` → `SESSION_ERROR`,
-`loop.max_steps_exceeded` completes with `limit_reached`).
-
-## Restart semantics
-
-A server exit marks every attached session `stale`, fails the active turn
-(retryable), and emits `runtime.error`. The next `session.create` with the
-same native id rebinds (GET-then-subscribe; no second native session is
-created), and a proxy restart rebinding is driven by the Host's persisted
-native session id. WS reconnects resubscribe with the last delivered
-`{seq, epoch}` cursor; `resync_required` fails an in-flight turn honestly and
-re-anchors on the session's `last_seq`.
+- Failed turns carry Kimi's own `error.message`; `details` keep `nativeCode`,
+  `statusCode`, `requestId` and `endReason`; `retryable` follows the native
+  flag. `max_steps` completes with `limit_reached`.
+- `auth.*` (login_required, token_missing, token_unauthorized,
+  provisioning_required, model_not_resolved), `provider.auth_error` and REST
+  40110–40113 become `RUNTIME_AUTH_REQUIRED` with a sign-in / `api_key` hint.
+- Other REST business codes map in `normalizeKimiError` (40401
+  `SESSION_NOT_FOUND`, 40901/40931 `SESSION_BUSY`, 40927/40932 `CONFLICT`,
+  …) and keep the native code in `details`.
 
 ## Verification
 
-- `pnpm -F @gian/kimi-proxy test` — 46 deterministic tests against a fake
-  local server (REST envelope + WS frames + journal seq/epoch semantics),
-  driving the real proxy CLI end to end: supervisor/token discovery, prompt
-  payloads, event projection and barrier ordering, steering, abort/interrupt,
-  approvals/questions round-trips, plan/subagent/diff facts, fork/sidechat
-  lifecycle, native list/rename/delete, history-replay identity parity,
-  crash-stale-rebind, error-code mapping, catalog resolution, and Host
-  schema conformance (`proxyNotificationSchema`) for projected streams.
-- `pnpm -F @gian/kimi-proxy typecheck`.
-- NOT RUN: real-server acceptance (`KIMI_BIN` against a logged-in
-  `kimi web 2.2.0`). The fake encodes the researched upstream surface, but
-  steer-into-active-turn timing, `:delete` permanence for child sessions, and
-  `blocked` prompt admission deserve a real-server pass before shipping.
+- `pnpm --filter @gian/kimi-proxy test`: 111 tests. Unit tests for every
+  conversation component, plus an end-to-end suite that drives the real CLI
+  through the kit against a fake Kimi 2.7 server (`test/fixtures/
+  fake-kimi-server.mjs`) with Host conformance validation.
+- Credential-free checks against the real 2.7.2 binary (isolated HOME):
+  `--version`, the `--json` ready line, healthz, `kap.md`, session
+  create/get/subscribe/fork, `/messages` 404 and `/children` 40001, and the
+  built Proxy's initialize/catalog/create/replay/rename/close/native.list/probe.
+- NOT RUN here: authenticated model turns (the coordinator runs them with an
+  OpenAI API key).

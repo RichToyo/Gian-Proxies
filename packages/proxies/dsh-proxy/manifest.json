@@ -2,7 +2,7 @@
   "schemaVersion": 4,
   "id": "ai.deepseek.harness",
   "displayName": "DeepSeek Harness",
-  "pluginVersion": "0.3.13",
+  "pluginVersion": "0.4.1",
   "entry": "proxy.mjs",
   "protocol": {
     "name": "gian.proxy",
@@ -16,7 +16,7 @@
     "id": "deepseek-harness",
     "displayName": "DeepSeek Harness",
     "verifiedVersions": [
-      "0.2.2-rc.3"
+      "0.2.2-rc.5"
     ]
   },
   "branding": {

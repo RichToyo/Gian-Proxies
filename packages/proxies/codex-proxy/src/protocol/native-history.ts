@@ -11,8 +11,9 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
+
+import { resolveCodexHome } from '../runtime/home.js';
 
 export interface ReplayEvent {
   method: string;
@@ -79,7 +80,7 @@ export class CodexNativeHistoryWatcher {
 
   private readSignature(): string | null {
     if (!this.filePath) {
-      this.filePath = findSession(this.nativeSessionId, this.homeDir)?.path ?? null;
+      this.filePath = findSession(this.nativeSessionId, this.homeDir, { poll: true })?.path ?? null;
     }
     if (!this.filePath) return null;
     try {
@@ -253,11 +254,16 @@ export class NativeTurnIdentityStore {
   }
 }
 
+function configHomeFor(homeDir?: string): string {
+  return homeDir !== undefined ? join(homeDir, '.codex') : resolveCodexHome();
+}
+
+/** Full rollout-tree scans performed by this process (diagnostics, tests). */
+export const nativeHistoryScanMetrics = { fullScans: 0 };
+
 function collectRollouts(homeDir?: string, includeArchived = false): string[] {
-  const configured = process.env.CODEX_HOME;
-  const configHome = homeDir !== undefined
-    ? join(homeDir, '.codex')
-    : configured && isAbsolute(configured) ? configured : join(homedir(), '.codex');
+  nativeHistoryScanMetrics.fullScans += 1;
+  const configHome = configHomeFor(homeDir);
   const roots = [join(configHome, 'sessions'), ...(includeArchived ? [join(configHome, 'archived_sessions')] : [])];
   const files: string[] = [];
   const walk = (directory: string, depth: number) => {
@@ -276,6 +282,56 @@ function collectRollouts(homeDir?: string, includeArchived = false): string[] {
   };
   for (const root of roots) if (existsSync(root)) walk(root, 0);
   return files;
+}
+
+/**
+ * Rollout location per thread, so a history refresh after every turn does
+ * not walk all of `sessions/` and `archived_sessions/` again.
+ *
+ * - `confirmed` paths were read and matched the thread id. They are
+ *   revalidated on every lookup (cheap stat plus header read); a moved
+ *   (archived, unarchived) or rewritten file falls back to a full scan.
+ * - `hinted` paths come from app-server thread responses. Codex writes the
+ *   rollout lazily, so for the once-a-second history poll a hinted file
+ *   that does not exist yet means "no history yet", and a full scan that
+ *   found nothing is not repeated within MISS_TTL_MS. Every other lookup
+ *   (attach, the refresh after a turn, replay) scans again on a miss, so a
+ *   wrong hint or a just-written rollout can never hide history from them.
+ */
+interface RolloutLocation { path: string; confirmed: boolean; since: number }
+const rolloutLocations = new Map<string, RolloutLocation>();
+const fullScanMisses = new Map<string, number>();
+const MAX_ROLLOUT_LOCATIONS = 4_096;
+const MISS_TTL_MS = 5_000;
+const HINT_TTL_MS = 10 * 60_000;
+
+function locationKey(nativeSessionId: string, homeDir?: string): string {
+  return `${configHomeFor(homeDir)}\u0000${nativeSessionId}`;
+}
+
+function remember(key: string, location: RolloutLocation): void {
+  rolloutLocations.delete(key);
+  rolloutLocations.set(key, location);
+  fullScanMisses.delete(key);
+  while (rolloutLocations.size > MAX_ROLLOUT_LOCATIONS) {
+    rolloutLocations.delete(rolloutLocations.keys().next().value!);
+  }
+}
+
+/** Record where Codex says a thread's rollout lives (app-server `thread.path`). */
+export function rememberRolloutPath(nativeSessionId: string, path: unknown, homeDir?: string): void {
+  if (typeof path !== 'string' || !isAbsolute(path) || !path.endsWith(`-${nativeSessionId}.jsonl`)) return;
+  const key = locationKey(nativeSessionId, homeDir);
+  const existing = rolloutLocations.get(key);
+  if (existing?.confirmed && existing.path === path) return;
+  remember(key, { path, confirmed: false, since: Date.now() });
+}
+
+/** Drop what is known about a thread's rollout, e.g. after archiving it. */
+export function forgetRolloutPath(nativeSessionId: string, homeDir?: string): void {
+  const key = locationKey(nativeSessionId, homeDir);
+  rolloutLocations.delete(key);
+  fullScanMisses.delete(key);
 }
 
 function preview(text: string): string {
@@ -343,7 +399,27 @@ export function listCodexNativeSessions(
     }));
 }
 
-export function findSession(nativeSessionId: string, homeDir?: string): CodexFile | null {
+export function findSession(
+  nativeSessionId: string,
+  homeDir?: string,
+  options: { poll?: boolean } = {},
+): CodexFile | null {
+  const key = locationKey(nativeSessionId, homeDir);
+  const known = rolloutLocations.get(key);
+  if (known) {
+    const exists = existsSync(known.path);
+    const file = exists ? describe(known.path) : null;
+    if (file?.id === nativeSessionId) {
+      if (!known.confirmed) remember(key, { path: known.path, confirmed: true, since: Date.now() });
+      return file;
+    }
+    if (options.poll && !known.confirmed && !exists && Date.now() - known.since < HINT_TTL_MS) {
+      return null;
+    }
+    if (known.confirmed || exists || Date.now() - known.since >= HINT_TTL_MS) rolloutLocations.delete(key);
+  }
+  const missedAt = fullScanMisses.get(key);
+  if (options.poll && missedAt !== undefined && Date.now() - missedAt < MISS_TTL_MS) return null;
   const candidates = collectRollouts(homeDir, true).filter(path => path.endsWith(`-${nativeSessionId}.jsonl`));
   const matches = candidates.flatMap(path => {
     const file = describe(path);
@@ -351,5 +427,8 @@ export function findSession(nativeSessionId: string, homeDir?: string): CodexFil
   });
   if (candidates.length && !matches.length) throw new Error('Codex native history metadata is unavailable or invalid.');
   matches.sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
-  return matches[0] ?? null;
+  const found = matches[0] ?? null;
+  if (found) remember(key, { path: found.path, confirmed: true, since: Date.now() });
+  else fullScanMisses.set(key, Date.now());
+  return found;
 }

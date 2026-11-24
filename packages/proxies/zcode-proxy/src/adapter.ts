@@ -48,6 +48,7 @@ import {
   SessionInteractionActionError,
   SessionProjector,
   terminalEventIdFor,
+  usageDeltaData,
   type OuterNotification,
 } from './events.js';
 import {
@@ -187,6 +188,9 @@ function customizationUnavailableDetail(kind: string, id: string, message: strin
 
 const EMPTY_CATALOG: ProjectedCatalog = bootstrapCatalog('uninitialized');
 
+/** How long a confirmed stop waits for the native cancelled terminal. */
+const INTERRUPT_DEADLINE_MS = 10_000;
+
 /** Upstream task types surfaced in the native session list
  *  (task-list-session-membership.ts TASK_LIST_SESSION_TYPES, minus
  *  workflow_parent whose children are internal projections). */
@@ -196,7 +200,6 @@ const LISTABLE_SESSION_STATUSES = new Set(['idle', 'completed', 'error']);
 export class ZcodeV2Adapter {
   private initialized = false;
   private protocolVersion: '2.1' | '2.2' | '2.3' = '2.1';
-  private queue: Array<{ method: string; params: Record<string, unknown> }> | null = null;
   private catalog: ProjectedCatalog = EMPTY_CATALOG;
   private catalogPresentation: InnerPresentation | null = null;
   private catalogModelState: InnerReadState | null = null;
@@ -209,6 +212,19 @@ export class ZcodeV2Adapter {
   private optionsEmit: (notification: OuterNotification) => void = () => undefined;
   private runtimeKeyCache: string | null = null;
   private stopping = false;
+  /** Idle stop: the app-server is stopped on purpose and restarts with the
+   *  next request; adapter state (sessions, streams, sequences) is kept. */
+  private parked = false;
+  private parking: Promise<void> | null = null;
+  private resuming: Promise<void> | null = null;
+  private inflight = 0;
+  private lastActivityAt = Date.now();
+  /** Background tasks (a Bash command or subagent run in the background)
+   *  still running in this app-server, as `<native session>:<task id>`. A
+   *  turn ends while they run, and a silent one sends no events, so they are
+   *  tracked from their lifecycle events: stopping the app-server would
+   *  kill them. */
+  private readonly backgroundTasks = new Set<string>();
 
   constructor(
     private readonly transport: ZCodeTransport,
@@ -221,6 +237,9 @@ export class ZcodeV2Adapter {
       isNativeSessionOwned?: (nativeSessionId: string) => boolean;
       /** Shared model facts observed from live session snapshots. */
       modelFacts?: ModelFactStore;
+      onDiagnostic?: (info: Record<string, unknown>) => void;
+      /** Interrupt confirmation deadline before a local terminal (tests). */
+      interruptDeadlineMs?: number;
     },
   ) {
     this.registry = new SessionRegistry(options.dataDir);
@@ -232,30 +251,54 @@ export class ZcodeV2Adapter {
       this.handleUserInputReverseRequest(params, transportId)
     ));
     this.transport.on('notification', (notification: { method: string; params: Record<string, unknown> }) => {
+      // Session activity (including background tasks) keeps the runtime up;
+      // periodic process telemetry (resource samples) and logs do not.
+      if (typeof notification.params?.sessionId === 'string') this.lastActivityAt = Date.now();
+      this.trackBackgroundTask(notification.method, notification.params);
       this.routeInnerNotification(notification.method, notification.params);
     });
     this.transport.on('runtime-failure', (failure: InnerRuntimeFailure) => {
       this.handleInnerRuntimeFailure(failure);
     });
     this.transport.on('exit', (code: number | null, signal: string | null) => {
-      if (!this.stopping) this.handleInnerRuntimeExit(code, signal);
+      if (!this.stopping && !this.parked) this.handleInnerRuntimeExit(code, signal);
     });
   }
 
+  /** A stderr provider rejection names no session or turn, and background
+   *  model calls (titles, subagents, compaction) log the same line. Only an
+   *  unambiguous owner gets the hint: the single active turn of this runtime.
+   *  The typed terminal that 3.18 sends right after still wins; the hint ends
+   *  the turn only if the runtime then stays silent. */
   private handleInnerRuntimeFailure(failure: InnerRuntimeFailure): void {
-    for (const record of this.registry.activeRecords()) {
-      const projector = this.projectors.get(record.nativeSessionId);
-      projector?.finalizeTurn('error_during_execution', { runtimeFailure: failure });
-      this.abortPendingInteractionsFor(record.sessionId, 'Provider turn ended before the interaction was resolved.');
+    const active = this.registry.activeRecords();
+    if (active.length !== 1) {
+      this.options.onDiagnostic?.({ kind: 'provider-failure-unattributed', providerCode: failure.providerCode, activeTurns: active.length });
+      return;
+    }
+    this.projectors.get(active[0]!.nativeSessionId)?.noteProviderFailure(failure);
+  }
+
+  /** Every terminal of a bound turn (native, watchdog or runtime failure)
+   *  releases the session for the next turn.start. */
+  private handleTurnTerminal(nativeSessionId: string): void {
+    const record = this.registry.byNativeSession(nativeSessionId);
+    if (record === undefined) return;
+    this.clearInterruptWatchdog(record.sessionId);
+    this.abortPendingInteractionsFor(record.sessionId, 'ZCode turn ended before the interaction was resolved.');
+    if (record.activeTurnId !== null && record.state !== 'quarantined') {
       this.registry.markIdle(record);
       this.turns.forgetStream(record.sessionId, record.streamId);
     }
   }
 
   private handleInnerRuntimeExit(code: number | null, signal: string | null): void {
+    this.backgroundTasks.clear();
+    const tail = this.transport.stderrTail();
     const failure = {
       domainCode: 'RUNTIME_ERROR',
-      message: 'ZCode app-server exited unexpectedly.',
+      message: `ZCode app-server exited unexpectedly (code ${code ?? 'none'}, signal ${signal ?? 'none'})`
+        + (tail ? `: ${tail}` : '.'),
       retryable: true,
       exitCode: code,
       signal,
@@ -280,6 +323,7 @@ export class ZcodeV2Adapter {
               details: {
                 exitCode: failure.exitCode,
                 signal: failure.signal,
+                ...(tail ? { stderrTail: tail } : {}),
               },
             },
           },
@@ -315,45 +359,140 @@ export class ZcodeV2Adapter {
 
   /** Route one inner notification to the owning session's projector and run
    *  the post-terminal ownership transitions. */
+  /** ZCode reports every background task as session events
+   *  `background_task_started` / `_updated` / `_completed` whose payload
+   *  carries `taskId` and `status` (`running` until it ends). */
+  private trackBackgroundTask(method: string, params: Record<string, unknown>): void {
+    if (method !== 'session/event' || typeof params?.sessionId !== 'string') return;
+    const payload = params.payload !== null && typeof params.payload === 'object'
+      ? params.payload as Record<string, unknown>
+      : {};
+    const type = typeof params.type === 'string' ? params.type : typeof payload.type === 'string' ? payload.type : '';
+    if (!type.startsWith('background_task_')) return;
+    if (typeof payload.taskId !== 'string' || payload.taskId === '') return;
+    const key = `${params.sessionId}:${payload.taskId}`;
+    const running = type !== 'background_task_completed'
+      && (payload.status === undefined || payload.status === 'running');
+    if (running) this.backgroundTasks.add(key);
+    else this.backgroundTasks.delete(key);
+  }
+
   private routeInnerNotification(method: string, params: Record<string, unknown>): void {
     const nativeSessionId = typeof params.sessionId === 'string' ? params.sessionId : null;
     if (nativeSessionId === null) return;
     const projector = this.projectors.get(nativeSessionId);
     if (projector === undefined) return;
-    const consumed = projector.handleNotification(method, params);
-    if (consumed === false) return;
-    if (projector.hasActiveTurn() === false) return;
-    const terminalMethods = method === 'session/event'
-      && typeof (params.payload as Record<string, unknown> | undefined)?.resultType === 'string';
-    if (terminalMethods === true) {
-      const record = this.registry.byNativeSession(nativeSessionId);
-      if (record !== undefined && record.activeTurnId !== null) {
-        this.registry.markIdle(record);
-        this.turns.forgetStream(record.sessionId, record.streamId);
-      }
-    }
+    // Terminal transitions run through the projector's onTerminal callback,
+    // for resultType terminals and 3.18 turn.failed alike.
+    projector.handleNotification(method, params);
   }
 
+  /** Ordering is owned by the Shared Service: it holds a session's
+   *  notifications while a request on that session is in flight and releases
+   *  them after the Response, so concurrent requests never capture each
+   *  other's facts. */
   private emit(notification: OuterNotification): void {
-    if (this.queue !== null) {
-      this.queue.push({ method: notification.method, params: notification.params });
-      return;
-    }
     this.optionsEmit(notification);
   }
 
   async dispatch(request: WireRequest): Promise<DispatchOutcome> {
-    const queue: Array<{ method: string; params: Record<string, unknown> }> = [];
-    const previous = this.queue;
-    this.queue = queue;
+    this.inflight += 1;
+    this.lastActivityAt = Date.now();
     try {
+      if (request.method !== 'shutdown') await this.ensureRunning();
       const result = await this.handle(request);
-      return { ok: true, result, notifications: queue };
+      return { ok: true, result, notifications: [] };
     } catch (error) {
-      return { ok: false, error: normalizeError(error), notifications: queue };
+      return { ok: false, error: normalizeError(error), notifications: [] };
     } finally {
-      this.queue = previous;
+      this.inflight -= 1;
+      this.lastActivityAt = Date.now();
     }
+  }
+
+  /** One cheap read-only request. Returns null while the app-server is alive
+   *  (an answer or an error answer) or merely slow, and the failure text
+   *  (with its stderr tail) when it exited. */
+  async probeLiveness(timeoutMs: number): Promise<string | null> {
+    try {
+      await this.transport.request('session/list', { limit: 1 }, timeoutMs);
+      return null;
+    } catch (error) {
+      if (!this.transport.isExited()) return null;
+      return `ZCode Runtime failed to start: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  // ---- idle stop ----
+
+  isParked(): boolean {
+    return this.parked;
+  }
+
+  /** Idle: no request, turn, interaction or background task in flight, and
+   *  no native session activity for `idleMs`. */
+  isIdle(now: number, idleMs: number): boolean {
+    return !this.parked && !this.stopping && this.parking === null && this.resuming === null
+      && this.inflight === 0
+      && this.registry.activeRecords().length === 0
+      && this.pendingInteractions.size === 0
+      && this.backgroundTasks.size === 0
+      && now - this.lastActivityAt >= idleMs;
+  }
+
+  /** Stop the idle app-server. Sessions stay attached in Gian. */
+  park(): Promise<void> {
+    if (this.parked || this.stopping) return this.parking ?? Promise.resolve();
+    this.parked = true;
+    this.backgroundTasks.clear();
+    this.parking = this.transport.stop().finally(() => { this.parking = null; });
+    return this.parking;
+  }
+
+  /** Restart a parked app-server and re-attach every owned idle session
+   *  (session/resume + desktop-continuous subscription) before the request
+   *  that needs it runs. Streams and sequences continue unchanged. */
+  private async ensureRunning(): Promise<void> {
+    if (this.resuming !== null) return this.resuming;
+    if (!this.parked) return;
+    this.resuming = (async () => {
+      if (this.parking !== null) await this.parking;
+      this.transport.restart();
+      this.parked = false;
+      for (const record of this.registry.records()) {
+        if (record.state !== 'idle-owned') continue;
+        try {
+          await this.transport.request('session/resume', {
+            sessionId: record.nativeSessionId,
+            ...(record.hostMcpServers !== undefined ? { mcpServers: record.hostMcpServers } : {}),
+          }, 30_000);
+          await this.transport.request('session/subscribe', {
+            sessionId: record.nativeSessionId,
+            deliveryKind: 'desktop-continuous',
+            includeSnapshot: true,
+          }, 20_000);
+        } catch (error) {
+          this.registry.quarantine(record, 'idle-resume-failed');
+          this.emit({
+            method: 'runtime.error',
+            params: {
+              eventId: `idle-resume-${randomId()}`,
+              sessionId: record.sessionId,
+              streamId: record.streamId,
+              sequence: this.nextSequence(record.sessionId),
+              emittedAt: new Date().toISOString(),
+              data: {
+                domainCode: 'RUNTIME_ERROR',
+                message: `ZCode could not reattach the session after its idle stop: ${error instanceof Error ? error.message : String(error)}`,
+                retryable: true,
+                details: {},
+              },
+            },
+          });
+        }
+      }
+    })().finally(() => { this.resuming = null; });
+    return this.resuming;
   }
 
   /** Wire-level handler. The `async handle(` + `switch (request.method)`
@@ -790,6 +929,9 @@ export class ZcodeV2Adapter {
         streamId: record.streamId,
         nativeSessionId: record.nativeSessionId,
         messages: all,
+        // Live attach replay has no Gian turn ids, so it cannot carry a
+        // turn-scoped delta: report each turn's last context occupancy.
+        usage: 'context',
       });
       for (const event of events) {
         // buildReplayEvents returns the flat replay-event shape; the outer
@@ -817,6 +959,7 @@ export class ZcodeV2Adapter {
         return next;
       },
       emit: (notification) => this.emit(notification),
+      onTerminal: () => this.handleTurnTerminal(record.nativeSessionId),
     });
     projector.setStreamId(record.streamId);
     this.projectors.set(record.nativeSessionId, projector);
@@ -1160,6 +1303,9 @@ export class ZcodeV2Adapter {
     // mis-attributed every subsequent turn's turn.started (live E2E).
     const projector = this.projectors.get(nativeSessionId);
     projector?.bindTurn(turnId, ''); // nativeTurnId binds on typed turn-started
+    // Running from the send on: a fast native terminal (even one that beats
+    // the ack) then finds the turn it releases.
+    this.registry.markRunning(record, turnId, null);
 
     // Send. Notifications emitted between accept and response stay inside
     // this dispatch queue (response barrier), after the accepted result.
@@ -1190,6 +1336,7 @@ export class ZcodeV2Adapter {
       // can never be attributed to this gian turn.
       projector?.clearTurn();
       this.turns.forget(sessionId, streamId, turnId);
+      if (record.activeTurnId === turnId) this.registry.markIdle(record);
       if (error instanceof InnerError && error.code === -32004) {
         throw new ServiceError('SESSION_ERROR', 'ZCode reported the session as not active.');
       }
@@ -1198,7 +1345,6 @@ export class ZcodeV2Adapter {
 
     record.confirmedNativeSettings = confirmed;
     this.turns.markAccepted(sessionId, streamId, turnId);
-    this.registry.markRunning(record, turnId, null);
     return { accepted: true, turnId };
   }
 
@@ -1224,6 +1370,19 @@ export class ZcodeV2Adapter {
     }
   }
 
+  private readonly interruptWatchdogs = new Map<string, NodeJS.Timeout>();
+
+  private clearInterruptWatchdog(sessionId: string): void {
+    const timer = this.interruptWatchdogs.get(sessionId);
+    if (timer !== undefined) clearTimeout(timer);
+    this.interruptWatchdogs.delete(sessionId);
+  }
+
+  /** v4 `stop` (session-flow.ts stop): `accepted` once the runtime aborted
+   *  the foreground execution; `noop` (guard.stopTargetChanged) when the
+   *  guarded execution id is no longer the active one. The native terminal
+   *  (turn.completed cancelled) stays authoritative; a watchdog ends the turn
+   *  locally when the runtime confirms the stop but never reports it. */
   private async turnInterrupt(params: Record<string, unknown>): Promise<unknown> {
     const sessionId = stringField(params, 'sessionId');
     const streamId = stringField(params, 'streamId');
@@ -1233,20 +1392,48 @@ export class ZcodeV2Adapter {
       throw new ServiceError('TURN_NOT_FOUND', `Turn ${turnId} is not active.`);
     }
     const projector = this.projectors.get(record.nativeSessionId);
-    const foregroundExecutionId = projector?.activeForegroundExecutionId() ?? null;
-    await this.transport.request('v4/command', {
-      commandId: commandIdFor(['stop', sessionId, turnId]),
+    const stop = (guard: string | null): Promise<InnerCommandAck> => this.v4Command({
+      commandId: commandIdFor(['stop', sessionId, turnId, guard ?? 'unguarded']),
       clientId: `gian:${sessionId}`,
       sessionId: record.nativeSessionId,
       type: 'stop',
-      payload: {
-        ...(foregroundExecutionId ? { expectedForegroundExecutionId: foregroundExecutionId } : {}),
-      },
-      issuedAt: Date.now(),
-    }, 20_000) as Record<string, unknown> | null;
-    // The stop command's ack is advisory: the authoritative fact is the
-    // native turn terminal event, which the projector maps (§9.3).
+      payload: guard !== null ? { expectedForegroundExecutionId: guard } : {},
+    }, 20_000);
+    // A cancelled terminal can beat the ack; it is ours from the send on.
     projector?.markInterruptAccepted();
+    let ack: InnerCommandAck;
+    try {
+      const guard = projector?.activeForegroundExecutionId() ?? null;
+      ack = await stop(guard);
+      // The guarded execution changed while Gian's turn is still running
+      // (e.g. a continuation inside the same turn): every foreground
+      // execution of this native session belongs to that turn, so stop it.
+      if (ack.status === 'noop' && guard !== null && record.activeTurnId === turnId) ack = await stop(null);
+    } catch (error) {
+      if (record.activeTurnId === turnId) projector?.clearInterruptRequest();
+      throw error;
+    }
+    if (ack.status !== 'accepted' && ack.status !== 'duplicate' && ack.status !== 'noop') {
+      if (record.activeTurnId === turnId) projector?.clearInterruptRequest();
+      const reasonCode = typeof ack.reasonCode === 'string' ? ack.reasonCode : 'unknown';
+      throw new ServiceError(
+        'RUNTIME_ERROR',
+        `ZCode did not stop the turn (${ack.status ?? 'no ack'}: ${reasonCode}).`,
+        ack.status === 'stale',
+      );
+    }
+    if (record.activeTurnId === turnId && !this.interruptWatchdogs.has(sessionId)) {
+      const timer = setTimeout(() => {
+        this.interruptWatchdogs.delete(sessionId);
+        if (record.activeTurnId !== turnId) return;
+        this.options.onDiagnostic?.({ kind: 'interrupt-terminal-missing', sessionId, turnId, ack: ack.status });
+        // No native terminal after a confirmed stop: end the Gian turn as
+        // interrupted. Late native facts of that turn are dropped.
+        if (projector?.finalizeInterruptedLocally() !== true) this.handleTurnTerminal(record.nativeSessionId);
+      }, this.options.interruptDeadlineMs ?? INTERRUPT_DEADLINE_MS);
+      timer.unref?.();
+      this.interruptWatchdogs.set(sessionId, timer);
+    }
     return { accepted: true, turnId };
   }
 
@@ -1648,7 +1835,9 @@ export class ZcodeV2Adapter {
     const sessionId = stringField(params, 'sessionId');
     const streamId = stringField(params, 'streamId');
     const record = this.registry.detach(sessionId, streamId);
+    this.projectors.get(record.nativeSessionId)?.dispose();
     this.projectors.delete(record.nativeSessionId);
+    this.clearInterruptWatchdog(sessionId);
     this.turns.forgetStream(sessionId, streamId);
     // Deliberately NO inner session/close: the 0.16.9 close tears the runtime
     // down (and v4 publishers emit session.removed); the 0.16.9 deleteSession
@@ -1707,6 +1896,7 @@ export class ZcodeV2Adapter {
       streamId: '',
       nativeSessionId: record.nativeSessionId,
       messages: all,
+      usage: 'delta',
     });
     const offset = cursor === null ? 0 : decodeOffsetCursor(cursor);
     if (offset < 0) throw new ServiceError('INVALID_PARAMS', 'cursor is not a valid replay cursor.');
@@ -1876,6 +2066,8 @@ export class ZcodeV2Adapter {
 
   private async shutdown(): Promise<unknown> {
     this.stopping = true;
+    for (const sessionId of [...this.interruptWatchdogs.keys()]) this.clearInterruptWatchdog(sessionId);
+    for (const projector of this.projectors.values()) projector.dispose();
     await this.transport.stop();
     return { ok: true };
   }
@@ -2038,6 +2230,9 @@ export function buildReplayEvents(context: {
   streamId: string;
   nativeSessionId: string;
   messages: unknown[];
+  /** 'delta': one per-turn conversation delta (session.replay);
+   *  'context': one context-occupancy sample per turn (live attach). */
+  usage?: 'delta' | 'context';
 }): Array<Record<string, unknown>> {
   const events: Array<Record<string, unknown>> = [];
   let sequence = 0;
@@ -2127,6 +2322,9 @@ export function buildReplayEvents(context: {
     };
 
     push('turn.started', [sourceTurnId, 'started'], {}, turn.anchorTime);
+    const turnUsage = { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, totalTokens: 0, seen: false };
+    let lastContext = 0;
+    let lastUsageTime: unknown;
 
     for (const message of allMessages) {
       const messageId = message.info?.messageId ?? message.info?.id ?? '';
@@ -2192,18 +2390,29 @@ export function buildReplayEvents(context: {
           contentId: openText.contentId, kind: 'text', format: 'markdown', content: openText.text,
         }, message.info?.time?.created);
       }
+      // Legacy message tokens: input excludes cache; reasoning is output
+      // (session-mapper.ts tokenTotal). Sum per turn instead of reporting
+      // each message as a running total.
       const tokens = message.info?.tokens ?? {};
       if (Object.keys(tokens).length > 0) {
-        push('usage.updated', [messageId, 'usage'], {
-          conversation: {
-            mode: 'absolute',
-            ...(typeof tokens.input === 'number' ? { inputTokens: tokens.input } : {}),
-            ...(typeof tokens.output === 'number' ? { outputTokens: tokens.output } : {}),
-            ...(numberField(tokens.cache, 'read') !== null ? { cachedInputTokens: numberField(tokens.cache, 'read') } : {}),
-            ...(typeof tokens.total === 'number' ? { totalTokens: tokens.total } : {}),
-          },
-        }, message.info?.time?.created);
+        const cacheRead = numberField(tokens.cache, 'read') ?? 0;
+        const input = (numberField(tokens, 'input') ?? 0) + cacheRead + (numberField(tokens.cache, 'write') ?? 0);
+        const output = (numberField(tokens, 'output') ?? 0) + (numberField(tokens, 'reasoning') ?? 0);
+        const total = numberField(tokens, 'total') ?? input + output;
+        turnUsage.inputTokens += input;
+        turnUsage.outputTokens += output;
+        turnUsage.cachedInputTokens += cacheRead;
+        turnUsage.totalTokens += total;
+        turnUsage.seen = true;
+        lastContext = input + output > 0 ? input + output : total;
+        lastUsageTime = message.info?.time?.created;
       }
+    }
+
+    if (turnUsage.seen && context.usage === 'delta' && turnUsage.totalTokens > 0) {
+      push('usage.updated', [sourceTurnId, 'usage-delta'], usageDeltaData(turnUsage), lastUsageTime);
+    } else if (turnUsage.seen && context.usage !== 'delta' && lastContext > 0) {
+      push('usage.updated', [sourceTurnId, 'usage-context'], { context: { used: Math.floor(lastContext) } }, lastUsageTime);
     }
 
     push(

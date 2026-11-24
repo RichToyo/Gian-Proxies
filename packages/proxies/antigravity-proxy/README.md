@@ -135,9 +135,10 @@ Those checks establish executable/protocol readiness, not successful login.
   Proxy 0.0.6 with Runtime 1.4.4 is published (Catalog 47).
   Proxy 0.0.8 (2026-11-13) and 0.0.9 (2026-11-17) are published with the ACP
   registry Runtime 1.5.0 pair.
-  Proxy 0.1.0 targets the official Antigravity CLI 1.5.14 as its managed
-  Runtime; publication requires successful independent hosted qualification
-  and an exact signed Catalog combination.
+  Proxy 0.1.0 with the official Antigravity CLI 1.5.14 as its managed Runtime
+  is published (Catalog 73). Proxy 0.1.1 targets agy 1.5.16; publication
+  requires successful independent hosted qualification and an exact signed
+  Catalog combination.
   `scripts/build-antigravity-runtime.mjs` pins Google's darwin-arm64 release
   archive (the one the official installer's release manifest names) by size,
   SHA-256 and SHA-512, checks that it holds exactly the pinned `antigravity`

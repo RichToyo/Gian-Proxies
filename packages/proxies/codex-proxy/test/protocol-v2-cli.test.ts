@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import {chmodSync, readFileSync} from 'node:fs';
 import { createInterface } from 'node:readline';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import test from 'node:test';
 import {
   initializeResultSchema,
@@ -14,15 +15,18 @@ function waitForExit(child: ChildProcessWithoutNullStreams): Promise<number | nu
   return new Promise((resolveExit) => child.once('exit', (code) => resolveExit(code)));
 }
 
-function startV2Proxy(runtimeBin = process.execPath) {
+function startV2Proxy(runtimeBin = process.execPath, extraEnv: Record<string, string> = {}) {
   const child = spawn(process.execPath, [resolve('dist/src/cli/spawn.js')], {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: {
       ...process.env,
       GIAN_PLUGIN_ID: 'codex',
       GIAN_PLUGIN_DATA_DIR: '/tmp/gian-codex-v2-test',
+      // Native history lookups stay inside an isolated Agent HOME.
+      GIAN_AGENT_HOME: join(tmpdir(), 'gian-codex-v2-agent-home'),
       GIAN_RUNTIME_BIN: runtimeBin,
       GIAN_PROTOCOL_VERSIONS: '2.1',
+      ...extraEnv,
     },
   });
   const messages: unknown[] = [];
@@ -427,5 +431,72 @@ test('imageGeneration items project through the v2 adapter in both the inline-re
         if (proxy && proxy.child.exitCode === null) proxy.child.kill('SIGTERM');
       }
     });
+  }
+});
+
+test('sessions run on their own lanes: a slow resume in one session never delays another session\'s turn', async () => {
+  const fakeRuntime = resolve('dist/test/fixtures/fake-codex-lifecycle-server.js');
+  chmodSync(fakeRuntime, 0o755);
+  const proxy = startV2Proxy(fakeRuntime, { GIAN_FAKE_RESUME_DELAY_MS: '1500' });
+  try {
+    proxy.send({
+      jsonrpc: '2.0',
+      id: 'lanes-initialize',
+      method: 'initialize',
+      params: { protocol: { name: 'gian.proxy', versions: ['2.1'] }, host: { name: 'Gian', version: '9.9.9' } },
+    });
+    await responseFor(proxy, 'lanes-initialize');
+    proxy.send({
+      jsonrpc: '2.0',
+      id: 'lanes-create-a',
+      method: 'session.create',
+      params: {
+        sessionId: 'lane-a',
+        workspace: { cwd: '/tmp/fake-codex-workspace', roots: ['/tmp/fake-codex-workspace'] },
+        config: {},
+      },
+    });
+    const created = (await responseFor(proxy, 'lanes-create-a')).response.result as { session: { streamId: string } };
+
+    // Session B resumes a (slow) native thread while session A starts a turn.
+    proxy.send({
+      jsonrpc: '2.0',
+      id: 'lanes-create-b',
+      method: 'session.create',
+      params: {
+        sessionId: 'lane-b',
+        workspace: { cwd: '/tmp/fake-codex-workspace', roots: ['/tmp/fake-codex-workspace'] },
+        nativeSession: { id: 'slow-thread', history: 'none' },
+        config: {},
+      },
+    });
+    proxy.send({
+      jsonrpc: '2.0',
+      id: 'lanes-turn-a',
+      method: 'turn.start',
+      params: {
+        sessionId: 'lane-a',
+        streamId: created.session.streamId,
+        turnId: 'lane-a-turn',
+        input: [{ type: 'text', text: 'run beside a slow resume' }],
+        config: {},
+      },
+    });
+    const order: string[] = [];
+    while (!order.includes('response:lanes-create-b')) {
+      const message = await proxy.next(10_000) as { id?: string; method?: string; params?: { sessionId?: string } };
+      order.push(message.id ? `response:${message.id}` : `${message.method}:${message.params?.sessionId ?? ''}`);
+    }
+    const turnResponse = order.indexOf('response:lanes-turn-a');
+    const createB = order.indexOf('response:lanes-create-b');
+    assert.ok(turnResponse >= 0 && turnResponse < createB, `turn.start for A answered first: ${order.join(', ')}`);
+    const streamed = order.findIndex(entry => entry === 'interaction.requested:lane-a');
+    assert.ok(streamed > turnResponse && streamed < createB, `A streamed while B was still resuming: ${order.join(', ')}`);
+
+    proxy.send({ jsonrpc: '2.0', id: 'lanes-shutdown', method: 'shutdown', params: {} });
+    await responseFor(proxy, 'lanes-shutdown');
+    assert.equal(await waitForExit(proxy.child), 0);
+  } finally {
+    proxy.child.kill();
   }
 });

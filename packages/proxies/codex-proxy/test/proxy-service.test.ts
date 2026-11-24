@@ -225,6 +225,12 @@ class FakeRuntime extends EventEmitter implements CodexRuntime {
     return {};
   }
 
+  readonly errorResponses: Array<{ id: number | string; code: number; message: string }> = [];
+  async respondError(id: number | string, code: number, message: string) {
+    this.errorResponses.push({ id, code, message });
+    return {};
+  }
+
   async listAllModels(): Promise<unknown[]> {
     return [{
       id: 'gpt-5-codex',
@@ -666,7 +672,7 @@ test('gian.proxy/2 session.close permits Force Recover to reattach the same Host
   }
 });
 
-async function createHarness() {
+async function createHarness(options: { interruptAckMs?: number } = {}) {
   const runtime = new FakeRuntime();
   const events: Array<{ method: string; params: Record<string, unknown> }> = [];
   const service = new CodexProxyService({
@@ -674,6 +680,7 @@ async function createHarness() {
     emitEvent(method, params) {
       events.push({ method, params });
     },
+    ...options,
   });
   await service.initialize();
   return {
@@ -3811,6 +3818,268 @@ test('a native request resolved before turn startup is never displayed', async (
     await harness.service.startTurn({ sessionId: created.session.id, input: [{ type: 'text', text: 'work' }] }, 10);
     assert.equal(harness.events.filter(event => event.method === 'approval.requested').length, 0);
     assert.equal(harness.runtime.responses.length, 0);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+async function startAdapterTurn(
+  adapter: CodexProtocolV2Adapter,
+  sessionId: string,
+  turnId: string,
+  idPrefix = sessionId,
+) {
+  const created = resultSchemas['session.create'].parse(await adapter.handle(v2Request(`${idPrefix}-create`, 'session.create', {
+    sessionId,
+    workspace: { cwd: '/tmp/work', roots: ['/tmp/work'] },
+    config: {},
+  })));
+  await adapter.handle(v2Request(`${idPrefix}-start`, 'turn.start', {
+    sessionId,
+    streamId: created.session.streamId,
+    turnId,
+    input: [{ type: 'text', text: `work for ${sessionId}` }],
+    config: {},
+  }));
+  return created.session.streamId;
+}
+
+async function initializedAdapter(
+  harness: Awaited<ReturnType<typeof createHarness>>,
+  notifications: Array<{ method: string; params: Record<string, unknown> }>,
+) {
+  const adapter = new CodexProtocolV2Adapter(
+    harness.service,
+    '0.2.1',
+    (method, params) => notifications.push({ method, params }),
+  );
+  await adapter.handle(v2Request('init', 'initialize', {
+    protocol: { name: 'gian.proxy', versions: ['2.1'] },
+    host: { name: 'Gian', version: '9.9.9' },
+  }));
+  return adapter;
+}
+
+test('a Host interrupt is reported as interrupted when Codex ends the turn before answering turn/interrupt', async () => {
+  const harness = await createHarness();
+  const notifications: Array<{ method: string; params: Record<string, unknown> }> = [];
+  try {
+    const adapter = await initializedAdapter(harness, notifications);
+    const streamId = await startAdapterTurn(adapter, 'early-stop', 'host-turn');
+    // Codex 0.171 order: the aborted turn's turn/completed, then the reply.
+    harness.runtime.interruptTurn = async (threadId: string, turnId: string) => {
+      harness.runtime.interruptCalls.push({ threadId, turnId });
+      harness.runtime.emitNotification({
+        method: 'turn/completed',
+        params: { threadId, turn: { id: turnId, status: 'interrupted' } },
+      });
+      return {};
+    };
+    await adapter.handle(v2Request('stop', 'turn.interrupt', {
+      sessionId: 'early-stop',
+      streamId,
+      turnId: 'host-turn',
+    }));
+    const completed = notifications.filter(event => event.method === 'turn.completed');
+    assert.equal(completed.length, 1);
+    assert.equal((completed[0]!.params.data as { stopReason?: string }).stopReason, 'interrupted');
+    const marks = (adapter as unknown as { interruptedTurns: Set<string> }).interruptedTurns;
+    assert.equal(marks.size, 0, 'the interrupt mark must not outlive its turn');
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('turn.interrupt answers within its window and a stop Codex never confirms recovers only that thread', async () => {
+  const harness = await createHarness({ interruptAckMs: 20 });
+  const notifications: Array<{ method: string; params: Record<string, unknown> }> = [];
+  try {
+    const adapter = await initializedAdapter(harness, notifications);
+    const stuckStream = await startAdapterTurn(adapter, 'stuck', 'stuck-turn');
+    await startAdapterTurn(adapter, 'healthy', 'healthy-turn');
+    let failInterrupt: (error: Error) => void = () => undefined;
+    harness.runtime.interruptTurn = (threadId: string, turnId: string) => {
+      harness.runtime.interruptCalls.push({ threadId, turnId });
+      return new Promise((_resolve, reject) => { failInterrupt = reject; });
+    };
+    const startedAt = Date.now();
+    assert.deepEqual(await adapter.handle(v2Request('stop', 'turn.interrupt', {
+      sessionId: 'stuck',
+      streamId: stuckStream,
+      turnId: 'stuck-turn',
+    })), { accepted: true, turnId: 'stuck-turn' });
+    assert.ok(Date.now() - startedAt < 1_000, 'the Host is answered without waiting for Codex');
+    assert.equal(notifications.some(event => event.method === 'turn.completed'), false);
+
+    const timeout = new Error('Codex app-server RPC "turn/interrupt" timed out after 20000ms.');
+    timeout.name = 'TimeoutError';
+    failInterrupt(timeout);
+    await waitFor(() => notifications.some(event => event.method === 'turn.completed'));
+    const completed = notifications.filter(event => event.method === 'turn.completed');
+    assert.equal(completed.length, 1);
+    assert.equal(completed[0]!.params.sessionId, 'stuck');
+    assert.equal((completed[0]!.params.data as { stopReason?: string }).stopReason, 'interrupted');
+    assert.ok(notifications.some(event => event.method === 'activity.updated'
+      && JSON.stringify(event.params.data).includes('did not confirm the stop')));
+    assert.deepEqual(harness.runtime.unsubscribeCalls, ['thread-1']);
+
+    // The other session's turn is untouched and still streams.
+    harness.runtime.emitNotification({
+      method: 'item/agentMessage/delta',
+      params: { threadId: 'thread-2', turnId: 'turn-2', itemId: 'msg', delta: 'still here' },
+    });
+    await waitFor(() => notifications.some(event => event.method === 'content.delta'
+      && event.params.sessionId === 'healthy'));
+
+    // The recovered thread reattaches before its next turn.
+    await adapter.handle(v2Request('again', 'turn.start', {
+      sessionId: 'stuck',
+      streamId: stuckStream,
+      turnId: 'stuck-turn-2',
+      input: [{ type: 'text', text: 'try again' }],
+      config: {},
+    }));
+    assert.deepEqual(harness.runtime.resumeThreadCalls.map(call => call.threadId), ['thread-1']);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('turn.interrupt that overtakes an in-flight turn/start waits for the provider turn id', async () => {
+  const harness = await createHarness();
+  try {
+    const created = await harness.service.createSession({ cwd: '/tmp/work' });
+    const originalStart = harness.runtime.startTurn.bind(harness.runtime);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    harness.runtime.startTurn = async (...args: Parameters<FakeRuntime['startTurn']>) => {
+      await gate;
+      return originalStart(...args);
+    };
+    const starting = harness.service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'slow start' }],
+    });
+    const interrupting = harness.service.interruptTurn({ sessionId: created.session.id });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.deepEqual(harness.runtime.interruptCalls, []);
+    release();
+    await starting;
+    await interrupting;
+    assert.deepEqual(harness.runtime.interruptCalls, [{ threadId: created.session.threadId, turnId: 'turn-1' }]);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('object-form codexErrorInfo keeps its variant and HTTP status, and a 401 is a sign-in failure', async () => {
+  const harness = await createHarness();
+  try {
+    const created = await harness.service.createSession({ cwd: '/tmp/work' });
+    const started = await harness.service.startTurn({
+      sessionId: created.session.id,
+      input: [{ type: 'text', text: 'hello' }],
+    }, 7);
+    harness.runtime.emitNotification({
+      method: 'error',
+      params: {
+        threadId: created.session.threadId,
+        turnId: started.turn.id,
+        willRetry: false,
+        error: {
+          message: 'unexpected status 401 Unauthorized: token expired',
+          codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 401 } },
+        },
+      },
+    });
+    await waitFor(() => harness.events.some(event => event.method === 'runtime.error'));
+    const error = harness.events.find(event => event.method === 'runtime.error')!;
+    assert.deepEqual(error.params.data, {
+      message: 'unexpected status 401 Unauthorized: token expired',
+      code: 'httpConnectionFailed',
+      httpStatusCode: 401,
+      retryable: false,
+      authRequired: true,
+    });
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('a failed turn carries Codex error text, and an expired sign-in becomes RUNTIME_AUTH_REQUIRED', async () => {
+  const harness = await createHarness();
+  const notifications: Array<{ method: string; params: Record<string, unknown> }> = [];
+  try {
+    const adapter = await initializedAdapter(harness, notifications);
+    await startAdapterTurn(adapter, 'signed-out', 'turn-a');
+    harness.runtime.emitNotification({
+      method: 'turn/completed',
+      params: {
+        threadId: 'thread-1',
+        turn: {
+          id: 'turn-1',
+          status: 'failed',
+          error: {
+            message: 'Your access token could not be refreshed because your refresh token has expired. Please log out and sign in again.',
+            codexErrorInfo: 'unauthorized',
+          },
+        },
+      },
+    });
+    await waitFor(() => notifications.some(event => event.method === 'turn.failed'));
+    const failed = notifications.find(event => event.method === 'turn.failed')!;
+    const error = (failed.params.data as { error: Record<string, unknown> }).error;
+    assert.equal(error.domainCode, 'RUNTIME_AUTH_REQUIRED');
+    assert.equal(error.retryable, false);
+    assert.match(String(error.message), /choose Log in/);
+    assert.match(String(error.message), /Codex reported: Your access token could not be refreshed/);
+    assert.deepEqual(error.details, { providerCode: 'unauthorized' });
+    proxyNotificationSchema.parse({ jsonrpc: '2.0', method: failed.method, params: failed.params });
+
+    await startAdapterTurn(adapter, 'over-limit', 'turn-b');
+    harness.runtime.emitNotification({
+      method: 'turn/completed',
+      params: {
+        threadId: 'thread-2',
+        turn: {
+          id: 'turn-2',
+          status: 'failed',
+          error: { message: 'You have hit your usage limit.', codexErrorInfo: 'usageLimitExceeded', additionalDetails: 'Try again at 5pm.' },
+        },
+      },
+    });
+    await waitFor(() => notifications.filter(event => event.method === 'turn.failed').length === 2);
+    const second = (notifications.filter(event => event.method === 'turn.failed')[1]!.params.data as { error: Record<string, unknown> }).error;
+    assert.equal(second.domainCode, 'RUNTIME_ERROR');
+    assert.equal(second.message, 'You have hit your usage limit. (Try again at 5pm.)');
+    assert.deepEqual(second.details, { providerCode: 'usageLimitExceeded' });
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('server requests Gian does not implement fail closed without an interaction card', async () => {
+  const harness = await createHarness();
+  const notifications: Array<{ method: string; params: Record<string, unknown> }> = [];
+  try {
+    const adapter = await initializedAdapter(harness, notifications);
+    await startAdapterTurn(adapter, 'closed', 'turn-closed');
+    harness.runtime.emitServerRequest({ id: 1, method: 'attestation/generate', params: {} });
+    harness.runtime.emitServerRequest({ id: 2, method: 'account/chatgptAuthTokens/refresh', params: { reason: 'unauthorized' } });
+    harness.runtime.emitServerRequest({ id: 3, method: 'item/tool/call', params: {
+      threadId: 'thread-1', turnId: 'turn-1', callId: 'c', tool: 'x', arguments: {},
+    } });
+    harness.runtime.emitServerRequest({ id: 4, method: 'execCommandApproval', params: {
+      conversationId: 'thread-1', callId: 'c', command: ['ls'], cwd: '/tmp', parsedCmd: [],
+    } });
+    harness.runtime.emitServerRequest({ id: 5, method: 'currentTime/read', params: { threadId: 'thread-1' } });
+    await waitFor(() => harness.runtime.errorResponses.length === 3 && harness.runtime.responses.length === 2);
+    assert.deepEqual(harness.runtime.errorResponses.map(item => [item.id, item.code]), [[1, -32601], [2, -32601], [5, -32601]]);
+    assert.deepEqual(harness.runtime.responses, [
+      { id: 3, payload: { contentItems: [{ type: 'inputText', text: 'Gian does not provide this dynamic tool.' }], success: false } },
+      { id: 4, payload: { decision: 'denied' } },
+    ]);
+    assert.equal(notifications.some(event => event.method === 'interaction.requested'), false);
   } finally {
     await harness.cleanup();
   }

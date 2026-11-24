@@ -5,7 +5,7 @@
  * `spawn.ts` owns the process entrypoint.
  */
 
-import { gianProfileName } from '../runtime/profile.js';
+import { dshHome, gianProfileName, launchPatchPath } from '../runtime/profile.js';
 
 export interface BridgeLaunch {
   bridgeCommand: string;
@@ -18,7 +18,7 @@ export interface BridgeLaunch {
   managedProfile: boolean;
 }
 
-export function bridgeArgs(argv: string[], explicit: string | undefined): string[] {
+export function bridgeArgs(argv: string[], explicit: string | undefined, managed = false): string[] {
   const configured = process.env.GIAN_DSH_HOST_ARGS;
   if (configured !== undefined) {
     const parsed = JSON.parse(configured) as unknown;
@@ -30,7 +30,32 @@ export function bridgeArgs(argv: string[], explicit: string | undefined): string
   const extraArgs = argv.filter((arg) => arg.startsWith('--') === false);
   return explicit !== undefined
     ? extraArgs
-    : ['--profile', gianProfileName(), ...extraArgs];
+    : [
+      '--profile', gianProfileName(),
+      // Only the managed profile has its launch overlay written before spawn.
+      ...(managed ? ['--patch', launchPatchPath()] : []),
+      ...extraArgs,
+    ];
+}
+
+/**
+ * Environment the Proxy adds to every DSH it launches, managed or external.
+ *
+ * - `DSH_TELEMETRY_DISABLED=1`: DSH's documented opt-out. Any non-empty value
+ *   patches the `session-telemetry-otel` row disabled at boot, after every
+ *   profile, home and `--patch` layer, so no OTel Session log is exported.
+ * - `DSH_HOME`: the Agent Home the Host assigned (`GIAN_AGENT_HOME`), or the
+ *   inherited `DSH_HOME`, or `~/.dsh`. The profile installer uses the same
+ *   resolution, so DSH reads the home the profile was written into.
+ *
+ * The official-API Session-log upload is a profile row, not an environment
+ * switch: the bundle patch and the `--patch` launch overlay disable it.
+ */
+export function bridgeEnvironment(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  return {
+    DSH_TELEMETRY_DISABLED: '1',
+    DSH_HOME: dshHome(env),
+  };
 }
 
 /**
@@ -64,7 +89,7 @@ export function parseArgs(argv: string[]): BridgeLaunch {
     && process.env.GIAN_DSH_HOST_ENTRY === undefined
     && process.env.GIAN_DSH_HOST_ARGS === undefined;
   return {
-    ...resolveNodeLauncher({ bridgeCommand: command, args: bridgeArgs(argv, explicit) }),
+    ...resolveNodeLauncher({ bridgeCommand: command, args: bridgeArgs(argv, explicit, managedProfile) }),
     managedProfile,
   };
 }

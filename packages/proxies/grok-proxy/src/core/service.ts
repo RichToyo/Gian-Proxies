@@ -19,8 +19,15 @@ import {
   modelStateFromUnknown,
   type GrokModelState,
 } from './catalog.js';
-import { createAppError, GrokProxyError } from './errors.js';
-import { parsePromptUsage } from './events.js';
+import {
+  createAppError,
+  GROK_SIGN_IN_HINT,
+  GrokProxyError,
+  isAcpAuthRequired,
+  nativeErrorDetails,
+  nativeErrorText,
+} from './errors.js';
+import { promptTurnUsage } from './events.js';
 import { firstText, normalizeInputItems, toInterjectPayload, toPromptBlocks } from './input.js';
 import {
   admitHostStreamableHttpServices,
@@ -59,6 +66,8 @@ import {
   GrokAcpClient,
   GROK_ORIGIN_CLIENT_ID,
   GrokExtMethodUnsupportedError,
+  GrokRuntimeExitError,
+  describeExit,
   isMethodNotFound,
   type GrokNativeForkResponse,
 } from '../runtime/grok-acp-client.js';
@@ -86,6 +95,69 @@ interface ActiveTurn {
   /** Resolves when the native prompt call returns, whether it succeeded or failed. */
   settled: Promise<void>;
   markSettled: () => void;
+  /** Armed by an interrupt: forces the child down if the prompt never settles. */
+  watchdog?: ReturnType<typeof setTimeout>;
+}
+
+/** How long an idle attached Grok child is kept before it is stopped; the
+ *  next turn resumes the native session in a new child. The clock does not
+ *  run while a turn, an interaction or a background task is in progress,
+ *  and any native update starts it again. Override with
+ *  `GIAN_GROK_IDLE_TIMEOUT_MS` (`0` keeps children until the session
+ *  closes). */
+export const DEFAULT_IDLE_TIMEOUT_MS = 10 * 60_000;
+
+/** Grok 1.0.92 reports a background task as `running` and then `completed`,
+ *  `failed` or `stopped`. A task without a status, or in a waiting state, is
+ *  still in progress. */
+function backgroundTaskActive(status: unknown): boolean {
+  if (status === undefined || status === null) return true;
+  return ['running', 'pending', 'queued', 'starting'].includes(String(status).toLowerCase());
+}
+/** How long an interrupted prompt may take to settle before the child is
+ *  stopped so the session can take a new turn. */
+export const DEFAULT_INTERRUPT_DEADLINE_MS = 10_000;
+
+function idleTimeoutFromEnv(): number {
+  const raw = process.env.GIAN_GROK_IDLE_TIMEOUT_MS?.trim();
+  if (!raw) return DEFAULT_IDLE_TIMEOUT_MS;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value >= 0 ? value : DEFAULT_IDLE_TIMEOUT_MS;
+}
+
+/** Child generation of a runtime. Minimal doubles without the counter are
+ *  one long-lived child. */
+function runtimeGeneration(runtime: GrokAcpClient): number {
+  const value = (runtime as { generation?: unknown }).generation;
+  return typeof value === 'number' ? value : 1;
+}
+
+function runtimeRunning(runtime: GrokAcpClient): boolean {
+  const value = (runtime as { running?: unknown }).running;
+  return typeof value === 'boolean' ? value : true;
+}
+
+/** One ACP SessionConfigOption, as Grok 1.0.92 sends it. */
+interface NativeConfigOption {
+  id: string;
+  category?: string;
+  currentValue?: unknown;
+  options?: Array<{ value?: unknown; name?: unknown }>;
+}
+
+function nativeConfigOptions(value: unknown): NativeConfigOption[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.filter((item): item is NativeConfigOption => (
+    Boolean(item) && typeof item === 'object' && typeof (item as { id?: unknown }).id === 'string'
+  ));
+}
+
+function nativeOption(options: readonly NativeConfigOption[], id: string, category: string) {
+  return options.find((option) => option.id === id) ?? options.find((option) => option.category === category);
+}
+
+function optionValues(option: NativeConfigOption | undefined): string[] {
+  return (option?.options ?? []).flatMap((item) => typeof item?.value === 'string' ? [item.value] : []);
 }
 
 export interface ServiceOptions {
@@ -94,6 +166,12 @@ export interface ServiceOptions {
   emitEvent?: ProxyEventSink;
   /** How long cancel may take, and how long the prompt may take to finish, before the child is killed. */
   turnStopDeadlineMs?: number;
+  /** This Proxy's version, sent as the ACP clientInfo version. */
+  pluginVersion?: string;
+  /** Idle stop delay for the attached child; 0 disables it. */
+  idleTimeoutMs?: number;
+  /** Interrupt watchdog deadline. */
+  interruptDeadlineMs?: number;
 }
 
 function nonEmptyString(value: unknown, field: string): string {
@@ -152,7 +230,13 @@ interface PreparedTurn {
   generation: number;
 }
 
-function mapRuntimeError(error: unknown, binaryPath: string): GrokProxyError {
+/**
+ * Maps a runtime failure to a Proxy error. Sign-in is decided by the ACP
+ * auth code, never by words in the message: a BYOK provider's 401 is an
+ * ordinary runtime error. The CLI's own text is kept, and its JSON-RPC code
+ * travels in `details`.
+ */
+export function mapRuntimeError(error: unknown, binaryPath?: string): GrokProxyError {
   if (error instanceof GrokProxyError) return error;
   if (error instanceof GrokExtBusinessError) {
     return createAppError(502, 'RUNTIME_ERROR', error.message);
@@ -163,15 +247,29 @@ function mapRuntimeError(error: unknown, binaryPath: string): GrokProxyError {
   if (error instanceof McpAdmissionError) {
     return createAppError(400, 'INVALID_REQUEST', error.message);
   }
-  const message = error instanceof Error ? error.message : String(error);
-  const auth = /auth|login|unauthorized|401/i.test(message);
-  return createAppError(
-    auth ? 401 : 502,
-    auth ? 'AUTH_REQUIRED' : 'RUNTIME_ERROR',
-    auth
-      ? `Grok requires authentication. In the Gian Workbench Terminal run \`grok login\`, then retry. (${binaryPath})`
-      : message,
-  );
+  const native = nativeErrorText(error);
+  const details = {
+    ...nativeErrorDetails(error),
+    ...(error instanceof GrokRuntimeExitError
+      ? {
+        exitCode: error.exit.code,
+        ...(error.exit.signal ? { signal: error.exit.signal } : {}),
+      }
+      : {}),
+  };
+  if (isAcpAuthRequired(error)) {
+    return createAppError(
+      401,
+      'AUTH_REQUIRED',
+      `${GROK_SIGN_IN_HINT} (Grok: ${native}${binaryPath ? `; ${binaryPath}` : ''})`,
+      details,
+    );
+  }
+  return createAppError(502, 'RUNTIME_ERROR', native, details);
+}
+
+function isConnectionClosed(error: unknown): boolean {
+  return error instanceof Error && /ACP connection closed/i.test(error.message);
 }
 
 /** Feature-detect newer GrokAcpClient surface so minimal runtime doubles keep working. */
@@ -223,14 +321,29 @@ export class GrokProxyService {
    * instead of becoming pending requests nobody will answer.
    */
   private readonly cancellingSessions = new Set<string>();
+  /** How the attached child last died, for prompts that failed with it. */
+  private lastUnexpectedExit: { message: string; details: Record<string, unknown> } | null = null;
+  private readonly idleTimeoutMs: number;
+  private readonly interruptDeadlineMs: number;
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Background tasks still running in the attached child, as
+   *  `<native session>:<task id>`. Grok ends the prompt that starts one at
+   *  once, reports the task through x.ai notifications and, when it ends,
+   *  runs a turn of its own. Stopping the child would kill both. */
+  private readonly backgroundTasks = new Set<string>();
+  /** In-flight re-attach of a native session into a new child, by session. */
+  private readonly reattaching = new Map<string, Promise<GrokAcpClient>>();
 
   constructor(options: ServiceOptions) {
     this.binaryPath = options.binaryPath;
     this.turnStopDeadlineMs = options.turnStopDeadlineMs ?? 1000;
+    this.idleTimeoutMs = options.idleTimeoutMs ?? idleTimeoutFromEnv();
+    this.interruptDeadlineMs = options.interruptDeadlineMs ?? DEFAULT_INTERRUPT_DEADLINE_MS;
     this.createRuntime = options.createRuntime
       ?? ((cwd, spawn) => new GrokAcpClient({
         binaryPath: options.binaryPath,
         cwd,
+        ...(options.pluginVersion ? { clientVersion: options.pluginVersion } : {}),
         spawnDenyRules: spawn.spawnDenyRules,
         sandboxProfile: spawn.sandboxProfile,
         disallowMetaTools: spawn.disallowMetaTools,
@@ -436,7 +549,9 @@ export class GrokProxyService {
     const nativeId = input.nativeSessionId?.trim() || null;
     if (importHistory && nativeId) this.replayCollectors.set(nativeId, []);
     try {
-      const initialized = runtime.negotiated;
+      // An idle-stopped child is started again before another session (a
+      // Side Chat or fork) is attached to it.
+      const initialized = runtime.negotiated ?? await runtime.ensureStarted();
       const meta = (initialized as { _meta?: Record<string, unknown> } | null)?._meta ?? {};
       if (this.modelState.availableModels == null) {
         this.modelState = modelStateFromUnknown(meta.modelState);
@@ -470,6 +585,7 @@ export class GrokProxyService {
       }
       if (this.admittedHostMcp) await this.assertHostMcpBoundary(sessionId);
       const isNewNativeSession = !nativeId;
+      this.adoptModelList(response, isNewNativeSession);
       const session: SessionRecord = {
         id: randomId('sess'),
         cwd,
@@ -490,9 +606,13 @@ export class GrokProxyService {
         effort: isNewNativeSession
           ? this.defaultEffortForModel(this.modelState.currentModelId ?? null)
           : input.initialEffort ?? null,
+        attachedGeneration: runtimeGeneration(runtime),
         createdAt: nowIso(),
         updatedAt: nowIso(),
       };
+      // The native session's own config (Grok 1.0.92 configOptions) is the
+      // evidence for its model and effort, also after a load or resume.
+      this.adoptNativeConfig(session, (response as { configOptions?: unknown }).configOptions);
       this.permissionBySession.set(session.id, {
         draft: mode,
         notified: mode,
@@ -509,6 +629,7 @@ export class GrokProxyService {
       if (!importHistory) {
         for (const notification of replayUpdates) this.handleSessionUpdate(notification);
       }
+      this.scheduleIdleStop();
       return {
         session: this.serializeSession(session),
         replayUpdates: importHistory ? replayUpdates : [],
@@ -532,7 +653,7 @@ export class GrokProxyService {
     if (source.activeTurnId) {
       throw createAppError(409, 'SESSION_BUSY', 'Stop the active turn before forking the session.');
     }
-    const runtime = this.requireRuntime();
+    const runtime = await this.ensureAttached(source);
     const runtimeExtensions = runtimeExtensionSupport(runtime);
     const nativeConfirmed = runtimeExtensions?.supports('x.ai/session/fork') === true;
     // An exact-turn fork only runs on a confirmed native method; a silent
@@ -606,6 +727,7 @@ export class GrokProxyService {
       ...source,
       id: randomId('sess'),
       nativeSessionId: forked.sessionId,
+      attachedGeneration: runtimeGeneration(runtime),
       configOptions: (forked.configOptions as SessionRecord['configOptions']) ?? source.configOptions,
       slashCommands: [...source.slashCommands],
       activeTurnId: null,
@@ -718,6 +840,14 @@ export class GrokProxyService {
     if (session.activeTurnId) {
       throw createAppError(409, 'SESSION_BUSY', 'This session already has an active turn.');
     }
+    this.clearIdleStop();
+    // A session whose child stopped (idle stop, crash, forced interrupt) is
+    // resumed into a new child before its prompt; it is never prompted in a
+    // child that has not loaded it.
+    await this.ensureAttached(session);
+    if (session.activeTurnId) {
+      throw createAppError(409, 'SESSION_BUSY', 'This session already has an active turn.');
+    }
     const input = normalizeInputItems(params.input, session.cwd);
     const command = firstSlashToken(firstText(input));
     if (command && isBlockedSlashCommand(command)) {
@@ -785,6 +915,7 @@ export class GrokProxyService {
         }
       }
     } catch (error) {
+      if (isConnectionClosed(error)) await this.awaitRuntimeExit(this.runtime, 1_000);
       if (this.activeTurns.get(prepared.session.id)?.generation === prepared.generation) {
         this.failTurn(prepared.session, prepared.turnId, error);
       }
@@ -846,7 +977,56 @@ export class GrokProxyService {
     // the cancel notification arrives.
     this.cancellingSessions.add(session.id);
     this.settlePendingInteractions(session.id);
-    await this.requireRuntime().cancel(session.nativeSessionId);
+    const active = this.activeTurns.get(session.id);
+    const runtime = this.requireRuntime();
+    try {
+      await Promise.race([
+        runtime.cancel(session.nativeSessionId),
+        delay(this.interruptDeadlineMs).then(() => { throw new Error('session/cancel was not sent in time.'); }),
+      ]);
+    } finally {
+      // Whether or not the cancel went out, the turn must end: a prompt that
+      // has not settled by the deadline takes the child down with it.
+      if (active) this.armInterruptWatchdog(session, active, runtime);
+    }
+  }
+
+  private armInterruptWatchdog(session: SessionRecord, active: ActiveTurn, runtime: GrokAcpClient): void {
+    if (active.watchdog || active.completed) return;
+    const deadline = this.interruptDeadlineMs;
+    active.watchdog = setTimeout(() => {
+      void this.forceStopInterruptedTurn(session, active, runtime, deadline);
+    }, deadline);
+    active.watchdog.unref?.();
+    void active.settled.then(() => {
+      if (active.watchdog) clearTimeout(active.watchdog);
+    });
+  }
+
+  private async forceStopInterruptedTurn(
+    session: SessionRecord,
+    active: ActiveTurn,
+    runtime: GrokAcpClient,
+    deadlineMs: number,
+  ): Promise<void> {
+    if (active.completed || this.activeTurns.get(session.id) !== active || this.runtime !== runtime) return;
+    const reason = `Grok did not stop the interrupted turn within ${Math.round(deadlineMs / 1000)} s, so its process was stopped.`;
+    this.lastUnexpectedExit = { message: reason, details: { reason: 'interrupt-timeout' } };
+    // End the interrupted turn first: the prompt's own rejection must not
+    // turn it into a failure.
+    this.completeTurn(session, active.turnId, 'cancelled');
+    try {
+      await runtime.stop({ force: true });
+    } catch {
+      // The child is unusable either way; the next turn starts a new one.
+    }
+    // Other sessions shared that child; their turns ended with it.
+    for (const other of this.sessionsById.values()) {
+      other.attachedGeneration = null;
+      if (other.id !== session.id && other.activeTurnId) {
+        this.failTurn(other, other.activeTurnId, createAppError(502, 'RUNTIME_ERROR', reason, { reason: 'interrupt-timeout' }));
+      }
+    }
   }
 
   async respondApproval(params: ApprovalResponseParams) {
@@ -1187,38 +1367,12 @@ export class GrokProxyService {
 
   async setConfigOption(params: SetConfigOptionParams) {
     const session = this.requireSession(params.sessionId);
-    const runtime = this.requireRuntime();
-    if (params.configId === 'model') {
-      const modelId = String(params.value);
-      if (!this.modelState.availableModels?.some(model => model.modelId === modelId)) {
-        throw createAppError(400, 'INVALID_REQUEST', `Unknown Grok model ${modelId}.`);
-      }
-      await runtime.setSessionModel({ sessionId: session.nativeSessionId, modelId });
-      // Model state is per session: another attached session keeps its own.
-      session.model = modelId;
-      session.effort = this.defaultEffortForModel(modelId);
-    } else if (params.configId === 'reasoning_effort') {
-      const effort = String(params.value);
-      // The native request is model-scoped: only this session's own evidenced
-      // model may be sent. Borrowing the process default could silently switch
-      // a resumed session to a model it never ran.
-      const modelId = session.model;
-      if (!modelId) {
-        throw createAppError(
-          400,
-          'INVALID_REQUEST',
-          'Select a Grok model for this session before adjusting thinking.',
-        );
-      }
-      if (!effortIdsForModel(this.modelState, modelId).includes(effort)) {
-        throw createAppError(400, 'INVALID_REQUEST', `Unknown Grok reasoning effort ${effort}.`);
-      }
-      await runtime.setSessionModel({
-        sessionId: session.nativeSessionId,
-        modelId,
-        _meta: { reasoningEffort: effort },
-      });
-      session.effort = effort;
+    this.requireRuntime();
+    if (params.configId === 'model' || params.configId === 'reasoning_effort') {
+      this.clearIdleStop();
+      const runtime = await this.ensureAttached(session);
+      await this.applyModelConfig(session, runtime, params.configId, String(params.value));
+      this.scheduleIdleStop();
     } else if (params.configId === 'permission_mode') {
       const mode = parseGrokPermissionMode(String(params.value));
       if (!mode) throw createAppError(400, 'INVALID_REQUEST', 'Unknown Grok permission mode.');
@@ -1233,6 +1387,270 @@ export class GrokProxyService {
     return { session: this.serializeSession(session) };
   }
 
+  /**
+   * Model and effort go through the standard `session/set_config_option`
+   * (Grok 1.0.92 `model` and `reasoning_effort`); the response is the
+   * session's complete option list. A runtime that never reported config
+   * options falls back to `session/set_model`.
+   */
+  private async applyModelConfig(
+    session: SessionRecord,
+    runtime: GrokAcpClient,
+    configId: 'model' | 'reasoning_effort',
+    value: string,
+  ): Promise<void> {
+    const native = nativeConfigOptions(session.configOptions) ?? [];
+    const nativeModel = nativeOption(native, 'model', 'model');
+    const nativeEffort = nativeOption(native, 'reasoning_effort', 'thought_level');
+    const setNative = typeof (runtime as { setSessionConfigOption?: unknown }).setSessionConfigOption === 'function'
+      && nativeModel !== undefined;
+    if (configId === 'model') {
+      const known = this.modelState.availableModels?.some(model => model.modelId === value)
+        || optionValues(nativeModel).includes(value);
+      if (!known) throw createAppError(400, 'INVALID_REQUEST', `Unknown Grok model ${value}.`);
+      if (setNative) {
+        if (nativeModel?.currentValue === value) return;
+        const response = await runtime.setSessionConfigOption({
+          sessionId: session.nativeSessionId,
+          configId: nativeModel!.id,
+          value,
+        });
+        session.model = value;
+        session.effort = this.defaultEffortForModel(value);
+        this.adoptNativeConfig(session, response?.configOptions);
+        return;
+      }
+      await runtime.setSessionModel({ sessionId: session.nativeSessionId, modelId: value });
+      // Model state is per session: another attached session keeps its own.
+      session.model = value;
+      session.effort = this.defaultEffortForModel(value);
+      return;
+    }
+    if (setNative) {
+      if (!nativeEffort) {
+        throw createAppError(
+          400,
+          'INVALID_REQUEST',
+          `The current Grok model ${session.model ?? ''} does not offer a thinking level.`.replace('  ', ' '),
+        );
+      }
+      if (!optionValues(nativeEffort).includes(value)) {
+        throw createAppError(400, 'INVALID_REQUEST', `Unknown Grok reasoning effort ${value}.`);
+      }
+      if (nativeEffort.currentValue === value) return;
+      const response = await runtime.setSessionConfigOption({
+        sessionId: session.nativeSessionId,
+        configId: nativeEffort.id,
+        value,
+      });
+      session.effort = value;
+      this.adoptNativeConfig(session, response?.configOptions);
+      return;
+    }
+    // Legacy runtimes: the native request is model-scoped, so only this
+    // session's own evidenced model may be sent. Borrowing the process
+    // default could silently switch a resumed session to a model it never ran.
+    const modelId = session.model;
+    if (!modelId) {
+      throw createAppError(
+        400,
+        'INVALID_REQUEST',
+        'Select a Grok model for this session before adjusting thinking.',
+      );
+    }
+    if (!effortIdsForModel(this.modelState, modelId).includes(value)) {
+      throw createAppError(400, 'INVALID_REQUEST', `Unknown Grok reasoning effort ${value}.`);
+    }
+    await runtime.setSessionModel({
+      sessionId: session.nativeSessionId,
+      modelId,
+      _meta: { reasoningEffort: value },
+    });
+    session.effort = value;
+  }
+
+  /**
+   * Adopts the session's native option list (from session/new, load,
+   * resume, set_config_option or a config_option_update). Returns true when
+   * the session's model or effort changed.
+   */
+  private adoptNativeConfig(session: SessionRecord, value: unknown): boolean {
+    const options = nativeConfigOptions(value);
+    if (!options) return false;
+    session.configOptions = options as unknown as SessionRecord['configOptions'];
+    const model = nativeOption(options, 'model', 'model');
+    const effort = nativeOption(options, 'reasoning_effort', 'thought_level');
+    let changed = false;
+    if (typeof model?.currentValue === 'string' && model.currentValue && model.currentValue !== session.model) {
+      session.model = model.currentValue;
+      changed = true;
+    }
+    // No effort option means the current model takes none (a BYOK model).
+    const nextEffort = typeof effort?.currentValue === 'string' && effort.currentValue
+      ? effort.currentValue
+      : model ? null : session.effort;
+    if (nextEffort !== session.effort) {
+      session.effort = nextEffort;
+      changed = true;
+    }
+    return changed;
+  }
+
+  /** Session responses carry the live model list (`models`); it is fresher
+   *  than the initialize snapshot, e.g. after a model was removed. */
+  private adoptModelList(response: unknown, adoptCurrent: boolean): void {
+    const models = (response as { models?: unknown } | null)?.models;
+    if (!models || typeof models !== 'object') return;
+    const state = modelStateFromUnknown(models);
+    if (!state.availableModels || state.availableModels.length === 0) return;
+    this.modelState = {
+      ...this.modelState,
+      availableModels: state.availableModels,
+      ...(adoptCurrent && state.currentModelId ? { currentModelId: state.currentModelId } : {}),
+    };
+  }
+
+  /**
+   * The live runtime with this native session loaded into its current
+   * child. After an idle stop, a crash or a forced interrupt the session is
+   * resumed (`session/resume`, else `session/load` with its replay
+   * discarded) into a new child, its model and effort are re-applied, and a
+   * stale session becomes idle again.
+   */
+  private async ensureAttached(session: SessionRecord): Promise<GrokAcpClient> {
+    const runtime = this.requireRuntime();
+    if (session.status !== 'stale'
+      && runtimeRunning(runtime)
+      && session.attachedGeneration === runtimeGeneration(runtime)) {
+      return runtime;
+    }
+    const pending = this.reattaching.get(session.id);
+    if (pending) return pending;
+    const attach = this.reattach(session, runtime).finally(() => {
+      this.reattaching.delete(session.id);
+    });
+    this.reattaching.set(session.id, attach);
+    return attach;
+  }
+
+  private async reattach(session: SessionRecord, runtime: GrokAcpClient): Promise<GrokAcpClient> {
+    const wasStale = session.status === 'stale';
+    const want = { model: session.model, effort: session.effort };
+    try {
+      const initialized = await runtime.ensureStarted();
+      if (session.attachedGeneration === runtimeGeneration(runtime) && !wasStale) return runtime;
+      this.lastUnexpectedExit = null;
+      const row = this.permissionRow(session.id);
+      const meta = { mode: 'agent', clientIdentifier: row.audience, ...grokPermissionSpec(row.draft).createMeta };
+      const request = {
+        sessionId: session.nativeSessionId,
+        cwd: session.cwd,
+        mcpServers: this.hostMcpServers as never[],
+        _meta: meta,
+      };
+      let response: unknown;
+      if (initialized.agentCapabilities?.sessionCapabilities?.resume != null) {
+        response = await runtime.resumeSession(request);
+      } else {
+        // session/load replays history; the Host already has it.
+        this.replayCollectors.set(session.nativeSessionId, []);
+        try {
+          response = await runtime.loadSession(request);
+        } finally {
+          this.replayCollectors.delete(session.nativeSessionId);
+        }
+      }
+      row.notified = row.draft;
+      if (this.admittedHostMcp) await this.assertHostMcpBoundary(session.nativeSessionId);
+      session.attachedGeneration = runtimeGeneration(runtime);
+      this.adoptModelList(response, false);
+      this.adoptNativeConfig(session, (response as { configOptions?: unknown } | null)?.configOptions);
+      // The new child must run what the Host selected, not a persisted default.
+      if (want.model && want.model !== session.model) {
+        await this.applyModelConfig(session, runtime, 'model', want.model);
+      }
+      if (want.effort && want.effort !== session.effort) {
+        await this.applyModelConfig(session, runtime, 'reasoning_effort', want.effort).catch(() => undefined);
+      }
+      if (wasStale) {
+        session.status = 'idle';
+        session.lastError = null;
+        this.emitEvent('session.updated', this.envelope(session, { status: 'idle', recovered: true }));
+      }
+      return runtime;
+    } catch (error) {
+      throw mapRuntimeError(error, this.binaryPath);
+    }
+  }
+
+  /** Native work that does not need a Gian turn: background-task
+   *  bookkeeping, and the updates of a turn Grok runs on its own after a
+   *  background task ends. Running tasks keep the child; any native update
+   *  starts the idle clock again. */
+  private observeNativeActivity(nativeSessionId: string, update: unknown): void {
+    const fields = update !== null && typeof update === 'object' ? update as Record<string, unknown> : {};
+    const kind = String(fields.sessionUpdate ?? '');
+    const key = (taskId: unknown) => (typeof taskId === 'string' && taskId ? `${nativeSessionId}:${taskId}` : null);
+    if (kind === 'background_tasks' && Array.isArray(fields.tasks)) {
+      // The full list for this session: it replaces what was known.
+      for (const known of [...this.backgroundTasks]) {
+        if (known.startsWith(`${nativeSessionId}:`)) this.backgroundTasks.delete(known);
+      }
+      for (const task of fields.tasks) {
+        const entry = task !== null && typeof task === 'object' ? task as Record<string, unknown> : {};
+        const taskKey = key(entry.task_id);
+        if (taskKey && backgroundTaskActive(entry.status)) this.backgroundTasks.add(taskKey);
+      }
+    } else if (kind === 'task_backgrounded') {
+      const taskKey = key(fields.task_id);
+      if (taskKey) this.backgroundTasks.add(taskKey);
+    } else if (kind === 'task_completed') {
+      const snapshot = fields.task_snapshot !== null && typeof fields.task_snapshot === 'object'
+        ? fields.task_snapshot as Record<string, unknown>
+        : {};
+      const taskKey = key(fields.task_id ?? snapshot.task_id);
+      if (taskKey) this.backgroundTasks.delete(taskKey);
+    }
+    this.scheduleIdleStop();
+  }
+
+  /** Arms the idle stop when nothing runs in the attached child. */
+  private scheduleIdleStop(): void {
+    this.clearIdleStop();
+    const runtime = this.runtime;
+    if (this.idleTimeoutMs <= 0 || !runtime || !this.childIdle()) return;
+    const timer = setTimeout(() => {
+      if (this.idleTimer !== timer) return;
+      this.idleTimer = null;
+      void this.stopIdleChild(runtime);
+    }, this.idleTimeoutMs);
+    timer.unref?.();
+    this.idleTimer = timer;
+  }
+
+  private clearIdleStop(): void {
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = null;
+  }
+
+  private childIdle(): boolean {
+    if (this.reattaching.size > 0 || this.approvalsById.size > 0 || this.questionsById.size > 0) return false;
+    if (this.backgroundTasks.size > 0) return false;
+    return [...this.sessionsById.values()].every((session) => !session.activeTurnId);
+  }
+
+  /** Stops an idle child (an expected stop: sessions stay idle for the
+   *  Host). The next turn resumes each session into a new child. */
+  private async stopIdleChild(runtime: GrokAcpClient): Promise<void> {
+    if (this.runtime !== runtime || !this.childIdle() || !runtimeRunning(runtime)) return;
+    for (const session of this.sessionsById.values()) session.attachedGeneration = null;
+    try {
+      await runtime.stop();
+    } catch {
+      // A child that does not stop cleanly is replaced on the next turn.
+    }
+  }
+
   async renameSession(params: { sessionId: string; name: string }) {
     const session = this.requireSession(params.sessionId);
     // Upstream enforces a 100-scalar title limit; reject early rather than
@@ -1241,7 +1659,8 @@ export class GrokProxyService {
       throw createAppError(400, 'INVALID_REQUEST', 'Grok session names are limited to 100 Unicode code points.');
     }
     try {
-      await this.requireRuntime().renameSession(session.nativeSessionId, params.name, session.cwd);
+      const runtime = await this.ensureAttached(session);
+      await runtime.renameSession(session.nativeSessionId, params.name, session.cwd);
     } catch (error) {
       if (isMethodNotFound(error)) {
         throw createAppError(
@@ -1297,7 +1716,10 @@ export class GrokProxyService {
     this.cancellingSessions.add(session.id);
     this.settlePendingInteractions(session.id);
     try {
-      if (this.runtime) {
+      // Only a child that has this session loaded is asked to close it; a
+      // stopped child is never restarted just to close.
+      if (this.runtime && runtimeRunning(this.runtime)
+        && session.attachedGeneration === runtimeGeneration(this.runtime)) {
         await this.runtime.cancel(session.nativeSessionId).catch(() => undefined);
         await this.runtime.closeSession({ sessionId: session.nativeSessionId }).catch(() => undefined);
       }
@@ -1329,6 +1751,9 @@ export class GrokProxyService {
       attachedRuntime: () => {
         const session = this.sessionsById.values().next().value;
         if (!session || !this.runtime || this.runtimeCwd !== session.cwd) return null;
+        // An idle-stopped child has no session loaded; never restart it for
+        // a read-only listing.
+        if (!runtimeRunning(this.runtime) || session.attachedGeneration !== runtimeGeneration(this.runtime)) return null;
         return {
           runtime: this.runtime,
           nativeSessionId: session.nativeSessionId,
@@ -1366,6 +1791,9 @@ export class GrokProxyService {
       const nativeSessionId = params && typeof params === 'object'
         ? String((params as Record<string, unknown>).sessionId ?? '')
         : '';
+      if (nativeSessionId && (this.runtime === null || this.runtime === runtime)) {
+        this.observeNativeActivity(nativeSessionId, (params as Record<string, unknown>).update);
+      }
       const direct = nativeSessionId
         ? this.sessionsById.get(this.proxyIdByNativeId.get(nativeSessionId) ?? '')
         : undefined;
@@ -1374,18 +1802,30 @@ export class GrokProxyService {
     });
     runtime.on('sessionUpdate', notification => this.handleSessionUpdate(notification));
     runtime.on('runtimeStopped', (event) => {
+      if (this.runtime === runtime) this.backgroundTasks.clear();
       if (event.expected) return;
+      const message = describeExit(event, event.stderrTail ?? '', 'running');
+      this.lastUnexpectedExit = {
+        message,
+        details: {
+          exitCode: event.code,
+          ...(event.signal ? { signal: event.signal } : {}),
+        },
+      };
+      this.clearIdleStop();
       for (const session of this.sessionsById.values()) {
         this.settlePendingInteractions(session.id);
+        session.attachedGeneration = null;
         session.status = 'stale';
-        session.lastError = 'Grok runtime stopped.';
-        this.emitEvent('session.updated', this.envelope(session, { status: 'stale' }));
+        session.lastError = message;
+        this.emitEvent('session.updated', this.envelope(session, { status: 'stale', lastError: message }));
       }
     });
     try {
       const initialized = await runtime.ensureStarted();
       this.runtime = runtime;
       this.runtimeCwd = cwd;
+      this.lastUnexpectedExit = null;
       this.forkSupported = initialized.agentCapabilities?.sessionCapabilities?.fork != null;
       return runtime;
     } catch (error) {
@@ -1395,6 +1835,8 @@ export class GrokProxyService {
   }
 
   private async stopRuntime(): Promise<void> {
+    this.clearIdleStop();
+    this.backgroundTasks.clear();
     const runtime = this.runtime;
     this.runtime = null;
     this.runtimeCwd = null;
@@ -1447,7 +1889,10 @@ export class GrokProxyService {
    */
   private async onMcpCatalogChanged(): Promise<void> {
     if (!this.admittedHostMcp || !this.runtime || this.mcpBlockedReason) return;
-    const sessions = [...this.sessionsById.values()];
+    const live = this.runtime;
+    const sessions = [...this.sessionsById.values()].filter((session) => (
+      session.attachedGeneration === runtimeGeneration(live)
+    ));
     if (sessions.length === 0) return;
     try {
       for (const session of sessions) {
@@ -1525,6 +1970,7 @@ export class GrokProxyService {
     if (this.runtime === runtime) {
       this.runtime = null;
       this.runtimeCwd = null;
+      this.backgroundTasks.clear();
     }
     return stopError;
   }
@@ -1630,7 +2076,9 @@ export class GrokProxyService {
     session.status = 'idle';
     this.cancellingSessions.delete(session.id);
     this.settlePendingInteractions(session.id);
+    if (active.watchdog) clearTimeout(active.watchdog);
     this.emitEvent('turn.completed', this.envelope(session, { stopReason }, turnId));
+    this.scheduleIdleStop();
   }
 
   private failTurn(session: SessionRecord, turnId: string, error: unknown) {
@@ -1639,29 +2087,71 @@ export class GrokProxyService {
     active.completed = true;
     session.activeTurnId = null;
     this.releaseTurnSnapshot(session);
+    const mapped = this.turnFailure(error);
     session.status = 'error';
-    session.lastError = error instanceof Error ? error.message : String(error);
+    session.lastError = mapped.message;
     this.cancellingSessions.delete(session.id);
     this.settlePendingInteractions(session.id);
+    if (active.watchdog) clearTimeout(active.watchdog);
     this.emitEvent('turn.failed', this.envelope(session, {
-      code: /auth|login/i.test(session.lastError) ? 'RUNTIME_AUTH_REQUIRED' : 'RUNTIME_ERROR',
-      message: session.lastError,
+      code: mapped.code === 'AUTH_REQUIRED' ? 'RUNTIME_AUTH_REQUIRED' : 'RUNTIME_ERROR',
+      message: mapped.message,
+      details: mapped.details,
     }, turnId));
+    this.scheduleIdleStop();
   }
 
+  /**
+   * A prompt that died with the child (the SDK reports "ACP connection
+   * closed") is described by the exit and the child's own stderr instead.
+   */
+  private turnFailure(error: unknown): GrokProxyError {
+    if (isConnectionClosed(error)) {
+      if (this.lastUnexpectedExit) {
+        return createAppError(502, 'RUNTIME_ERROR', this.lastUnexpectedExit.message, this.lastUnexpectedExit.details);
+      }
+      const runtime = this.runtime as { stderrTail?: () => string } | null;
+      const tail = typeof runtime?.stderrTail === 'function' ? runtime.stderrTail() : '';
+      return createAppError(
+        502,
+        'RUNTIME_ERROR',
+        `Grok stopped unexpectedly.${tail ? ` Grok reported: ${tail}` : ''}`,
+        { connection: 'closed' },
+      );
+    }
+    return mapRuntimeError(error, this.binaryPath);
+  }
+
+  /** The SDK can reject a prompt just before the child's exit is observed;
+   *  give the exit (and its stderr) a moment to arrive. */
+  private async awaitRuntimeExit(runtime: GrokAcpClient | null, timeoutMs: number): Promise<void> {
+    if (!runtime || this.lastUnexpectedExit || typeof runtime.once !== 'function') return;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(done, timeoutMs);
+      timer.unref();
+      function done() {
+        clearTimeout(timer);
+        runtime!.off('runtimeStopped', done);
+        resolve();
+      }
+      runtime.once('runtimeStopped', done);
+    });
+  }
+
+  /** One `usage.updated` conversation delta per turn. The turn's
+   *  totalTokens is a turn count, never the context occupancy. */
   private emitPromptUsage(session: SessionRecord, turnId: string, response: PromptResponse) {
-    const meta = (response as { _meta?: unknown })._meta;
-    const usage = parsePromptUsage(meta);
+    const usage = promptTurnUsage(response);
     if (!usage) return;
-    this.emitEvent('usage.updated', this.envelope(session, {
-      conversation: {
-        mode: 'delta',
-        ...(usage.inputTokens !== undefined ? { inputTokens: usage.inputTokens } : {}),
-        ...(usage.outputTokens !== undefined ? { outputTokens: usage.outputTokens } : {}),
-        ...(usage.cachedInputTokens !== undefined ? { cachedInputTokens: usage.cachedInputTokens } : {}),
-      },
-      ...(usage.totalTokens !== undefined ? { context: { used: usage.totalTokens } } : {}),
-    }, turnId));
+    const conversation = {
+      mode: 'delta' as const,
+      ...(usage.inputTokens !== undefined ? { inputTokens: usage.inputTokens } : {}),
+      ...(usage.outputTokens !== undefined ? { outputTokens: usage.outputTokens } : {}),
+      ...(usage.cachedInputTokens !== undefined ? { cachedInputTokens: usage.cachedInputTokens } : {}),
+      ...(usage.totalTokens !== undefined ? { totalTokens: usage.totalTokens } : {}),
+    };
+    if (Object.keys(conversation).length === 1) return;
+    this.emitEvent('usage.updated', this.envelope(session, { conversation }, turnId));
   }
 
   private handleSessionUpdate(notification: SessionNotification) {
@@ -1670,6 +2160,7 @@ export class GrokProxyService {
       collecting.push(notification);
       return;
     }
+    this.observeNativeActivity(notification.sessionId, notification.update);
     const proxySessionId = this.proxyIdByNativeId.get(notification.sessionId);
     const session = proxySessionId ? this.sessionsById.get(proxySessionId) : undefined;
     if (!session) {
@@ -1680,10 +2171,14 @@ export class GrokProxyService {
     }
     const update = notification.update as { sessionUpdate?: string } & Record<string, unknown>;
     const kind = String(update.sessionUpdate ?? '');
+    // Session-scoped updates matter outside a turn too: Grok switches a
+    // session's model when that model leaves the list (1.0.90), and a
+    // config_option_update mirrors every set_config_option.
     const sessionScoped = kind === 'available_commands_update'
       || kind === 'current_mode_update'
       || kind === 'current_model_update'
-      || kind === 'config_update'
+      || kind === 'config_option_update'
+      || kind === 'session_info_update'
       || kind === 'usage_update';
     if (!sessionScoped && !session.activeTurnId) return;
     if (update.sessionUpdate === 'available_commands_update' && Array.isArray(update.availableCommands)) {
@@ -1694,17 +2189,25 @@ export class GrokProxyService {
     if (update.sessionUpdate === 'current_model_update' && typeof update.currentModelId === 'string') {
       // A model update belongs to the session that emitted it; other attached
       // sessions and the process default keep their own values.
-      session.model = update.currentModelId;
-      this.emitEvent('session.updated', this.envelope(session, { model: update.currentModelId }));
+      if (update.currentModelId !== session.model) {
+        session.model = update.currentModelId;
+        session.effort = this.defaultEffortForModel(update.currentModelId);
+      }
+      this.emitEvent('session.updated', this.envelope(session, {
+        model: session.model,
+        effort: session.effort,
+        configChanged: true,
+      }));
     }
-    if (update.sessionUpdate === 'usage_update') {
-      this.emitEvent('usage.updated', this.envelope(session, {
-        context: {
-          used: update.used,
-          window: update.size,
-        },
-      }, session.activeTurnId ?? undefined));
+    if (update.sessionUpdate === 'config_option_update' && this.adoptNativeConfig(session, update.configOptions)) {
+      this.emitEvent('session.updated', this.envelope(session, {
+        model: session.model,
+        effort: session.effort,
+        configChanged: true,
+      }));
     }
+    // usage_update (context `used`/`size`) is translated once, with the
+    // other session updates, by the adapter.
     this.emitEvent('session.update', this.envelope(session, { update }, session.activeTurnId ?? undefined));
   }
 

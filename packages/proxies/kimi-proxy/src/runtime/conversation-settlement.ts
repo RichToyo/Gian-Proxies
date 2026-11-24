@@ -26,24 +26,26 @@ export class KimiConversationSettlement {
 
   receive(frame: Frame): void {
     if (frame.session_id !== this.sessionId) return;
-    if (frame.type === 'event.session.work_changed') {
-      const payload = frame.payload;
-      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) throw new Error('Invalid Kimi session work state.');
-      const work = payload as Frame;
-      if (typeof work.busy !== 'boolean' || (work.agentId !== undefined && work.agentId !== 'main')
-        || (work.sessionId !== undefined && work.sessionId !== this.sessionId)
-        || (work.main_turn_active !== undefined && typeof work.main_turn_active !== 'boolean')
+    if (frame.type === 'session') {
+      // 2.7 global session event: {change, session:{id, activity,
+      // pending_interaction?}}. `activity` is turn/background/idle.
+      const session = frame.session;
+      if (typeof session !== 'object' || session === null || Array.isArray(session)) throw new Error('Invalid Kimi session work state.');
+      const work = session as Frame;
+      if (work.id !== this.sessionId || !['idle', 'turn', 'background'].includes(String(work.activity))
         || (work.pending_interaction !== undefined && !['none', 'approval', 'question'].includes(String(work.pending_interaction)))) {
         throw new Error('Invalid Kimi session work state.');
       }
-      this.nativeBusy = work.busy || work.main_turn_active === true
+      this.nativeBusy = work.activity !== 'idle'
         || work.pending_interaction === 'approval' || work.pending_interaction === 'question';
       return;
     }
     if (frame.agent_id !== 'main') return;
     if (frame.type === 'agent') {
-      if (frame.status !== 'idle' && frame.status !== 'running') throw new Error('Invalid Kimi agent state.');
-      this.agentIdle = frame.status === 'idle';
+      // 2.7 adds `ended` when the main agent closes (idle reclaim, reload):
+      // it can no longer run work, so it counts as idle.
+      if (frame.status !== 'idle' && frame.status !== 'running' && frame.status !== 'ended') throw new Error('Invalid Kimi agent state.');
+      this.agentIdle = frame.status !== 'running';
     } else if (frame.type === 'task.list') {
       if (!Array.isArray(frame.tasks)) throw new Error('Invalid Kimi task snapshot.');
       const next = new Set<string>();

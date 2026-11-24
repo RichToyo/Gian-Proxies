@@ -54,6 +54,7 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { readFileSync, statSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { BridgeProtocolError, BridgeWriter } from './jsonrpc.js';
@@ -357,14 +358,21 @@ export function mountBridge(options: CordisHostOptions): () => Promise<void> {
 
   let disposed = false;
   const run = async () => {
-    const { runBridgeInput } = await import('./jsonrpc.js');
-    return runBridgeInput(
+    const { runBridgeInput, CONCURRENT_BRIDGE_SCHEDULE } = await import('./jsonrpc.js');
+    await runBridgeInput(
       input,
       async (request) => server.handle(request),
       writer,
+      undefined,
+      CONCURRENT_BRIDGE_SCHEDULE,
     );
+    // EOF: the Proxy closed stdin or died (even SIGKILL closes the pipe).
+    // Nobody can drive this DSH any more, so it exits instead of orphaning
+    // its jobs, schedule and HMR plugins.
+    if (disposed) return;
+    exitDsh(host);
   };
-  void run();
+  void run().catch(() => exitDsh(host));
 
   return async () => {
     if (disposed) return;
@@ -372,6 +380,17 @@ export function mountBridge(options: CordisHostOptions): () => Promise<void> {
     input.destroy();
     await host.dispose();
   };
+}
+
+/**
+ * Leave DSH through its own graceful path: the launcher's `appExit`, else the
+ * SIGTERM handler that disposes the plugin root. Either way every plugin
+ * (jobs, schedule, terminals) runs its disposer and reaps its children.
+ */
+function exitDsh(host: CordisDshHost): void {
+  void host.shutdown().catch(() => {
+    process.kill(process.pid, 'SIGTERM');
+  });
 }
 
 /** Cordis `apply` shape expected by the inserted bundle row. */
@@ -435,6 +454,47 @@ const IMAGE_EXTENSION_MEDIA_TYPES: Record<string, string> = {
 /** Bridge-transport memory guard for verbatim file admission (native storage
  * itself carries no file limit; this only bounds the bridge's in-process read). */
 const MAX_FILE_ADMISSION_BYTES = 512 * 1024 * 1024;
+
+/**
+ * DSH lists a Provider's models only once its credential resolves (the
+ * DeepSeek and pi-ai adapters both return an empty catalog without a key), so
+ * "no selectable model" means the Agent Home has no usable Provider yet.
+ */
+export function noProviderError(env: NodeJS.ProcessEnv = process.env): BridgeProtocolError {
+  const home = env.DSH_HOME?.trim() || join(homedir(), '.dsh');
+  return new BridgeProtocolError(
+    -32000,
+    `DeepSeek Harness has no model Provider with a usable credential in ${home}. `
+      + `Add DEEPSEEK_API_KEY under \`refs:\` in ${join(home, '.credentials.yaml')} `
+      + `(or configure another Provider in ${join(home, 'cordis.patch.yml')} and add its key), then retry.`,
+    'RUNTIME_AUTH_REQUIRED',
+  );
+}
+
+/**
+ * Late-execution fence: the Proxy stopped waiting at `deadlineAt`, so a
+ * state change committed afterwards would land in a session Gian already
+ * rolled back. Callers check right before they commit.
+ */
+function assertBeforeDeadline(deadlineAt: number | undefined, what: string): void {
+  if (deadlineAt !== undefined && Date.now() > deadlineAt) {
+    throw new BridgeProtocolError(
+      -32000,
+      `${what} expired before it was committed; the Proxy had already stopped waiting.`,
+      'RUNTIME_UNAVAILABLE',
+      true,
+    );
+  }
+}
+
+/** Dispose a just-created Agent whose request expired, then fail it. */
+async function discardExpired(handle: CordisAgentHandle, deadlineAt: number | undefined, what: string): Promise<void> {
+  if (deadlineAt === undefined || Date.now() <= deadlineAt) return;
+  handle.agent.cancel({ kind: 'disposed' });
+  await handle.agent.whenIdle().catch(() => undefined);
+  await handle.dispose().catch(() => undefined);
+  assertBeforeDeadline(deadlineAt, what);
+}
 
 function titleCaseKebab(value: string): string {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) return value;
@@ -528,7 +588,9 @@ export class CordisDshHost implements BridgeHost {
   }>();
   private readonly offCatalogChanged: (() => boolean) | null;
   private catalogChangedAt = Date.now();
-  private catalogGeneration = 0;
+  /** Revision last served by catalog.list or announced by catalog.changed. */
+  private lastCatalogRevision: string | null = null;
+  private catalogTimer: NodeJS.Timeout | null = null;
   private firstCatalog = true;
   private disposed = false;
 
@@ -556,12 +618,8 @@ export class CordisDshHost implements BridgeHost {
       : null;
     this.offCatalogChanged = typeof ctx.on === 'function'
       ? ctx.on('llm/adapters-updated', () => {
-          this.catalogGeneration += 1;
           this.catalogChangedAt = Date.now();
-          this.emit({
-            method: 'catalog.changed',
-            params: { catalogRevision: `cordis-${this.dshVersion}-${this.catalogGeneration}` },
-          });
+          this.scheduleCatalogCheck();
         })
       : null;
   }
@@ -1160,13 +1218,13 @@ export class CordisDshHost implements BridgeHost {
       }
     }
     const first = models[0];
-    if (!first) throw new Error('RUNTIME_UNAVAILABLE: DSH exposes no models');
+    if (!first) throw noProviderError();
     return { provider: first.provider, model: first.id };
   }
 
   private session(sessionId: string): CordisSessionRecord {
     const record = this.sessions.get(sessionId);
-    if (!record) throw new Error(`DSH bridge session ${sessionId} not found`);
+    if (!record) throw new Error(`SESSION_NOT_FOUND: DSH bridge session ${sessionId} not found`);
     return record;
   }
 
@@ -1231,6 +1289,38 @@ export class CordisDshHost implements BridgeHost {
     };
   }
 
+  /**
+   * Provider registrations arrive in bursts (boot, settings reloads). After
+   * a quiet moment, compare the catalog's content revision with the last
+   * one served or announced and announce only a real change.
+   */
+  private scheduleCatalogCheck(): void {
+    if (this.disposed) return;
+    if (this.catalogTimer !== null) clearTimeout(this.catalogTimer);
+    this.catalogTimer = setTimeout(() => {
+      this.catalogTimer = null;
+      void this.announceCatalogChange();
+    }, 250);
+    this.catalogTimer.unref?.();
+  }
+
+  private async announceCatalogChange(): Promise<void> {
+    if (this.disposed) return;
+    let revision: string | null;
+    try {
+      revision = String((await this.buildCatalog()).catalogRevision);
+    } catch {
+      // No usable Provider any more: still a change the Proxy must see.
+      revision = null;
+    }
+    if (this.disposed || revision === this.lastCatalogRevision) return;
+    this.lastCatalogRevision = revision;
+    this.emit({
+      method: 'catalog.changed',
+      params: revision === null ? {} : { catalogRevision: revision },
+    });
+  }
+
   async catalogList(): Promise<Record<string, unknown>> {
     if (this.firstCatalog) {
       this.firstCatalog = false;
@@ -1243,6 +1333,17 @@ export class CordisDshHost implements BridgeHost {
         await new Promise(resolveDelay => setTimeout(resolveDelay, Math.min(100, 500 - quietFor)));
       }
     }
+    const catalog = await this.buildCatalog();
+    this.lastCatalogRevision = String(catalog.catalogRevision);
+    return catalog;
+  }
+
+  /**
+   * The catalog with a content-derived revision: it changes exactly when a
+   * Provider, model, effort, preset or input capability changes, and stays
+   * stable across restarts of the same composition.
+   */
+  private async buildCatalog(): Promise<Record<string, unknown>> {
     const runtime = this.llmRuntime();
     const providers = runtime.listProviders();
     const models = await this.catalogModels();
@@ -1281,8 +1382,7 @@ export class CordisDshHost implements BridgeHost {
       if (modelInputModalities.has('image')) input.push({ type: 'localImage' });
     }
     if (this.skillsRuntime() !== null) input.push({ type: 'skill' });
-    return {
-      catalogRevision: `cordis-${this.dshVersion}`,
+    const body = {
       providers: providers.map((provider) => ({ id: provider.id, label: provider.name ?? provider.id })),
       defaultSelection,
       models: models.map(model => ({
@@ -1331,6 +1431,8 @@ export class CordisDshHost implements BridgeHost {
       ...(presets === null ? {} : { defaultAgentPreset: presets.defaultId }),
       slashCommands: [],
     };
+    const digest = createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 16);
+    return { catalogRevision: `cordis-${this.dshVersion}-${digest}`, ...body };
   }
 
   async catalogResolve(params: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -1436,6 +1538,7 @@ export class CordisDshHost implements BridgeHost {
       }
       throw error;
     }
+    await discardExpired(handle, params.deadlineAt, 'session.create');
     const createdAtMs = handle.agent.session.header?.createdAt;
     const record: CordisSessionRecord = {
       id: params.sessionId,
@@ -1469,7 +1572,7 @@ export class CordisDshHost implements BridgeHost {
    * authenticated through the sealed resumeRef. Selection falls back to the
    * catalog defaults; the next `turn.start.config` re-pins the real one.
    */
-  async sessionResume(params: { sessionId: string; nativeSessionId: string }): Promise<Record<string, unknown>> {
+  async sessionResume(params: { sessionId: string; nativeSessionId: string; deadlineAt?: number }): Promise<Record<string, unknown>> {
     if (this.sessions.has(params.sessionId)) {
       throw new BridgeProtocolError(
         -32000,
@@ -1522,6 +1625,7 @@ export class CordisDshHost implements BridgeHost {
       }
       throw error;
     }
+    await discardExpired(handle, params.deadlineAt, 'session.resume');
     const header = handle.agent.session.header ?? null;
     const createdAtMs = header !== null && typeof header.createdAt === 'number' ? header.createdAt : undefined;
     const record: CordisSessionRecord = {
@@ -1670,6 +1774,9 @@ export class CordisDshHost implements BridgeHost {
     if (blocks.length === 0) {
       throw new BridgeProtocolError(-32000, 'Turn input resolved to no native content.', 'CONFIG_VALUE_INVALID');
     }
+    // Last check before the native turn is admitted (selection, inject,
+    // followup are synchronous from here on).
+    assertBeforeDeadline(params.deadlineAt, 'turn.start');
     const nativeModel = record.handle.agent.model;
     record.selection.nativeSelect = typeof nativeModel?.select === 'function';
     if (record.selection.nativeSelect) nativeModel!.select(selection);
@@ -1874,6 +1981,7 @@ export class CordisDshHost implements BridgeHost {
       }
       throw error;
     }
+    await discardExpired(handle, params.deadlineAt, 'session.fork');
     const childRecord: CordisSessionRecord = {
       id: params.newSessionId,
       nativeId: childNativeId,
@@ -2266,6 +2374,7 @@ export class CordisDshHost implements BridgeHost {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    if (this.catalogTimer !== null) clearTimeout(this.catalogTimer);
     this.offSessionEvent?.();
     this.offAssistantStream?.();
     this.assistantStreams.clear();

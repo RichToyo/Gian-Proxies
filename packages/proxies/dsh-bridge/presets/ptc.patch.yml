@@ -1,4 +1,5 @@
-# Official DSH PTC Agent preset for the Gian Bridge profile.
+# Official DSH PTC Agent preset for the Gian Bridge profile, synced with
+# @deepseek-ai/dsh-web-app@0.2.2-rc.5 presets/ptc.patch.yml.
 - insert:
     - id: preset-ptc
       name: '@deepseek-ai/dsh-agent-preset'
@@ -24,6 +25,9 @@
             disabled: !!js process.platform !== 'win32'
           - id: tool-fs
             name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              # Set true to add the apply_patch tool beside edit.
+              applyPatch: false
           - id: tool-fs-search
             name: '@deepseek-ai/dsh-tool-fs-search'
             config:
@@ -86,12 +90,15 @@
             config:
               - id: tool-subagent-control
                 name: '@deepseek-ai/dsh-tool-subagent-control'
-              - id: tool-subagent-list-agents
-                name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
-                disabled: !!js "(() => { try { process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-tool-subagent-control/list-agents'); return false; } catch (e) { if (e.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return true; throw e; } })()"
+                config:
+                  interrupt: false
               - id: tool-subagent
                 name: '@deepseek-ai/dsh-tool-subagent'
-                config: !!js "(() => { try { process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-tool-subagent-control/list-agents'); return { provider: 'spawn', toolName: 'subagent', modelSelectionSettings: true }; } catch (e) { if (e.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED') throw e; return { provider: 'spawn', toolName: 'subagent', modelSelection: true, modelDiscovery: true }; } })()"
+                config:
+                  provider: spawn
+                  toolName: subagent
+                  modelSelection: true
+                  modelDiscovery: true
               - id: tool-subagent-fork
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
@@ -116,12 +123,12 @@
             config:
               fetch: true
               searchTimeoutMs: 60000
-          - id: tool-presentation
-            name: '@deepseek-ai/dsh-agent-tool-presentation'
-            config:
-              mode: ptc
+          - id: tool-executor-ptc
+            name: '@deepseek-ai/dsh-tool-executor-ptc'
           - id: present
             name: '@deepseek-ai/dsh-tool-present'
+          - id: tool-office
+            name: '@deepseek-ai/dsh-tool-office'
           - id: tool-plugin-manager
             name: '@deepseek-ai/dsh-plugin-manager/tools'
             disabled: true

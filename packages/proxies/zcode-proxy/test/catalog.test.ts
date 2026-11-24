@@ -392,7 +392,9 @@ test('native history list follows the strict CLI 0.17.0 parameter schema', async
     assert.equal(response.kind, 'result', JSON.stringify(response.payload));
     const result = (response.payload as { result: { sessions: Array<{ id: string }> } }).result;
     assert.equal(result.sessions[0]?.id, 'persisted-history');
-    const request = harness.fakeLog().find(entry => entry.method === 'session/list');
+    // initialize's liveness probe sends its own {limit: 1}.
+    const request = harness.fakeLog().find(entry => entry.method === 'session/list'
+      && (entry.params as Record<string, unknown>).workspace !== undefined);
     assert.deepEqual(request?.params, { limit: 500, workspace: { workspacePath: '/tmp/history-workspace', workspaceKey: '/tmp/history-workspace' } });
   } finally { await harness.close(); }
 });

@@ -21,6 +21,7 @@ export class KimiInteractionOwnership {
       const frame = this.unbound[i]!;
       if (!this.owned(frame)) { i += 1; continue; }
       this.unbound.splice(i, 1);
+      if (typeof frame.interaction_id === 'string') this.interactions.add(frame.interaction_id);
       this.pendingBytes -= Buffer.byteLength(JSON.stringify(frame), 'utf8');
       this.deliver(frame);
     }
@@ -31,7 +32,9 @@ export class KimiInteractionOwnership {
     if (typeof frame.interaction_id !== 'string' || frame.interaction_id === ''
       || (frame.kind !== 'approval' && frame.kind !== 'question')
       || (frame.status !== 'pending' && frame.status !== 'ended')) throw new Error('Invalid Kimi interaction frame.');
-    if (this.owned(frame)) { this.deliver(frame); return; }
+    // Once a pending interaction is owned, its later `ended` frame is too,
+    // even if that frame omits the tool identity.
+    if (this.owned(frame)) { this.interactions.add(frame.interaction_id); this.deliver(frame); return; }
     const bytes = Buffer.byteLength(JSON.stringify(frame), 'utf8');
     if (this.unbound.length >= MAX_PENDING || this.pendingBytes + bytes > MAX_PENDING_BYTES) throw new Error('Kimi interaction ownership buffer overflow.');
     this.unbound.push(frame);

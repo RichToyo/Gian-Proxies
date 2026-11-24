@@ -123,15 +123,15 @@ test('existing store probe-ready and activation use the same official owner', as
   const home = await populatedKimiHome(root);
   const official = join(home, 'bin', 'kimi');
   await mkdir(join(home, 'bin'), { recursive: true });
-  await writeFile(official, '#!/bin/sh\necho kimi 0.38.0\n');
+  await writeFile(official, '#!/bin/sh\necho kimi 2.7.1\n');
   await chmod(official, 0o755);
   process.env.HOME = root;
   process.env.KIMI_CODE_HOME = home;
 
   const probed = await probeKimiRuntime(official);
-  assert.equal(probed.version, '0.38.0');
+  assert.equal(probed.version, '2.7.1');
   await recordSelectedKimiActivation(official);
-  assert.deepEqual(await readdir(join(home, '.gian-session-store-compat', 'v1')), ['0.38.0']);
+  assert.deepEqual(await readdir(join(home, '.gian-session-store-compat', 'v1')), ['2.7.1']);
 });
 
 test('alternate newer and older official owners: downgrade is advisory, the floor stays monotonic', async (t) => {
@@ -148,12 +148,12 @@ test('alternate newer and older official owners: downgrade is advisory, the floo
   });
   const home = await populatedKimiHome(root);
   await mkdir(join(home, 'bin'), { recursive: true });
-  await writeFile(join(home, 'bin', 'kimi'), '#!/bin/sh\necho kimi 0.38.0\n');
+  await writeFile(join(home, 'bin', 'kimi'), '#!/bin/sh\necho kimi 2.7.1\n');
   await chmod(join(home, 'bin', 'kimi'), 0o755);
   const newer = join(root, 'newer-kimi');
   const older = join(root, 'older-kimi');
-  await writeFile(newer, '#!/bin/sh\necho kimi 0.39.0\n');
-  await writeFile(older, '#!/bin/sh\necho kimi 0.37.0\n');
+  await writeFile(newer, '#!/bin/sh\necho kimi 2.7.2\n');
+  await writeFile(older, '#!/bin/sh\necho kimi 2.6.3\n');
   await chmod(newer, 0o755);
   await chmod(older, 0o755);
   process.env.HOME = root;
@@ -161,22 +161,22 @@ test('alternate newer and older official owners: downgrade is advisory, the floo
 
   resetKimiActivationMemoForTests();
   const newerProbe = await probeKimiRuntime(newer);
-  assert.equal(newerProbe.version, '0.39.0');
+  assert.equal(newerProbe.version, '2.7.2');
   await recordSelectedKimiActivation(newer);
-  assert.deepEqual(await readdir(join(home, '.gian-session-store-compat', 'v1')), ['0.39.0']);
+  assert.deepEqual(await readdir(join(home, '.gian-session-store-compat', 'v1')), ['2.7.2']);
 
   // An older binary is never blocked anymore (ADR-0080): activation proceeds
   // and records its marker; the floor stays at the highest observed version.
   resetKimiActivationMemoForTests();
-  const olderProbe = await probeKimiRuntime(older);
-  assert.equal(olderProbe.version, '0.37.0');
+  // The probe refuses an unsupported Runtime with an actionable message.
+  await assert.rejects(probeKimiRuntime(older), /Kimi Code 2\.6\.3 is not supported by this Proxy\. Use Kimi Code 2\.7\.1 or 2\.7\.2/);
   await recordSelectedKimiActivation(older);
   assert.deepEqual(
     (await readdir(join(home, '.gian-session-store-compat', 'v1'))).sort(),
-    ['0.37.0', '0.39.0'],
+    ['2.6.3', '2.7.2'],
   );
   const guard = new KimiSessionStoreGuard(home);
-  const conditions = await guard.evaluateCompatibility('0.36.0');
+  const conditions = await guard.evaluateCompatibility('2.6.0');
   assert.equal(conditions[0]?.kind, 'KIMI_STORE_DOWNGRADE');
 });
 
@@ -200,14 +200,14 @@ test('corrupt metadata and floor write failure are advisory and never block acti
   const corruptHome = await populatedKimiHome(join(root, 'corrupt'));
   await mkdir(join(corruptHome, 'bin'), { recursive: true });
   const corruptBin = join(corruptHome, 'bin', 'kimi');
-  await writeFile(corruptBin, '#!/bin/sh\necho kimi 0.38.0\n');
+  await writeFile(corruptBin, '#!/bin/sh\necho kimi 2.7.1\n');
   await chmod(corruptBin, 0o755);
   await mkdir(join(corruptHome, '.gian-session-store-compat', 'v1'), { recursive: true });
   await writeFile(join(corruptHome, '.gian-session-store-compat', 'v1', 'not-a-version'), '');
   process.env.KIMI_CODE_HOME = corruptHome;
   resetKimiActivationMemoForTests();
   const corruptProbe = await probeKimiRuntime(corruptBin);
-  assert.equal(corruptProbe.version, '0.38.0');
+  assert.equal(corruptProbe.version, '2.7.1');
   await recordSelectedKimiActivation(corruptBin);
 
   await populatedKimiHome(join(root, 'write'));
@@ -216,7 +216,7 @@ test('corrupt metadata and floor write failure are advisory and never block acti
   const countFile = join(root, 'write-version-count');
   await writeFile(writeBin, `#!/bin/sh
 echo $(( $(cat ${JSON.stringify(countFile)} 2>/dev/null || echo 0) + 1 )) > ${JSON.stringify(countFile)}
-echo kimi 0.38.0
+echo kimi 2.7.1
 `);
   await chmod(writeBin, 0o755);
   process.env.KIMI_CODE_HOME = writeHome;
@@ -250,7 +250,7 @@ test('two sessions share one successful activation', async (t) => {
   const countFile = join(root, 'version-count');
   await writeFile(official, `#!/bin/sh
 echo $(( $(cat ${JSON.stringify(countFile)} 2>/dev/null || echo 0) + 1 )) > ${JSON.stringify(countFile)}
-echo kimi 0.38.0
+echo kimi 2.7.1
 `);
   await chmod(official, 0o755);
   process.env.HOME = root;
@@ -276,8 +276,8 @@ test('session-boundary activation records only after a real binary reports SemVe
   const bin = join(root, 'kimi');
   process.env.HOME = root;
   process.env.KIMI_CODE_HOME = home;
-  await writeFile(bin, '#!/bin/sh\necho kimi 0.38.0\n');
+  await writeFile(bin, '#!/bin/sh\necho kimi 2.7.1\n');
   await chmod(bin, 0o755);
   await recordSelectedKimiActivation(bin);
-  assert.deepEqual(await readdir(join(home, '.gian-session-store-compat', 'v1')), ['0.38.0']);
+  assert.deepEqual(await readdir(join(home, '.gian-session-store-compat', 'v1')), ['2.7.1']);
 });

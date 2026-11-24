@@ -216,6 +216,22 @@ input.on('line', (line) => {
       })();
       break;
     }
+    case 'thread/resume': {
+      // Test seam: GIAN_FAKE_RESUME_DELAY_MS models a slow resume of a large
+      // rollout, so lane tests can overlap it with another session's turn.
+      const resumeDelayMs = Number(process.env.GIAN_FAKE_RESUME_DELAY_MS ?? '0');
+      const resumedId = String(message.params?.threadId ?? threadId);
+      setTimeout(() => send({
+        id: message.id,
+        result: {
+          thread: { id: resumedId },
+          approvalPolicy: 'on-request',
+          approvalsReviewer: 'user',
+          sandbox: { type: 'readOnly', networkAccess: false },
+        },
+      }), Number.isFinite(resumeDelayMs) && resumeDelayMs > 0 ? resumeDelayMs : 0);
+      break;
+    }
     case 'thread/unsubscribe':
     case 'thread/name/set':
       send({ id: message.id, result: {} });

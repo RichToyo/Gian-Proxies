@@ -7,7 +7,7 @@ function record(value: unknown): value is Frame {
 }
 
 /** Attribute a native conversation turn only after its opener contains the
- * submitted prompt ID. 2.6.2 turn.started has no prompt ID; guessing from its
+ * submitted prompt ID. Native turn.started has no prompt ID; guessing from its
  * arrival order can attach another client's work to the Gian turn. */
 export class KimiConversationBinding {
   private nativeTurnId: string | null = null;
@@ -82,7 +82,22 @@ export class KimiConversationBinding {
       return;
     }
     const taskId = this.notificationTask(frame);
-    if (this.nativeTurnId !== null && taskId && this.ownsTask(taskId)) this.claimContinuation(nativeId);
+    if (this.nativeTurnId !== null && taskId && this.ownsTask(taskId)) { this.claimContinuation(nativeId); return; }
+    // A foreign turn that ended unclaimed is not ours: before our opener (a
+    // prompt queued behind another client's or a background-notification
+    // turn, Kimi 2.7.1) or, once bound, when it carries no background-task
+    // notification that could still prove ownership. Holding it would keep
+    // the Gian turn "pending" forever.
+    if (frame.type === 'turn.ended'
+      && (this.nativeTurnId === null || !frames.some(value => this.notificationTask(value) !== null))) this.exclude(nativeId);
+  }
+
+  private exclude(nativeId: string): void {
+    const frames = this.buffered.get(nativeId) ?? [];
+    if (this.excluded.size >= MAX_BUFFERED_FRAMES) throw new Error('Kimi native turn exclusion budget exceeded.');
+    this.buffered.delete(nativeId); this.bufferedCount -= frames.length;
+    this.bufferedBytes -= this.bufferedBytesByTurn.get(nativeId) ?? 0;
+    this.bufferedBytesByTurn.delete(nativeId); this.excluded.add(nativeId);
   }
 
   /** A task notification may arrive before its parent tool association. */

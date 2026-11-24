@@ -1,10 +1,12 @@
 /**
- * gian.proxy/2.1–2.3 adapter for Kimi Code, transport = the Kimi local server
- * API (`kimi web` REST + `/api/v1/ws`). The ACP transport is retired.
+ * gian.proxy/2.1–2.3 adapter for Kimi Code 2.7, transport = the Kimi local
+ * server API (`kimi web --json` REST + `/api/v1/ws`).
  *
- * Notification ordering: the service emits through this adapter; dispatch()
- * queues notifications produced while a request is running and the CLI
- * flushes them AFTER the response (contract §16, Response-before-Notification).
+ * Notification ordering is owned here and scoped per session: a
+ * notification waits only for the in-flight requests of its own session
+ * (Response-before-Notification), so one session's slow request never holds
+ * another session's stream. Requests write their own Responses through the
+ * kit's `respond`.
  */
 
 import { createHash } from 'node:crypto';
@@ -32,8 +34,8 @@ const PROTOCOL_V2 = '2.1';
 const PROTOCOL_V22 = '2.2';
 const PROTOCOL_V23 = '2.3';
 
-/** Capability set on the server-api transport (upstream 2.1.1 evidence in
- *  README). Host MCP injection is NOT declared: the REST session-create
+/** Capability set on the Kimi 2.7 server API (evidence in the README).
+ *  Host MCP injection is NOT declared: the REST session-create
  *  surface does not accept inline MCP servers (engine-side ephemeral
  *  mcpServers never crossed to REST). */
 const CAPABILITIES: Record<string, number> = {
@@ -47,6 +49,7 @@ const CAPABILITIES: Record<string, number> = {
   'session.rename': 1,
   'sidechat': 1,
   'session.fork': 1,
+  'session.fork.atTurn': 1,
   'turn.steer': 1,
   'interaction': 1,
   'event.reasoning': 1,
@@ -224,10 +227,30 @@ interface AttachedSidechat {
   updatedAt: string;
 }
 
+type Responder = (result: unknown, error?: unknown) => void;
+type QueuedNotification = { method: string; params: Record<string, unknown>; waitsFor: ReadonlySet<symbol> };
+const MAX_QUEUED_NOTIFICATIONS = 16_384;
+
+/** The session a request is about: its lane and its notification scope. */
+export function kimiRequestScope(params: Record<string, unknown>): string {
+  for (const key of ['sourceSessionId', 'parentSessionId', 'sessionId', 'sidechatId'] as const) {
+    const value = params[key];
+    if (typeof value === 'string' && value !== '') return value;
+  }
+  return '';
+}
+
+/** Notification scope: the Gian session it belongs to ('' = process). */
+function notificationScope(params: Record<string, unknown>): string {
+  return typeof params.sessionId === 'string' ? params.sessionId : '';
+}
+
 export class KimiProtocolV2Adapter {
   private initialized = false;
   private protocolVersion: '2.1' | '2.2' | '2.3' = '2.1';
-  private notificationQueue: Array<{ method: string; params: Record<string, unknown> }> | null = null;
+  private readonly barriers = new Map<string, Set<symbol>>();
+  private readonly activeBarriers = new Set<symbol>();
+  private readonly outboxes = new Map<string, QueuedNotification[]>();
   private readonly sessions = new Map<string, AttachedSession>();
   private readonly sidechats = new Map<string, AttachedSidechat>();
   private readonly turnLedger = new TurnLedger();
@@ -245,42 +268,73 @@ export class KimiProtocolV2Adapter {
     this.service.setEmitSink((notification) => this.emit(notification.method, notification.params));
   }
 
+  /** A notification is written once every request that was in flight in its
+   *  own session scope at emission time has been answered. */
   private emit(method: string, params: Record<string, unknown>): void {
-    if (this.notificationQueue !== null) {
-      this.notificationQueue.push({ method, params });
+    const scope = notificationScope(params);
+    const waitsFor = new Set(this.barriers.get(scope) ?? []);
+    const queue = this.outboxes.get(scope) ?? [];
+    if (queue.length >= MAX_QUEUED_NOTIFICATIONS) {
+      throw new KimiProtocolError('RUNTIME_ERROR', 'Kimi notification barrier overflow.');
+    }
+    queue.push({ method, params, waitsFor });
+    this.outboxes.set(scope, queue);
+    this.flushNotifications();
+  }
+
+  private flushNotifications(): void {
+    for (const [scope, queue] of this.outboxes) {
+      while (queue.length > 0) {
+        const next = queue[0]!;
+        if ([...next.waitsFor].some(token => this.activeBarriers.has(token))) break;
+        queue.shift();
+        this.emitEvent(next.method, next.params);
+      }
+      if (queue.length === 0) this.outboxes.delete(scope);
+    }
+  }
+
+  /** Answers one request through `respond` and then releases the
+   *  notifications it caused. Customization scans neither hold nor emit. */
+  async dispatch(request: WireRequest, respond: Responder): Promise<void> {
+    if (request.method === 'customization.list' || request.method === 'customization.detail') {
+      try { respond(await this.route(request)); } catch (error) { respond(undefined, normalizeKimiError(error)); }
       return;
     }
-    this.emitEvent(method, params);
-  }
-
-  async dispatch(request: WireRequest): Promise<
-    | { ok: true; result: unknown; notifications: Array<{ method: string; params: Record<string, unknown> }> }
-    | { ok: false; error: unknown; notifications: Array<{ method: string; params: Record<string, unknown> }> }
-  > {
-    const capturesNotifications = request.method !== 'customization.list'
-      && request.method !== 'customization.detail';
-    const queue = capturesNotifications
-      ? [] as Array<{ method: string; params: Record<string, unknown> }>
-      : null;
-    const previous = this.notificationQueue;
-    if (queue) this.notificationQueue = queue;
+    const scope = kimiRequestScope(request.params);
+    const token = Symbol(request.id);
+    const barriers = this.barriers.get(scope) ?? new Set<symbol>();
+    barriers.add(token);
+    this.barriers.set(scope, barriers);
+    this.activeBarriers.add(token);
+    const release = () => {
+      barriers.delete(token);
+      this.activeBarriers.delete(token);
+      if (barriers.size === 0 && this.barriers.get(scope) === barriers) this.barriers.delete(scope);
+      this.flushNotifications();
+    };
+    let outcome: { ok: true; result: unknown } | { ok: false; error: unknown };
     try {
-      const result = await this.route(request);
-      return { ok: true, result, notifications: queue ?? [] };
+      outcome = { ok: true, result: await this.route(request) };
     } catch (error) {
-      return { ok: false, error: normalizeKimiError(error), notifications: queue ?? [] };
-    } finally {
-      if (queue) this.notificationQueue = previous;
+      outcome = { ok: false, error: normalizeKimiError(error) };
     }
+    // Side Chat close is the teardown-order exception (Contract §10.5.4):
+    // its notifications precede the acknowledgement of permanent deletion.
+    if (request.method === 'sidechat.close' && outcome.ok) release();
+    if (outcome.ok) respond(outcome.result);
+    else respond(undefined, outcome.error);
+    if (!(request.method === 'sidechat.close' && outcome.ok)) release();
   }
 
+  /** Request/Response convenience for tests and in-process callers. */
   async handle(request: WireRequest): Promise<unknown> {
-    const outcome = await this.dispatch(request);
-    for (const notification of outcome.notifications) {
-      this.emitEvent(notification.method, notification.params);
-    }
-    if (!outcome.ok) throw outcome.error;
-    return outcome.result;
+    let answer: { result: unknown; error?: unknown } | null = null;
+    await this.dispatch(request, (result, error) => { answer ??= { result, error }; });
+    const settled = answer as { result: unknown; error?: unknown } | null;
+    if (settled === null) throw new KimiProtocolError('INTERNAL', 'Kimi adapter did not answer.');
+    if (settled.error !== undefined) throw settled.error;
+    return settled.result;
   }
 
   private async route(request: WireRequest): Promise<unknown> {
@@ -484,11 +538,7 @@ export class KimiProtocolV2Adapter {
       actions: [
         { id: 'sidechat.create', supported: true },
         { id: 'session.fork', supported: true },
-        {
-          id: 'session.fork.atTurn',
-          supported: false,
-          reason: 'The Kimi server API exposes only head forks (POST /sessions/{id}/children has no turn boundary).',
-        },
+        { id: 'session.fork.atTurn', supported: true },
         { id: 'session.native.delete', supported: true },
       ],
       slashCommands: [] as Array<{ name: string; description: string; source: 'builtin'; argHints: Array<{ kind: 'free' }> }>,

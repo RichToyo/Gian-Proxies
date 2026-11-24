@@ -9,7 +9,7 @@ function id(value: unknown): value is string { return typeof value === 'string' 
 function object(value: unknown): value is Frame { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function digest(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16); }
 
-/** Stream native 2.6.2 text items for one already-bound turn. The local offset
+/** Stream native Kimi 2.7 text items for one already-bound turn. The local offset
  * is used only for Gian event identity; it is never presented as a native seq. */
 export class KimiConversationContent {
   private readonly items = new Map<string, Content>();
@@ -72,7 +72,10 @@ export class KimiConversationContent {
     const offset = state.text.length;
     state.text += delta;
     const eventId = `evt-${digest([this.context.nativeSessionId, this.context.promptId, itemId, 'content.delta', offset, delta])}`;
-    this.emit('content.delta', eventId, { contentId: `kimi:${this.context.promptId}:${itemId}`, kind: state.kind, delta }, time);
+    // The format must match content.completed (projectConversationItem):
+    // the Host rejects a content stream whose kind or format changes.
+    this.emit('content.delta', eventId, { contentId: `kimi:${this.context.promptId}:${itemId}`, kind: state.kind,
+      ...(state.kind === 'text' ? { format: 'markdown' } : {}), delta }, time);
   }
 
   private emit(method: string, eventId: string, data: Record<string, unknown>, emittedAt: string): void {

@@ -3,17 +3,18 @@
  * ai.deepseek.harness — shared-scope gian.proxy/2.1 over gian.dsh.bridge/1.0.
  */
 
-import { createInterface } from 'node:readline';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isJsonRpcErrorObject, runProxyServer } from '@gian/proxy-kit';
 import { isRuntimeBootstrapOffer, serveRuntimeBootstrap } from '@gian/proxy-protocol/node';
 import { planRuntimeInstallation } from '../runtime/install.js';
-import { DshV2Adapter } from '../protocol/v2-adapter.js';
-import { BridgeClient, BridgeClientError } from '../runtime/bridge-client.js';
+import { DshV2Adapter, normalizeError } from '../protocol/v2-adapter.js';
+import { BridgeClient } from '../runtime/bridge-client.js';
 import { discoverDshRuntimes, probeDshRuntime } from '../runtime/discover.js';
-import { ensureGianProfile } from '../runtime/profile.js';
-import { parseArgs } from './bridge-launch.js';
+import { dshHome, ensureGianProfile } from '../runtime/profile.js';
+import { bridgeEnvironment, parseArgs } from './bridge-launch.js';
+import { BARRIER_METHODS, OVERTAKE_METHODS, PIPELINED_METHODS, dshLaneKey } from './lanes.js';
 
 function readPluginVersion(): string {
   let dir = dirname(fileURLToPath(import.meta.url));
@@ -63,78 +64,47 @@ async function main(): Promise<void> {
       );
     }
   }
-  const bridge = new BridgeClient({ command: options.bridgeCommand, args: options.args });
-  await bridge.start();
-
-  const writer = {
-    result(id: string, result: unknown): void {
-      process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
-    },
-    error(id: string | null, error: unknown): void {
-      process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, error })}\n`);
-    },
-    notification(method: string, params: Record<string, unknown>): void {
-      process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', method, params })}\n`);
-    },
-  };
+  const bridge = new BridgeClient({ command: options.bridgeCommand, args: options.args, env: bridgeEnvironment() });
+  // Boot DSH and its Bridge handshake now; `initialize` waits for it and
+  // reports a failed boot with DSH's own stderr tail.
+  bridge.start().catch(() => undefined);
+  // A terminating Proxy stops DSH first, so in-flight requests settle at once
+  // and the kit's drain does not wait out their timeouts.
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.once(signal, () => { void bridge.stop(); });
+  }
 
   const adapter = new DshV2Adapter(bridge, {
     pluginVersion: PLUGIN_VERSION,
+    dshHome: dshHome(),
     ...(process.env.GIAN_HOST_BINDING_KEY
       ? { hostBindingKey: process.env.GIAN_HOST_BINDING_KEY }
       : {}),
   });
-  adapter.setEmitSink((method, params) => writer.notification(method, params));
 
-  const reader = createInterface({ input: process.stdin, crlfDelay: Infinity });
-  let shuttingDown = false;
-
-  for await (const line of reader) {
-    if (line.trim() === '') continue;
-    let request: { id: string; method: string; params: Record<string, unknown> };
-    try {
-      request = JSON.parse(line) as typeof request;
-    } catch {
-      writer.error(null, { code: -32700, message: 'Parse error' });
-      continue;
-    }
-    if (typeof request.id !== 'string' || request.id.length === 0) {
-      writer.error(null, { code: -32600, message: 'Request id must be a non-empty string.' });
-      continue;
-    }
-    try {
-      const outcome = await adapter.dispatch(request);
-      if (outcome.error) writer.error(request.id, outcome.error);
-      else if (request.method === 'sidechat.close') {
-        // Close barrier (10.5.4): the queued terminal teardown events must be
-        // written before the Success response, the explicit exception to the
-        // response-before-notification rule.
-        for (const notification of outcome.notifications) {
-          writer.notification(notification.method, notification.params);
-        }
-        writer.result(request.id, outcome.result);
-      } else {
-        writer.result(request.id, outcome.result);
-        for (const notification of outcome.notifications) {
-          writer.notification(notification.method, notification.params);
-        }
-      }
-      if (request.method === 'shutdown') {
-        shuttingDown = true;
-        await bridge.stop();
-        process.exit(0);
-      }
-    } catch (error) {
-      writer.error(request.id, {
-        code: -32603,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  if (shuttingDown === false) {
-    await bridge.stop();
-  }
+  await runProxyServer({
+    tag: 'dsh-proxy',
+    toJsonRpcError: (error) => (isJsonRpcErrorObject(error) ? error : normalizeError(error)),
+    laneKey: dshLaneKey,
+    overtakeMethods: OVERTAKE_METHODS,
+    barrierMethods: BARRIER_METHODS,
+    pipelinedMethods: PIPELINED_METHODS,
+    // The adapter answers every request itself; a rejecting task is a bug.
+    failClosedOnDispatchRejection: true,
+    async createHandler(_emit, emitImmediate) {
+      // The adapter orders each session's notifications behind the Response
+      // it writes, so it emits directly.
+      adapter.setEmitSink(emitImmediate);
+      return {
+        async dispatch(request, respond) {
+          await adapter.dispatch(request, respond);
+        },
+        // EOF, shutdown, SIGINT/SIGTERM and crashes all end here: stop the
+        // DSH process group (stdin EOF + SIGTERM, then SIGKILL).
+        close: () => bridge.stop(),
+      };
+    },
+  });
 }
 
 main().catch((error) => {

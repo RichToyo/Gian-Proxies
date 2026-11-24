@@ -14,6 +14,7 @@ import {
   type CustomizationKind,
   type CustomizationListResult,
 } from '@gian/proxy-protocol';
+import { resolveKimiCodeHome } from '../runtime/home.js';
 
 export const SCAN_TIMEOUT_MS = 15_000;
 export const SCAN_MAX_ENTRIES = 500;
@@ -36,7 +37,7 @@ const DEFAULT_LIMITS: KimiScanLimits = {
 };
 
 function kimiHome(): string {
-  return process.env.KIMI_CODE_HOME ?? join(homedir(), '.kimi-code');
+  return resolveKimiCodeHome(process.env);
 }
 
 async function realpathOrNull(path: string): Promise<string | null> {

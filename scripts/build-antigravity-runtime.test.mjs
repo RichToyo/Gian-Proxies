@@ -50,28 +50,28 @@ function recipeFor(data, sourceMember = 'antigravity') {
   };
 }
 
-test('the Antigravity source recipe pins Google\'s darwin-arm64 agy 1.5.14 archive', () => {
+test('the Antigravity source recipe pins Google\'s darwin-arm64 agy 1.5.16 archive', () => {
   assert.equal(antigravityRuntimeSource.schemaVersion, 1);
   assert.equal(antigravityRuntimeSource.kind, 'antigravity-cli');
   assert.equal(antigravityRuntimeSource.provider, 'antigravity');
   assert.equal(antigravityRuntimeSource.pluginId, 'io.gian.antigravity');
   assert.equal(antigravityRuntimeSource.runtimeId, 'antigravity-acp');
-  assert.equal(antigravityRuntimeSource.version, '1.5.14');
+  assert.equal(antigravityRuntimeSource.version, '1.5.16');
   assert.equal(antigravityRuntimeSource.platform, 'darwin-arm64');
   assert.equal(antigravityRuntimeSource.upstreamPlatform, 'darwin_arm64');
   assert.equal(antigravityRuntimeSource.format, 'tar.gz');
   assert.equal(antigravityRuntimeSource.entryRelativePath, 'agy');
   assert.equal(antigravityRuntimeSource.entryMode, 0o755);
   assert.equal(antigravityRuntimeSource.sourceUrl,
-    'https://storage.googleapis.com/antigravity-public/antigravity-cli/1.5.14-5302690847260672/darwin-arm/cli_mac_arm64.tar.gz');
+    'https://storage.googleapis.com/antigravity-public/antigravity-cli/1.5.16-5250855658717184/darwin-arm/cli_mac_arm64.tar.gz');
   assert.equal(antigravityRuntimeSource.sourceSha256,
-    'b01bdd4591e13ddfcb0e049bea74ae9f83e80829adcf64aaa58f5bfb1a425a54');
-  assert.match(antigravityRuntimeSource.sourceSha512, /^26830fd46bfb9200[a-f0-9]{112}$/);
-  assert.equal(antigravityRuntimeSource.sourceSize, 85943943);
+    'ba47202f712de4c4a78fd787d81ba206d73e11c97572fc69420f29a77efc8d95');
+  assert.match(antigravityRuntimeSource.sourceSha512, /^33f5617dc74fea60[a-f0-9]{112}$/);
+  assert.equal(antigravityRuntimeSource.sourceSize, 86506312);
   assert.equal(antigravityRuntimeSource.sourceMember, 'antigravity');
   assert.equal(antigravityRuntimeSource.binarySha256,
-    'e8c2959bf4744580d0e5b8f938ec2dc3918a942b620a6262e53856400f14e5fb');
-  assert.equal(antigravityRuntimeSource.binarySize, 229152672);
+    'b746bd68eb150f594e53af1e5577c8b101eaf33bd44ca10ac683af90e0630cf3');
+  assert.equal(antigravityRuntimeSource.binarySize, 230641440);
   assert.equal(Object.hasOwn(antigravityRuntimeSource, 'publish'), false);
 });
 
@@ -169,9 +169,9 @@ test('an archive other than the pinned official archive is rejected before packi
     archivePath: sameSize,
   }), error => {
     assert.match(error.message, /"stage":"file-integrity"/);
-    assert.match(error.message, /"actualSize":85943943/);
+    assert.match(error.message, /"actualSize":86506312/);
     assert.match(error.message, /"actualSha256":"[a-f0-9]{64}"/);
-    assert.match(error.message, /"expectedSha256":"b01bdd45/);
+    assert.match(error.message, /"expectedSha256":"ba47202f/);
     return true;
   });
 });
@@ -184,7 +184,7 @@ test('download requests identity bytes and distinguishes HTTP, encoding, declare
     { name: 'no-body', response: () => new Response(null), error: /download failed \(200\)/ },
     { name: 'encoded', response: () => new Response('private response body', { headers: { 'content-encoding': 'gzip', 'content-length': '111404059' } }), error: /"stage":"content-encoding".*"declaredSize":111404059/ },
     { name: 'declared', response: () => new Response('private response body', { headers: { 'content-length': '111404059' } }), error: /"stage":"content-length".*"declaredSize":111404059/ },
-    { name: 'short', response: () => new Response('tgz', { headers: { 'content-length': String(antigravityRuntimeSource.sourceSize) } }), error: /"stage":"download-size".*"declaredSize":85943943,"actualSize":3/ },
+    { name: 'short', response: () => new Response('tgz', { headers: { 'content-length': String(antigravityRuntimeSource.sourceSize) } }), error: /"stage":"download-size".*"declaredSize":86506312,"actualSize":3/ },
     { name: 'unknown-length', response: () => new Response('tgz'), error: /"stage":"download-size".*"declaredSize":null,"actualSize":3/ },
   ];
   for (const fixture of cases) {

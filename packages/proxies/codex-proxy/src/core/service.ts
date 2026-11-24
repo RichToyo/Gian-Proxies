@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 
 import { buildCapabilitiesPayload } from './capabilities.js';
+import { codexTurnFailure, isCodexAuthFailure } from './codex-errors.js';
 import { createAppError } from './errors.js';
 import { isCodexNativeCommandName, listCodexSlashCommands } from './slash.js';
 import { localFileDirectories, normalizeInputItems } from './input.js';
@@ -24,6 +25,7 @@ import type {
   ThinkingLevel,
 } from './types.js';
 import { nowIso, randomId } from './utils.js';
+import { forgetRolloutPath, rememberRolloutPath } from '../protocol/native-history.js';
 import type { CodexRuntime, RuntimeNotification, RuntimeServerRequest } from '../runtime/types.js';
 import {
   CodexCustomizationScanner,
@@ -106,7 +108,58 @@ interface PendingTurnContext {
   generation: number;
   notifications: RuntimeNotification[];
   serverRequests: RuntimeServerRequest[];
+  /** Settles once turn/start has answered or failed. */
+  settled: Promise<void>;
 }
+
+/** Active turns by thread. Callers can wait for one specific turn to end,
+ *  whichever code path removes or replaces it. */
+class ActiveTurnMap extends Map<string, ActiveTurnContext> {
+  private readonly waiters = new Map<string, Set<() => void>>();
+
+  override set(threadId: string, context: ActiveTurnContext): this {
+    const previous = this.get(threadId);
+    super.set(threadId, context);
+    if (previous !== undefined && previous !== context) this.wake(threadId);
+    return this;
+  }
+
+  override delete(threadId: string): boolean {
+    const removed = super.delete(threadId);
+    if (removed) this.wake(threadId);
+    return removed;
+  }
+
+  override clear(): void {
+    const threadIds = [...this.keys()];
+    super.clear();
+    for (const threadId of threadIds) this.wake(threadId);
+  }
+
+  /** Resolves once `context` is no longer the thread's active turn. */
+  whenEnded(threadId: string, context: ActiveTurnContext): Promise<void> {
+    if (this.get(threadId) !== context) return Promise.resolve();
+    return new Promise((resolve) => {
+      let waiters = this.waiters.get(threadId);
+      if (!waiters) {
+        waiters = new Set();
+        this.waiters.set(threadId, waiters);
+      }
+      waiters.add(resolve);
+    });
+  }
+
+  private wake(threadId: string): void {
+    const waiters = this.waiters.get(threadId);
+    if (!waiters) return;
+    this.waiters.delete(threadId);
+    for (const resolve of waiters) resolve();
+  }
+}
+
+/** How long turn.interrupt waits for Codex to confirm the stop before it
+ *  answers the Host anyway and keeps watching in the background. */
+const DEFAULT_INTERRUPT_ACK_MS = 5_000;
 
 interface ContextCompactionUsageGuard {
   stage: 'running' | 'completed';
@@ -116,6 +169,7 @@ interface ContextCompactionUsageGuard {
 interface ServiceOptions {
   runtime: CodexRuntime;
   emitEvent?: ProxyEventSink;
+  interruptAckMs?: number;
 }
 
 function normalizeThinking(value: unknown): ThinkingLevel | null {
@@ -167,24 +221,35 @@ function runtimeErrorDetails(params: unknown) {
   const root = params && typeof params === 'object'
     ? params as Record<string, unknown>
     : {};
-  const error = root.error && typeof root.error === 'object'
-    ? root.error as Record<string, unknown>
-    : {};
-  const message = typeof error.message === 'string' && error.message.trim()
-    ? error.message.trim()
-    : typeof root.message === 'string' && root.message.trim()
-      ? root.message.trim()
-      : 'Codex runtime error.';
-  const code = typeof error.codexErrorInfo === 'string' && error.codexErrorInfo.trim()
-    ? error.codexErrorInfo.trim()
-    : undefined;
+  const fallback = typeof root.message === 'string' && root.message.trim()
+    ? root.message.trim()
+    : 'Codex runtime error.';
+  const failure = codexTurnFailure(root.error, fallback);
   return {
-    message,
-    code,
+    ...failure,
     runtimeWillRetry: root.willRetry === true,
-    userRetryable: code === 'serverOverloaded',
+    userRetryable: !failure.authRequired && failure.code === 'serverOverloaded',
   };
 }
+
+/** The TurnError a failed `turn/completed` carries, if any. */
+function completedTurnFailure(params: unknown) {
+  const turn = params && typeof params === 'object'
+    ? (params as { turn?: unknown }).turn
+    : undefined;
+  const error = turn && typeof turn === 'object' ? (turn as { error?: unknown }).error : undefined;
+  return codexTurnFailure(error, 'Codex reported a failed turn.');
+}
+
+/** Server requests Gian renders as interactions. Every other request type
+ *  is refused (fails closed) rather than guessed at. */
+const INTERACTIVE_SERVER_REQUESTS = new Set([
+  'item/commandExecution/requestApproval',
+  'item/fileChange/requestApproval',
+  'item/permissions/requestApproval',
+  'item/tool/requestUserInput',
+  'mcpServer/elicitation/request',
+]);
 
 function inProgressTurnId(snapshot: unknown): string | null {
   if (!snapshot || typeof snapshot !== 'object') return null;
@@ -612,7 +677,8 @@ export class CodexProxyService {
   private readonly sessionsByThreadId = new Map<string, SessionRecord>();
   private readonly approvalsById = new Map<string, PendingApproval>();
   private readonly approvalsBySessionId = new Map<string, Map<string, PendingApproval>>();
-  private readonly activeTurnsByThreadId = new Map<string, ActiveTurnContext>();
+  private readonly activeTurnsByThreadId = new ActiveTurnMap();
+  private readonly interruptAckMs: number;
   private readonly pendingTurnsByThreadId = new Map<string, PendingTurnContext>();
   private nextTurnGeneration = 1;
   /** Compaction usage is untrustworthy until its replacement history is live. */
@@ -623,6 +689,7 @@ export class CodexProxyService {
   constructor(options: ServiceOptions) {
     this.runtime = options.runtime;
     this.emitEvent = options.emitEvent ?? (() => undefined);
+    this.interruptAckMs = options.interruptAckMs ?? DEFAULT_INTERRUPT_ACK_MS;
     this.customization = new CodexCustomizationScanner(options.runtime);
   }
 
@@ -637,9 +704,9 @@ export class CodexProxyService {
     this.runtime.on('serverRequest', (message) => {
       const sessionId = this.sessionsByThreadId.get(extractThreadId(message.params) ?? '')?.id;
       this.handleRuntimeServerRequest(message).catch((error) => {
-        void this.runtime.respond(
-          message.id,
-          cancelledServerRequestResponse(message.method),
+        void (INTERACTIVE_SERVER_REQUESTS.has(message.method)
+          ? this.runtime.respond(message.id, cancelledServerRequestResponse(message.method))
+          : this.refuseServerRequest(message)
         ).catch(() => undefined);
         this.reportRuntimeHandlerFailure(sessionId, 'SERVER_REQUEST_HANDLER_FAILED', error);
       });
@@ -771,7 +838,12 @@ export class CodexProxyService {
         });
         threadId = adoptThreadId;
         configuredPermissions = resumed.configuredPermissions;
+        rememberRolloutPath(threadId, resumed.thread.path);
       } catch (err) {
+        // A slow or signed-out runtime is not proof that the thread is gone.
+        if (err instanceof Error && (err.name === 'TimeoutError' || isCodexAuthFailure({ message: err.message }))) {
+          throw err;
+        }
         throw createAppError(404, 'THREAD_NOT_FOUND', `Could not resume codex thread ${adoptThreadId}: ${String(err)}`);
       }
     } else {
@@ -786,6 +858,7 @@ export class CodexProxyService {
       });
       threadId = thread.thread.id;
       configuredPermissions = thread.configuredPermissions;
+      rememberRolloutPath(threadId, thread.thread.path);
     }
 
     const createdAt = nowIso();
@@ -834,6 +907,7 @@ export class CodexProxyService {
       ...(params.beforeTurnId ? { beforeTurnId: params.beforeTurnId } : {}),
       ...(params.config ? { config: params.config } : {}),
     });
+    rememberRolloutPath(forked.thread.id, forked.thread.path);
     if (params.activeInput?.length) {
       try {
         await this.runtime.injectThreadItems(
@@ -866,7 +940,12 @@ export class CodexProxyService {
 
   async archiveNativeThread(threadId: string): Promise<boolean> {
     if (!this.runtime.archiveThread) return false;
-    await this.runtime.archiveThread(threadId);
+    try {
+      await this.runtime.archiveThread(threadId);
+    } finally {
+      // Archiving moves the rollout under archived_sessions/.
+      forgetRolloutPath(threadId);
+    }
     return false;
   }
 
@@ -939,14 +1018,45 @@ export class CodexProxyService {
       ...localFileDirs,
     ])];
     const generation = this.nextTurnGeneration++;
+    let settle: () => void = () => undefined;
     const pending: PendingTurnContext = {
       sessionId: session.id,
       generation,
       notifications: [],
       serverRequests: [],
+      settled: new Promise<void>((resolve) => { settle = resolve; }),
       ...(requestId === undefined ? {} : { requestId }),
     };
     this.pendingTurnsByThreadId.set(session.threadId, pending);
+    try {
+      return await this.startPendingTurn(session, pending, input, {
+        params,
+        configuredPermissions,
+        effectiveModel,
+        effectiveThinking,
+        runtimeWorkspaceRoots,
+        requestId,
+      });
+    } finally {
+      settle();
+    }
+  }
+
+  private async startPendingTurn(
+    session: SessionRecord,
+    pending: PendingTurnContext,
+    input: InputItem[],
+    turn: {
+      params: StartTurnParams;
+      configuredPermissions: SessionRecord['configuredPermissions'] | null;
+      effectiveModel: string | null;
+      effectiveThinking: ThinkingLevel | null;
+      runtimeWorkspaceRoots: string[];
+      requestId: number | string | undefined;
+    },
+  ) {
+    const { params, configuredPermissions, effectiveModel, effectiveThinking, runtimeWorkspaceRoots, requestId } = turn;
+    const generation = pending.generation;
     let turnResponse: Awaited<ReturnType<CodexRuntime['startTurn']>>;
     try {
       turnResponse = await this.runtime.startTurn(session.threadId, input, {
@@ -1026,9 +1136,24 @@ export class CodexProxyService {
     };
   }
 
+  /**
+   * Codex answers turn/interrupt only once the turn has actually stopped, so
+   * the reply can lag behind the stop by as long as the turn takes to wind
+   * down. Answer the Host once Codex confirms, the turn ends, or a short
+   * acknowledgement window passes, then keep watching: if Codex never
+   * confirms within the interrupt budget, recover only this thread.
+   */
   async interruptTurn(params: { sessionId: string }) {
-    const session = await this.ensureSessionUsable(this.requireSessionById(params.sessionId));
-    const context = this.activeTurnsByThreadId.get(session.threadId);
+    let session = await this.ensureSessionUsable(this.requireSessionById(params.sessionId));
+    // turn.interrupt overtakes the session's own requests, so it can arrive
+    // while that session's turn/start is still in flight.
+    const starting = this.pendingTurnsByThreadId.get(session.threadId);
+    if (starting && !this.activeTurnsByThreadId.has(session.threadId)) {
+      await starting.settled;
+      session = this.requireSessionById(params.sessionId);
+    }
+    const threadId = session.threadId;
+    const context = this.activeTurnsByThreadId.get(threadId);
     const activeTurnId = context?.runtimeTurnId
       ?? session.activeTurnId
       ?? context?.turnId
@@ -1037,8 +1162,68 @@ export class CodexProxyService {
       throw createAppError(409, 'INVALID_REQUEST', 'This session does not have an active turn.');
     }
 
-    await this.runtime.interruptTurn(session.threadId, activeTurnId);
-    return { ok: true };
+    const stillActive = () => context !== undefined && this.activeTurnsByThreadId.get(threadId) === context;
+    const reply = this.runtime.interruptTurn(threadId, activeTurnId).then(
+      () => ({ ok: true as const }),
+      (error: unknown) => ({ ok: false as const, error }),
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const waiting = new Promise<'waiting'>((resolve) => {
+      timer = setTimeout(() => resolve('waiting'), this.interruptAckMs);
+    });
+    const ended = context
+      ? this.activeTurnsByThreadId.whenEnded(threadId, context).then(() => 'ended' as const)
+      : new Promise<never>(() => undefined);
+    const first = await Promise.race([reply, ended, waiting]).finally(() => clearTimeout(timer));
+    if (first === 'ended' || first === 'waiting') {
+      // Accepted. A reply that later fails (budget exceeded, thread lost)
+      // while the turn is still running forces the stop locally.
+      void reply.then((result) => {
+        if (!result.ok && stillActive()) this.forceStopTurn(threadId, context!, result.error);
+      });
+      return { ok: true };
+    }
+    if (first.ok || !stillActive()) return { ok: true };
+    if (first.error instanceof Error && first.error.name === 'TimeoutError') {
+      this.forceStopTurn(threadId, context!, first.error);
+      return { ok: true };
+    }
+    throw first.error;
+  }
+
+  /** Codex did not confirm a stop. End the turn for Gian, release the
+   *  thread from this app-server connection (Codex unloads a thread with no
+   *  subscriber, which aborts its turn), and reattach it before its next
+   *  request. Other sessions keep running. */
+  private forceStopTurn(threadId: string, context: ActiveTurnContext, cause: unknown): void {
+    const session = this.sessionsById.get(context.sessionId);
+    if (!session || this.activeTurnsByThreadId.get(threadId) !== context) return;
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    this.activeTurnsByThreadId.delete(threadId);
+    this.contextCompactionUsageGuards.delete(threadId);
+    this.detachedThreads.add(threadId);
+    for (const approval of [...(this.approvalsBySessionId.get(session.id)?.values() ?? [])]) {
+      this.removeApproval(approval);
+    }
+    const updated = this.updateSession(session, { activeTurnId: null, status: 'idle', lastError: null });
+    this.emitEvent('codex.notice', {
+      requestId: context.requestId,
+      sessionId: updated.id,
+      turnId: context.turnId,
+      data: {
+        code: 'interruptUnconfirmed',
+        title: 'Stop not confirmed',
+        message: `Codex did not confirm the stop (${detail}). Gian stopped this turn and reattaches the Codex thread before the next message.`,
+        tone: 'warning',
+      },
+    });
+    this.emitEvent('turn.completed', {
+      requestId: context.requestId,
+      sessionId: updated.id,
+      turnId: context.turnId,
+      data: { status: 'interrupted', summary: null, forced: true },
+    });
+    void this.runtime.unsubscribeThread?.(threadId)?.catch(() => undefined);
   }
 
   async steerTurn(params: SteerTurnParams) {
@@ -1296,6 +1481,7 @@ export class CodexProxyService {
       ephemeral: false,
     });
     const newThreadId = thread.thread.id;
+    rememberRolloutPath(newThreadId, thread.thread.path);
     const updated = this.updateSession(session, {
       threadId: newThreadId,
       configuredPermissions: thread.configuredPermissions,
@@ -1846,7 +2032,9 @@ export class CodexProxyService {
         data: {
           message: error.message,
           ...(error.code ? { code: error.code } : {}),
+          ...(error.httpStatusCode !== undefined ? { httpStatusCode: error.httpStatusCode } : {}),
           retryable: error.userRetryable,
+          ...(error.authRequired ? { authRequired: true } : {}),
         },
         rawRuntimeEvent: message,
       });
@@ -1904,13 +2092,15 @@ export class CodexProxyService {
     // the bounded JSONL frame.
     const summary = completedTurnSummary(message.params, turnId ?? session.activeTurnId, session.cwd);
     const nextStatus = status === 'failed' ? 'error' : 'idle';
+    // A failed turn carries Codex's own TurnError; keep its text and code.
+    const failure = status === 'failed' ? completedTurnFailure(message.params) : null;
     const updatedSession = this.updateSession(session, {
       activeTurnId: null,
       status: nextStatus,
-      lastError: status === 'failed' ? 'Codex reported a failed turn.' : null,
+      lastError: failure?.message ?? null,
     });
 
-    if (status === 'failed') {
+    if (failure) {
       this.emitEvent('turn.failed', {
         requestId,
         sessionId: updatedSession.id,
@@ -1918,6 +2108,10 @@ export class CodexProxyService {
         data: {
           status,
           summary,
+          message: failure.message,
+          ...(failure.code ? { code: failure.code } : {}),
+          ...(failure.httpStatusCode !== undefined ? { httpStatusCode: failure.httpStatusCode } : {}),
+          ...(failure.authRequired ? { authRequired: true } : {}),
         },
         rawRuntimeEvent: message,
       });
@@ -1936,7 +2130,37 @@ export class CodexProxyService {
     });
   }
 
+  /** Answer a server request Gian does not implement so Codex fails the
+   *  native operation instead of waiting on it. */
+  private async refuseServerRequest(message: RuntimeServerRequest): Promise<void> {
+    console.warn(`[codex-proxy] refused unsupported Codex server request ${JSON.stringify(message.method)}`);
+    switch (message.method) {
+      // Legacy v1 approvals (conversation API). Gian only drives v2 threads.
+      case 'applyPatchApproval':
+      case 'execCommandApproval':
+        await this.runtime.respond(message.id, { decision: 'denied' });
+        return;
+      // Gian registers no dynamic tools.
+      case 'item/tool/call':
+        await this.runtime.respond(message.id, {
+          contentItems: [{ type: 'inputText', text: 'Gian does not provide this dynamic tool.' }],
+          success: false,
+        });
+        return;
+      default:
+        if (this.runtime.respondError) {
+          await this.runtime.respondError(message.id, -32601, `Gian does not handle ${message.method}.`);
+        } else {
+          await this.runtime.respond(message.id, cancelledServerRequestResponse(message.method));
+        }
+    }
+  }
+
   private async handleRuntimeServerRequest(message: RuntimeServerRequest) {
+    if (!INTERACTIVE_SERVER_REQUESTS.has(message.method)) {
+      await this.refuseServerRequest(message);
+      return;
+    }
     const params = (message.params ?? {}) as Record<string, unknown>;
     // Do not advertise or satisfy managed human-only checkpoints until the
     // Host can authenticate the origin of an approval. Unknown kinds also

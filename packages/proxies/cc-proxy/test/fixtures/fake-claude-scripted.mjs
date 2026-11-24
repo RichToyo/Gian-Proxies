@@ -17,6 +17,10 @@
  *    { wait: ms }
  *    { result, isError?, modelUsage? }  end the run (default: success "done")
  *    { exitAfter: ms }   exit with code 0 after the run, while idle
+ *    { background: { id, after, then? } }  start a background task that
+ *                        finishes `after` ms later; Claude then starts a run
+ *                        of its own (no user message) with the `then` steps,
+ *                        as Claude Code does when a background task ends
  */
 
 import { appendFileSync } from 'node:fs';
@@ -37,6 +41,11 @@ let nextRequest = 0;
 let messageCount = 0;
 const pendingAnswers = new Map();
 let wakeSteer = null;
+const backgroundTasks = new Map();
+
+function announceBackgroundTasks() {
+  write({ type: 'system', subtype: 'background_tasks_changed', tasks: [...backgroundTasks.values()] });
+}
 
 function steps(frame) {
   const content = typeof frame.message?.content === 'string' ? frame.message.content : '';
@@ -56,7 +65,8 @@ function ask(tool, input) {
 
 async function run(frame) {
   running = true;
-  write({ type: 'user', isReplay: true, uuid: frame.uuid, message: frame.message });
+  // A run Claude starts on its own consumes no user message.
+  if (!frame.autonomous) write({ type: 'user', isReplay: true, uuid: frame.uuid, message: frame.message });
   write({ type: 'system', subtype: 'init', model: 'claude-sonnet-4-6' });
   let ended = false;
   let exitAfter = null;
@@ -97,6 +107,20 @@ async function run(frame) {
       ended = true;
     } else if (step.exitAfter !== undefined) {
       exitAfter = step.exitAfter;
+    } else if (step.background) {
+      const { id, after, then } = step.background;
+      const toolUseId = `toolu_${id}`;
+      backgroundTasks.set(id, { task_id: id, task_type: 'local_bash', description: `background ${id}` });
+      announceBackgroundTasks();
+      write({ type: 'system', subtype: 'task_started', task_id: id, tool_use_id: toolUseId, description: `background ${id}`, is_backgrounded: true, task_type: 'local_bash' });
+      setTimeout(() => {
+        backgroundTasks.delete(id);
+        write({ type: 'system', subtype: 'task_updated', task_id: id, patch: { status: 'completed' } });
+        write({ type: 'system', subtype: 'task_notification', task_id: id, tool_use_id: toolUseId, status: 'completed', summary: `background ${id} completed` });
+        announceBackgroundTasks();
+        queue.push({ autonomous: true, message: { content: JSON.stringify(then ?? [{ result: `${id} handled` }]) } });
+        drain();
+      }, after);
     }
   }
   if (!ended) write({ type: 'result', subtype: 'success', result: 'done' });

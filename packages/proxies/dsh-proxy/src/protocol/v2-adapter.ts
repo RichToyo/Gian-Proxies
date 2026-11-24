@@ -9,6 +9,7 @@
 
 import { createHash } from 'node:crypto';
 import {
+  DOMAIN_CODES,
   OpaqueSidechatResumeStore,
   officialQuotaReadParamsSchema,
   officialQuotaReadResultSchema,
@@ -21,6 +22,9 @@ import {
   PLUGIN_VERSION,
   DshProxyService,
   ServiceError,
+  nativeTurnError,
+  contextWindowOf,
+  usageFromNative,
   diffStatusFor,
   diffsFromMeta,
   hashId,
@@ -31,7 +35,7 @@ import {
   type SessionStateName,
 } from '../core/service.js';
 import { discoverDshRuntimes, probeDshRuntime } from '../runtime/discover.js';
-import type { BridgeClient } from '../runtime/bridge-client.js';
+import { BridgeClientError, type BridgeClient } from '../runtime/bridge-client.js';
 
 export interface WireRequest {
   id: string;
@@ -158,7 +162,6 @@ export class DshV2Adapter {
     configOptions: this.defaultConfigOptions(),
   };
   private catalogInput: Array<{ type: string }> = [{ type: 'text' }];
-  private queue: Array<{ method: string; params: Record<string, unknown> }> | null = null;
   /** responseId → settled interaction identity for idempotent/conflict replies. */
   private readonly interactionResponses = new Map<string, {
     interactionId: string;
@@ -178,31 +181,85 @@ export class DshV2Adapter {
 
   constructor(
     private readonly bridge: BridgeClient,
-    private readonly options: { pluginVersion?: string; hostBindingKey?: string } = {},
+    private readonly options: { pluginVersion?: string; hostBindingKey?: string; dshHome?: string } = {},
   ) {
     this.service = new DshProxyService({
       emit: (event) => this.emit(event.method, event.params),
       pluginVersion: options.pluginVersion ?? PLUGIN_VERSION,
+      ...(options.dshHome === undefined ? {} : { dshHome: options.dshHome }),
     });
     this.bridge.onNotification((notification) => {
+      // Boot-time catalog churn (Providers registering while DSH mounts) is
+      // not a change the Host has seen yet: nothing is written before the
+      // initialize Response, and the first catalog.list reads the settled
+      // catalog anyway.
+      if (notification.method === 'catalog.changed') {
+        if (!this.initialized) return;
+        // The Bridge announces only content changes, with the new content
+        // revision when it could compute one.
+        const nativeRevision = notification.params.catalogRevision;
+        const revision = typeof nativeRevision === 'string'
+          ? this.catalogRevisionFrom({ catalogRevision: nativeRevision })
+          : undefined;
+        this.emit('catalog.changed', {
+          eventId: hashId(['catalog', revision ?? 'unavailable', Date.now()]),
+          emittedAt: new Date().toISOString(),
+          data: { reason: 'catalog-changed', ...(revision === undefined ? {} : { revision }) },
+        });
+        return;
+      }
       this.service.handleBridgeNotification(notification);
     });
     // A shared-Host crash must terminalize every open turn and pending
     // interaction instead of leaving the Host waiting on events that can no
     // longer arrive.
     if (typeof this.bridge.onExit === 'function') {
-      this.bridge.onExit(() => {
-        this.service.handleRuntimeExited();
+      this.bridge.onExit((info) => {
+        this.service.handleRuntimeExited(info);
       });
     }
   }
 
+  /**
+   * Response-before-Notification, per session. While a request that names a
+   * session is in flight, that session's notifications are held and written
+   * after the request's Response (before it for a successful sidechat.close,
+   * Contract §10.5.4). Every other session streams on: a slow request in one
+   * session never delays another session's events.
+   */
   private emit(method: string, params: Record<string, unknown>): void {
-    if (this.queue) {
-      this.queue.push({ method, params });
+    const sessionId = typeof params.sessionId === 'string' ? params.sessionId : null;
+    if (sessionId !== null && (this.holds.get(sessionId) ?? 0) > 0) {
+      this.held.push({ sessionId, method, params });
       return;
     }
     this.optionsEmit(method, params);
+  }
+
+  /** Session id → number of in-flight requests holding its notifications. */
+  private readonly holds = new Map<string, number>();
+  private held: Array<{ sessionId: string; method: string; params: Record<string, unknown> }> = [];
+
+  /** Sessions whose notifications a request may cause. */
+  private heldSessionsFor(request: WireRequest): string[] {
+    const ids = new Set<string>();
+    for (const key of ['sessionId', 'sourceSessionId', 'parentSessionId', 'sidechatId']) {
+      const value = request.params?.[key];
+      if (typeof value === 'string' && value.length > 0) ids.add(value);
+    }
+    return [...ids];
+  }
+
+  /** Remove and return, in emission order, held notifications whose session is no longer held. */
+  private takeReleased(): Array<{ method: string; params: Record<string, unknown> }> {
+    const released: Array<{ method: string; params: Record<string, unknown> }> = [];
+    const kept: typeof this.held = [];
+    for (const entry of this.held) {
+      if ((this.holds.get(entry.sessionId) ?? 0) > 0) kept.push(entry);
+      else released.push({ method: entry.method, params: entry.params });
+    }
+    this.held = kept;
+    return released;
   }
 
   /** Replaceable sink for tests; defaults to no-op until the CLI wires it. */
@@ -211,21 +268,41 @@ export class DshV2Adapter {
     this.optionsEmit = sink;
   }
 
-  /** Dispatch a request and flush its generated notifications after the
-   * response is written (contract §16 ordering). */
-  async dispatch(request: WireRequest): Promise<DispatchOutcome> {
-    const queue: Array<{ method: string; params: Record<string, unknown> }> = [];
-    const previous = this.queue;
-    this.queue = queue;
+  /**
+   * Dispatch one request. With `respond`, the adapter writes the Response
+   * itself and then (or, for sidechat.close, first) the notifications held
+   * for the request's sessions, synchronously, so nothing can interleave.
+   * Without it (tests), those notifications are returned in the outcome.
+   * Requests for different sessions may run concurrently.
+   */
+  async dispatch(
+    request: WireRequest,
+    respond?: (result: unknown, error?: unknown) => void,
+  ): Promise<DispatchOutcome> {
+    const sessions = this.heldSessionsFor(request);
+    for (const id of sessions) this.holds.set(id, (this.holds.get(id) ?? 0) + 1);
+    let outcome: DispatchOutcome;
     try {
-      const result = await this.route(request);
-      return { ok: true, result, notifications: queue };
+      outcome = { ok: true, result: await this.route(request), notifications: [] };
     } catch (error) {
-      const normalized = normalizeError(error);
-      return { ok: false, error: normalized, notifications: queue };
-    } finally {
-      this.queue = previous;
+      outcome = { ok: false, error: normalizeError(error), notifications: [] };
     }
+    for (const id of sessions) {
+      const remaining = (this.holds.get(id) ?? 1) - 1;
+      if (remaining > 0) this.holds.set(id, remaining);
+      else this.holds.delete(id);
+    }
+    const released = this.takeReleased();
+    if (respond === undefined) {
+      outcome.notifications = released;
+      return outcome;
+    }
+    const closeBarrier = request.method === 'sidechat.close' && outcome.ok;
+    if (closeBarrier) for (const event of released) this.optionsEmit(event.method, event.params);
+    if (outcome.ok) respond(outcome.result);
+    else respond(undefined, outcome.error);
+    if (!closeBarrier) for (const event of released) this.optionsEmit(event.method, event.params);
+    return outcome;
   }
 
   private notify(method: string, params: Record<string, unknown>): void {
@@ -326,6 +403,12 @@ export class DshV2Adapter {
     }
   }
 
+  /**
+   * Bootstrap catalog, served only before a Runtime is bound (no Bridge). The
+   * model choices mirror `@deepseek-ai/dsh-llm-deepseek@0.2.2-rc.5`
+   * DEFAULT_MODELS and dsh-base's `agent-default-model`; a bound Runtime
+   * always replaces them with the Bridge's live catalog.
+   */
   private defaultConfigOptions(): ConfigOption[] {
     return [
       {
@@ -345,10 +428,10 @@ export class DshV2Adapter {
         binding: 'turn',
         control: 'select',
         required: true,
-        defaultValue: 'deepseek-chat',
+        defaultValue: 'deepseek-flash',
         choices: [
-          { value: 'deepseek-chat', displayName: 'DeepSeek Chat' },
-          { value: 'deepseek-reasoner', displayName: 'DeepSeek Reasoner' },
+          { value: 'deepseek-flash', displayName: 'DeepSeek-V4.1-Flash' },
+          { value: 'deepseek-v4-pro', displayName: 'DeepSeek-V4-Pro' },
         ],
       },
       {
@@ -386,10 +469,11 @@ export class DshV2Adapter {
     }
     this.protocolVersion = selected;
     if (selected === '2.1' || process.env.GIAN_RUNTIME_BIN) {
-      const bridgeInitialized = await this.bridge.request(
-        'initialize',
-        { protocol: { versions: ['1.0'] } },
-      );
+      // The client completes the Bridge handshake while starting DSH; a
+      // test double without `ready` is asked directly.
+      const bridgeInitialized = typeof this.bridge.ready === 'function'
+        ? await this.bridge.ready()
+        : await this.bridge.request('initialize', { protocol: { versions: ['1.0'] } });
       const bridgeCapabilities = bridgeInitialized.capabilities !== null
         && typeof bridgeInitialized.capabilities === 'object'
         && !Array.isArray(bridgeInitialized.capabilities)
@@ -421,12 +505,20 @@ export class DshV2Adapter {
           : { 'runtime.discover': 1, 'runtime.probe': 1 }),
         ...(selected === '2.3' ? { 'customization.list': 1 } : {}),
       };
-      const catalog = await this.bridge.request('catalog.list', {});
-      this.catalogState = {
-        catalogRevision: this.catalogRevisionFrom(catalog),
-        configOptions: this.catalogOptionsFrom(catalog),
-      };
-      this.catalogInput = this.catalogInputFrom(catalog);
+      try {
+        const catalog = await this.bridge.request('catalog.list', {});
+        this.catalogState = {
+          catalogRevision: this.catalogRevisionFrom(catalog),
+          configOptions: this.catalogOptionsFrom(catalog),
+        };
+        this.catalogInput = this.catalogInputFrom(catalog);
+      } catch (error) {
+        // A home without a usable Provider is a setup state, not a broken
+        // Proxy: initialize succeeds and catalog.list / session.create /
+        // turn.start answer RUNTIME_AUTH_REQUIRED with the fix until a
+        // credential appears (every catalog call re-reads the Bridge).
+        if (normalizeError(error).data?.domainCode !== 'RUNTIME_AUTH_REQUIRED') throw error;
+      }
     } else {
       this.capabilities = {
         ...BASE_CAPABILITIES,
@@ -466,7 +558,8 @@ export class DshV2Adapter {
           displayName: String(provider.label ?? provider.name ?? provider.id),
         }));
       if (providerOption.choices.length === 0) {
-        throw new ServiceError('RUNTIME_UNAVAILABLE', 'DSH exposes no Provider with a selectable model.');
+        // DSH lists a Provider's models only once its credential resolves.
+        throw new ServiceError('RUNTIME_AUTH_REQUIRED', noProviderMessage(this.options.dshHome));
       }
       if (selectedProvider !== undefined
         && !providerOption.choices.some(choice => choice.value === selectedProvider)) {
@@ -502,7 +595,7 @@ export class DshV2Adapter {
             value: String(model.id ?? model),
             displayName: String(model.label ?? model.id ?? model),
           })),
-          defaultValue: String(defaultModel ?? 'deepseek-chat'),
+          defaultValue: String(defaultModel),
         };
       }
     }
@@ -1366,10 +1459,15 @@ export class DshV2Adapter {
       ? (page as { events: Array<{ type: string; data: Record<string, unknown>; seq: number }> }).events
       : [];
     const replayStreamId = `replay-${session.id}-${(page as { formatVersion?: unknown }).formatVersion ?? 0}`;
+    // request/context precedes the steps it describes; a page carries the
+    // latest window forward (a page starting mid-route has none until the
+    // next request/context).
+    const replayContext: { window?: number | undefined } = {};
     const replayEvents = events.flatMap((event) => this.replayEventsFor(
       session,
       replayStreamId,
       event,
+      replayContext,
     ));
     return {
       replayStreamId,
@@ -1395,6 +1493,7 @@ export class DshV2Adapter {
     },
     replayStreamId: string,
     event: { type: string; data: Record<string, unknown>; seq: number },
+    replayContext: { window?: number | undefined } = {},
   ): Array<Record<string, unknown>> {
     const nativeSessionId = session.nativeSessionId ?? session.id;
     const data = event.data;
@@ -1464,14 +1563,7 @@ export class DshV2Adapter {
             ...turnEnvelope,
             method: 'turn.failed',
             eventId: replayEventId('turn.failed'),
-            data: {
-              error: {
-                domainCode: 'RUNTIME_ERROR',
-                message: 'Native turn failed.',
-                retryable: false,
-                details: { native: (reason.error ?? null) as unknown },
-              },
-            },
+            data: { error: nativeTurnError(reason.error, this.options.dshHome) },
           }];
         }
         return [{ ...turnEnvelope, method: 'turn.completed', eventId: replayEventId('turn.completed'), data: { stopReason: 'other' } }];
@@ -1512,25 +1604,11 @@ export class DshV2Adapter {
         }
         const usage = data.usage as Record<string, unknown> | undefined;
         if (usage && blocks.length > 0) {
-          const inputTokens = typeof usage.inputTokens === 'number' ? usage.inputTokens : 0;
-          const outputTokens = typeof usage.outputTokens === 'number' ? usage.outputTokens : 0;
-          const cacheReadTokens = typeof usage.cacheReadTokens === 'number' ? usage.cacheReadTokens : 0;
-          const cacheWriteTokens = typeof usage.cacheWriteTokens === 'number' ? usage.cacheWriteTokens : 0;
-          const cachedInputTokens = cacheReadTokens + cacheWriteTokens;
           out.push({
             ...turnEnvelope,
             method: 'usage.updated',
             eventId: replayEventId('usage-updated'),
-            data: {
-              stepId: `${sourceId}:step:${step}`,
-              conversation: {
-                mode: 'delta',
-                inputTokens,
-                outputTokens,
-                ...(cachedInputTokens === 0 ? {} : { cachedInputTokens }),
-                totalTokens: inputTokens + outputTokens + cachedInputTokens,
-              },
-            },
+            data: usageFromNative(usage, `${sourceId}:step:${step}`, replayContext.window),
           });
         }
         return out;
@@ -1614,8 +1692,8 @@ export class DshV2Adapter {
         const reason = data.reason === 'resume' ? 'resume' : data.reason === 'change' || data.reason === 'series' ? 'change' : 'initial';
         const header = (data.header ?? {}) as Record<string, unknown>;
         const config = (header.config ?? {}) as Record<string, unknown>;
-        const model = config.model !== undefined ? String(config.model) : 'deepseek-chat';
-        const provider = config.provider !== undefined ? String(config.provider) : 'deepseek';
+        const model = typeof config.model === 'string' && config.model.length > 0 ? config.model : null;
+        const provider = typeof config.provider === 'string' ? config.provider : undefined;
         return [{
           ...turnEnvelope,
           method: 'request.updated',
@@ -1624,7 +1702,7 @@ export class DshV2Adapter {
             requestId: `request-${sourceId}:step:${step}`,
             reason,
             stepId: `${sourceId}:step:${step}`,
-            model: { provider, id: model },
+            ...(model === null ? {} : { model: { ...(provider === undefined ? {} : { provider }), id: model } }),
             ...(typeof header.system === 'string' ? { systemPrompt: { text: header.system, truncated: false } } : {}),
             ...(Array.isArray(header.tools)
               ? { tools: (header.tools as Array<Record<string, unknown>>).map((tool) => ({ name: String(tool.name ?? '') })) }
@@ -1633,7 +1711,8 @@ export class DshV2Adapter {
         }];
       }
       case 'request/context': {
-        const contextWindow = typeof data.contextWindow === 'number' ? data.contextWindow : undefined;
+        const contextWindow = contextWindowOf(data.contextWindow);
+        replayContext.window = contextWindow;
         return [{
           ...turnEnvelope,
           method: 'request.updated',
@@ -1732,7 +1811,9 @@ export class DshV2Adapter {
   }
 
   private async shutdown(): Promise<unknown> {
-    await this.bridge.request('shutdown', {});
+    // DSH disposes its Agents and exits through appExit. A DSH that already
+    // died cannot be shut down twice; the Proxy's close still reaps its group.
+    await this.bridge.request('shutdown', {}).catch(() => undefined);
     return { ok: true };
   }
 
@@ -1843,7 +1924,17 @@ export class DshV2Adapter {
   }
 }
 
-function normalizeError(error: unknown): {
+const WIRE_DOMAIN_CODES: ReadonlySet<string> = new Set(DOMAIN_CODES);
+
+/** Actionable setup text for a DSH home without a usable Provider. */
+function noProviderMessage(home: string | undefined): string {
+  const root = home ?? '$DSH_HOME';
+  return `DeepSeek Harness has no model Provider with a usable credential in ${root}. `
+    + `Add DEEPSEEK_API_KEY under \`refs:\` in ${root}/.credentials.yaml `
+    + `(or configure another Provider in ${root}/cordis.patch.yml and add its key), then retry.`;
+}
+
+export function normalizeError(error: unknown): {
   code: number;
   message: string;
   data?: { domainCode: string; retryable: boolean; details?: Record<string, unknown> };
@@ -1858,18 +1949,33 @@ function normalizeError(error: unknown): {
       data: { domainCode: error.domainCode, retryable: false, details: {} },
     };
   }
+  const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof BridgeClientError) {
+    // The Bridge's own text reaches the Host. Its domain code is kept when it
+    // is a gian.proxy code; anything else keeps its native code in details.
+    const known = error.domainCode !== undefined && WIRE_DOMAIN_CODES.has(error.domainCode);
+    return {
+      code: -32000,
+      message,
+      data: {
+        domainCode: known ? error.domainCode! : 'RUNTIME_ERROR',
+        retryable: error.retryable,
+        details: {
+          bridgeCode: error.code,
+          ...(error.domainCode !== undefined && !known ? { nativeCode: error.domainCode } : {}),
+        },
+      },
+    };
+  }
   if (error && typeof error === 'object' && (error as { domainCode?: unknown }).domainCode !== undefined) {
     const domainCode = String((error as { domainCode: unknown }).domainCode);
     return {
       code: -32000,
-      message: error instanceof Error ? error.message : String(error),
+      message,
       data: { domainCode, retryable: false, details: {} },
     };
   }
-  return {
-    code: -32603,
-    message: error instanceof Error ? error.message : String(error),
-  };
+  return { code: -32603, message };
 }
 
 function stringField(params: Record<string, unknown>, key: string): string {

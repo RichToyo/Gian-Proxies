@@ -23,6 +23,7 @@
 import { createHash } from 'node:crypto';
 import { PLUGIN_ID } from './identity.js';
 import type { InnerNativeEvent } from './inner/model.js';
+import { redactSecrets } from './inner/transport.js';
 
 export interface OuterNotification {
   method: string;
@@ -36,12 +37,20 @@ export interface InteractionResolution {
   actionId?: string;
 }
 
+export interface TerminalOutcome {
+  kind: 'completed' | 'failed';
+  gianTurnId: string;
+  nativeTurnId: string;
+}
+
 export interface ProjectorServices {
   gianSessionId: string;
   nativeSessionId: string;
   /** Assign the next outer sequence for this session stream. */
   nextSequence: () => number;
   emit: (notification: OuterNotification) => void;
+  /** Runs once, right after the single terminal event of a bound turn. */
+  onTerminal?: (outcome: TerminalOutcome) => void;
 }
 
 function eventIdFor(parts: unknown[]): string {
@@ -118,6 +127,76 @@ interface ActiveTurn {
   /** turn.started for this gian turn has been emitted (the typed
    *  turn-started can arrive once, but a duplicate must not double it). */
   startedEmitted: boolean;
+  /** Sum of this turn's per-model-call usage (turn total fallback). */
+  callUsage: TurnUsage;
+  /** The native turn summary from turn.completed, when one arrived. */
+  summaryUsage: TurnUsage | null;
+}
+
+/** Token counters in the canonical inclusive shape: inputTokens includes
+ *  cached input, totalTokens = inputTokens + outputTokens. */
+export interface TurnUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  totalTokens: number;
+  seen: boolean;
+}
+
+function emptyUsage(): TurnUsage {
+  return { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, totalTokens: 0, seen: false };
+}
+
+/** Native ModelUsage / ModelUsageSummary (contracts/src/model/index.ts):
+ *  AI SDK v6 inputTokens already include cache reads and writes. */
+export function usageFromNative(value: unknown): TurnUsage | null {
+  if (value === null || typeof value !== 'object') return null;
+  const usage = value as Record<string, unknown>;
+  const input = numberOr(usage.inputTokens);
+  const output = numberOr(usage.outputTokens);
+  const total = numberOr(usage.totalTokens);
+  const cacheRead = numberOr(usage.cacheReadTokens) ?? numberOr(usage.cacheTokens);
+  const cacheWrite = numberOr(usage.cacheWriteTokens);
+  if (input === null && output === null && total === null && cacheRead === null) return null;
+  const inclusiveInput = input
+    ?? (total !== null ? Math.max(0, total - (output ?? 0)) : (cacheRead ?? 0) + (cacheWrite ?? 0));
+  const outputTokens = output ?? 0;
+  return {
+    inputTokens: inclusiveInput,
+    outputTokens,
+    cachedInputTokens: cacheRead ?? 0,
+    totalTokens: total ?? inclusiveInput + outputTokens,
+    seen: true,
+  };
+}
+
+/** Context occupancy of one model call, exactly as upstream measures it
+ *  (getModelUsageContextTokens: input window plus output). */
+export function contextTokensOf(usage: TurnUsage): number {
+  const used = usage.inputTokens + usage.outputTokens;
+  return used > 0 ? used : usage.totalTokens;
+}
+
+function addUsage(target: TurnUsage, value: TurnUsage): void {
+  target.inputTokens += value.inputTokens;
+  target.outputTokens += value.outputTokens;
+  target.cachedInputTokens += value.cachedInputTokens;
+  target.totalTokens += value.totalTokens;
+  target.seen = true;
+}
+
+/** Turn-scoped conversation usage is a per-turn delta; the Host sums deltas
+ *  and accepts exactly one per turn (no event.step capability). */
+export function usageDeltaData(usage: TurnUsage): Record<string, unknown> {
+  return {
+    conversation: {
+      mode: 'delta',
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      cachedInputTokens: Math.min(usage.cachedInputTokens, usage.inputTokens),
+      totalTokens: usage.totalTokens,
+    },
+  };
 }
 
 /** Native todo/plan statuses (contracts/src/tools/todo.ts:26-30). */
@@ -182,6 +261,106 @@ export function renderUnifiedDiff(path: string, hunks: NativePatchHunk[]): strin
   return parts.join('\n');
 }
 
+/** How long a typed turn-completed/turn-failed operation waits for the
+ *  richer session/event terminal before it ends the turn by itself. */
+const TERMINAL_FALLBACK_GRACE_MS = 3_000;
+/** How long a stderr provider rejection waits for the typed terminal. */
+const PROVIDER_FAILURE_GRACE_MS = 3_000;
+
+/** Native error codes and texts that mean the runtime has no usable sign-in
+ *  or credential (CLI login, API key, or the Keychain-held credential key). */
+const AUTH_ERROR_CODES = new Set([
+  'project_token_login_required',
+  'project_token_account_required',
+  'unauthorized',
+  'authentication_error',
+  'authentication_failed',
+  'invalid_api_key',
+  'missing_api_key',
+  'credential_secure_storage_unavailable',
+  'zcode_credential_decrypt_failed',
+]);
+/** Zhipu/Z.ai platform authentication failures (1000-1004). */
+const AUTH_PROVIDER_CODES = new Set(['1000', '1001', '1002', '1003', '1004']);
+const AUTH_ERROR_TEXT = new RegExp([
+  String.raw`\b(?:invalid|incorrect|missing|expired|revoked|no)\b[^.\n]{0,40}\b(?:api[ _-]?key|access token|token|credentials?)\b`,
+  String.raw`\bunauthori[sz]ed\b`,
+  String.raw`\bauthentication (?:failed|required|error)\b`,
+  String.raw`\bnot (?:signed|logged) in\b`,
+  String.raw`\blogin(?:_| )required\b`,
+].join('|'), 'i');
+// Localized (Chinese) provider messages are not matched as text: the same
+// failures carry Zhipu codes 1000-1004, HTTP 401 or a native auth type, which
+// the checks above already cover. Public source stays English-only.
+
+function textField(value: unknown, limit = 2_000): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
+  if (text === '') return undefined;
+  // Provider errors can echo a key ("Incorrect API key provided: sk-…").
+  return (redactSecrets(text.slice(0, limit)) as string)
+    .replace(/\b(?:sk|pk|ak|rk)-[A-Za-z0-9_-]{8,}/g, '[REDACTED]')
+    .replace(/[A-Za-z0-9_-]{40,}/g, '[REDACTED]');
+}
+
+/** Map a native TurnError payload (zcodeProtocolErrorDetailSchema) to the
+ *  outer failure: the CLI's own text, a sign-in failure as
+ *  RUNTIME_AUTH_REQUIRED with what to do, and the native identity kept in
+ *  details. */
+export function describeNativeTurnError(error: Record<string, unknown>, turnPhase: string | null): {
+  domainCode: 'RUNTIME_AUTH_REQUIRED' | 'RUNTIME_ERROR';
+  message: string;
+  retryable: boolean;
+  details: Record<string, unknown>;
+} {
+  const attribution = error.attribution !== null && typeof error.attribution === 'object'
+    ? error.attribution as Record<string, unknown>
+    : {};
+  const nativeMessage = textField(error.message) ?? 'ZCode turn failed.';
+  const underlying = textField(error.underlyingErrorMessage);
+  const message = underlying !== undefined && !nativeMessage.includes(underlying)
+    ? `${nativeMessage} (${underlying})`
+    : nativeMessage;
+  const type = textField(error.type, 200);
+  const code = textField(error.code, 200);
+  const providerCode = textField(attribution.providerErrorCode, 64);
+  const statusCode = typeof attribution.statusCode === 'number' ? attribution.statusCode : undefined;
+  const details: Record<string, unknown> = {
+    ...(type !== undefined ? { nativeType: type } : {}),
+    ...(code !== undefined ? { nativeCode: code } : {}),
+    ...(providerCode !== undefined ? { providerCode } : {}),
+    ...(statusCode !== undefined ? { statusCode } : {}),
+    ...(turnPhase !== null ? { turnPhase } : {}),
+    ...(textField(attribution.providerId, 200) !== undefined ? { providerId: textField(attribution.providerId, 200) } : {}),
+    ...(textField(attribution.modelId, 200) !== undefined ? { modelId: textField(attribution.modelId, 200) } : {}),
+  };
+  const lowered = [type, code].filter((value): value is string => value !== undefined).map((value) => value.toLowerCase());
+  const keychain = lowered.includes('credential_secure_storage_unavailable');
+  const auth = keychain
+    || lowered.some((value) => AUTH_ERROR_CODES.has(value))
+    || statusCode === 401
+    || (providerCode !== undefined && AUTH_PROVIDER_CODES.has(providerCode))
+    || AUTH_ERROR_TEXT.test(`${nativeMessage}\n${underlying ?? ''}\n${textField(error.detail) ?? ''}`);
+  if (auth) {
+    return {
+      domainCode: 'RUNTIME_AUTH_REQUIRED',
+      message: keychain
+        ? `ZCode could not read its credential key from the macOS Keychain: ${message} `
+          + 'Allow access to the "ZCode Credential Encryption" Keychain item when macOS asks (Always Allow avoids repeat prompts), '
+          + 'or sign in again with `zcode login`, then retry.'
+        : `ZCode is not signed in or its provider rejected the credentials: ${message} `
+          + 'Sign in with `zcode login` (Z.ai or BigModel), or fix the API key of the selected provider in '
+          + 'the ZCode home (v2/provider_config.json), then retry.',
+      retryable: false,
+      details,
+    };
+  }
+  const retryable = typeof error.retryable === 'boolean'
+    ? error.retryable
+    : typeof attribution.retryable === 'boolean' ? attribution.retryable : false;
+  return { domainCode: 'RUNTIME_ERROR', message, retryable, details };
+}
+
 const RESULT_TYPE_STOP_REASONS: Record<string, string> = {
   success: 'completed',
   cancelled: 'cancelled',
@@ -197,7 +376,9 @@ export class SessionProjector {
   private openActivities = new Map<string, OpenActivity>();
   private readonly pendingInteractions = new Map<string, PendingInteractionEntry>();
   private activeTurn: ActiveTurn | null = null;
-  private lastUsage: Record<string, unknown> | null = null;
+  /** Native turns that already reached a Gian terminal; their late events
+   *  must not leak into the next turn. Bounded. */
+  private readonly finishedNativeTurns = new Set<string>();
   private terminalSent = false;
   private observedTextContent = false;
   private lastPlanFingerprint: string | null = null;
@@ -211,6 +392,8 @@ export class SessionProjector {
       interruptAccepted: false,
       foregroundExecutionId: null,
       startedEmitted: false,
+      callUsage: emptyUsage(),
+      summaryUsage: null,
     };
     this.terminalSent = false;
     this.observedTextContent = false;
@@ -225,6 +408,16 @@ export class SessionProjector {
 
   markInterruptAccepted(): void {
     if (this.activeTurn) this.activeTurn.interruptAccepted = true;
+  }
+
+  /** The runtime rejected our stop: a later cancellation is not ours. */
+  clearInterruptRequest(): void {
+    if (this.activeTurn) this.activeTurn.interruptAccepted = false;
+  }
+
+  /** True once the bound turn reached its single terminal event. */
+  isTurnFinished(gianTurnId: string): boolean {
+    return this.activeTurn?.gianTurnId !== gianTurnId;
   }
 
   hasActiveTurn(): boolean {
@@ -289,14 +482,29 @@ export class SessionProjector {
         }
       }
     }
+    // The 3.18 envelope names the native turn. Late facts of a turn that
+    // already ended in Gian (e.g. after an interrupt watchdog) are dropped so
+    // they can never be attributed to the next turn.
+    const envelopeTurnId = typeof params.turnId === 'string' && params.turnId !== '' ? params.turnId : null;
+    if (envelopeTurnId !== null && this.finishedNativeTurns.has(envelopeTurnId)) return;
+    // Any native progress proves the turn is alive: a stderr provider-failure
+    // hint no longer means this turn is stuck.
+    this.clearProviderFailureTimer();
 
     if (kind !== null) {
       this.handleStreamPayload(nativeEventId, kind, payload, turnId);
       return;
     }
     // Non-stream payloads (WP0 G6: these carry no `kind` field).
+    // 3.18 reports a failed turn as session/event turn.failed with
+    // {error, turnPhase} and no resultType (TurnError, core turn-errors.ts).
+    if (eventType === 'turn.failed'
+      || (payload.error !== null && typeof payload.error === 'object' && typeof payload.turnPhase === 'string')) {
+      this.handleTurnFailed(nativeEventId, payload, envelopeTurnId);
+      return;
+    }
     if (typeof payload.resultType === 'string') {
-      this.handleTurnTerminal(nativeEventId, payload);
+      this.handleTurnTerminal(nativeEventId, payload, envelopeTurnId);
       return;
     }
     if (typeof payload.stopReason === 'string' && typeof payload.usage !== 'undefined') {
@@ -309,6 +517,11 @@ export class SessionProjector {
       // lifecycle arrives here (session-mapper.ts default mapping); the rest
       // is iteration/model bookkeeping and not user-visible.
       this.handleSubagentFact(nativeEventId, payload);
+      return;
+    }
+    if (eventType === 'session.resumed' || eventType === 'session.created') {
+      // Runtime lifecycle (e.g. the re-attach after an idle stop), not a
+      // transcript fact.
       return;
     }
     if (eventType !== null && eventType.startsWith('turn.steer')) {
@@ -348,7 +561,9 @@ export class SessionProjector {
 
   private turnScopedParams(sourceIdentity: string): Record<string, unknown> | null {
     const turn = this.activeTurn;
-    if (turn === null) return null;
+    // Nothing turn-scoped may precede turn.started (or follow the terminal,
+    // which clears the binding).
+    if (turn === null || turn.startedEmitted !== true) return null;
     return {
       eventId: eventIdFor([this.services.nativeSessionId, sourceIdentity, 'turn-envelope']),
       sessionId: this.services.gianSessionId,
@@ -689,35 +904,72 @@ export class SessionProjector {
     });
   }
 
+  /** One model call finished. Its usage is that call's own consumption, not
+   *  a running total: report it as context occupancy (input window plus
+   *  output, against the call's contextWindow) and add it to the turn total,
+   *  which goes out once, as a delta, before the terminal. */
   private handleMessageCompleted(nativeEventId: string | null, payload: Record<string, unknown>): void {
-    const usage = (payload.usage ?? {}) as Record<string, unknown>;
-    const inputTokens = numberOr(usage.inputTokens);
-    const outputTokens = numberOr(usage.outputTokens);
-    const cached = numberOr(usage.cacheReadTokens);
-    const total = numberOr(usage.totalTokens);
-    if (inputTokens === null && outputTokens === null && cached === null && total === null) return;
-    this.lastUsage = {
-      inputTokens: inputTokens ?? undefined,
-      outputTokens: outputTokens ?? undefined,
-      cachedInputTokens: cached ?? undefined,
-      totalTokens: total ?? undefined,
-    };
+    const usage = usageFromNative(payload.usage);
+    if (usage === null) return;
+    if (this.activeTurn !== null) addUsage(this.activeTurn.callUsage, usage);
+    const used = Math.floor(contextTokensOf(usage));
+    if (used <= 0) return;
+    const window = numberOr(payload.contextWindow);
     this.emitTurnEvent('usage.updated', nativeEventId ?? `usage:${this.lastNativeSeq}`, {
-      conversation: {
-        mode: 'absolute',
-        ...(inputTokens !== null ? { inputTokens } : {}),
-        ...(outputTokens !== null ? { outputTokens } : {}),
-        ...(cached !== null ? { cachedInputTokens: cached } : {}),
-        ...(total !== null ? { totalTokens: total } : {}),
-      },
+      context: { used, ...(window !== null && window >= 1 ? { window: Math.floor(window) } : {}) },
     });
   }
 
-  private handleTurnTerminal(nativeEventId: string | null, payload: Record<string, unknown>): void {
+  /** A terminal names its native turn; a terminal for another native turn
+   *  (or for no bound turn) must not end the active Gian turn. */
+  private acceptsTerminalFor(envelopeTurnId: string | null): boolean {
+    const turn = this.activeTurn;
+    if (turn === null || this.terminalSent) return false;
+    if (envelopeTurnId === null) return true;
+    if (turn.nativeTurnId === '') {
+      turn.nativeTurnId = envelopeTurnId;
+      return true;
+    }
+    return turn.nativeTurnId === envelopeTurnId;
+  }
+
+  private handleTurnTerminal(
+    nativeEventId: string | null,
+    payload: Record<string, unknown>,
+    envelopeTurnId: string | null = null,
+  ): void {
+    if (!this.acceptsTerminalFor(envelopeTurnId)) return;
     const resultType = typeof payload.resultType === 'string' ? payload.resultType : 'success';
+    this.ensureTurnStarted(nativeEventId);
     this.emitTerminalTextIfNeeded(payload.response);
-    this.handleMessageCompleted(nativeEventId, payload);
+    const summary = usageFromNative(payload.usage);
+    if (summary !== null && this.activeTurn !== null) this.activeTurn.summaryUsage = summary;
     this.finalizeTurn(resultType, payload);
+  }
+
+  private handleTurnFailed(
+    nativeEventId: string | null,
+    payload: Record<string, unknown>,
+    envelopeTurnId: string | null,
+  ): void {
+    if (!this.acceptsTerminalFor(envelopeTurnId)) return;
+    this.ensureTurnStarted(nativeEventId);
+    const error = payload.error !== null && typeof payload.error === 'object'
+      ? payload.error as Record<string, unknown>
+      : {};
+    this.finalizeTurn('turn_failed', {
+      nativeError: error,
+      ...(typeof payload.turnPhase === 'string' ? { turnPhase: payload.turnPhase } : {}),
+    });
+  }
+
+  /** A terminal (or an interaction) needs a preceding turn.started. */
+  private ensureTurnStarted(nativeEventId: string | null): void {
+    const turn = this.activeTurn;
+    if (turn === null || turn.startedEmitted) return;
+    if (turn.nativeTurnId === '') turn.nativeTurnId = turn.gianTurnId;
+    turn.startedEmitted = true;
+    this.emitTurnStarted(turn.gianTurnId, turn.nativeTurnId, nativeEventId);
   }
 
   private emitTerminalTextIfNeeded(value: unknown): void {
@@ -738,7 +990,8 @@ export class SessionProjector {
 
   /** Deterministic terminal finalization (§9.3). */
   finalizeTurn(resultType: string, nativeDetails: Record<string, unknown>): void {
-    if (this.terminalSent) return;
+    if (this.terminalSent || this.activeTurn === null) return;
+    this.ensureTurnStarted(null);
     this.terminalSent = true;
 
     // 1. pending interactions -> turn_ended
@@ -797,7 +1050,13 @@ export class SessionProjector {
     }
     this.openActivities.clear();
 
-    // 4. last usage already flushed via handleMessageCompleted.
+    // 4. exactly one per-turn conversation delta: the native turn summary
+    // when turn.completed carried one, else the sum of the model calls.
+    const turnUsage = this.activeTurn?.summaryUsage
+      ?? (this.activeTurn?.callUsage.seen ? this.activeTurn.callUsage : null);
+    if (turnUsage !== null && turnUsage !== undefined && turnUsage.totalTokens > 0) {
+      this.emitTurnEvent('usage.updated', `${this.activeTurn?.nativeTurnId ?? ''}:turn-usage`, usageDeltaData(turnUsage));
+    }
 
     // 5. exactly one terminal event. Mapping (§9.3, WP0 G5): observed success
     // -> completed (never reshape a stop race into an interrupt); cancelled ->
@@ -806,19 +1065,31 @@ export class SessionProjector {
     const interrupted = this.activeTurn?.interruptAccepted === true;
     if (resultType === 'success') {
       this.emitCompleted('completed');
+      this.finishTurn('completed');
       return;
     }
     if (resultType === 'cancelled') {
       this.emitCompleted(interrupted ? 'interrupted' : 'cancelled');
+      this.finishTurn('completed');
       return;
     }
     if (RESULT_TYPE_STOP_REASONS[resultType] === 'limit_reached') {
       this.emitCompleted('limit_reached');
+      this.finishTurn('completed');
       return;
     }
-    const errorDetails = runtimeFailure?.providerCode
-      ? { providerCode: runtimeFailure.providerCode }
-      : {};
+    const nativeError = nativeDetails.nativeError !== null && typeof nativeDetails.nativeError === 'object'
+      ? nativeDetails.nativeError as Record<string, unknown>
+      : null;
+    const failure = nativeError !== null
+      ? describeNativeTurnError(nativeError, typeof nativeDetails.turnPhase === 'string' ? nativeDetails.turnPhase : null)
+      : null;
+    const hintCode = this.providerFailureHint?.providerCode;
+    const errorDetails = failure !== null
+      ? { ...failure.details, ...(failure.details.providerCode === undefined && hintCode ? { providerCode: hintCode } : {}) }
+      : runtimeFailure?.providerCode
+        ? { providerCode: runtimeFailure.providerCode }
+        : {};
     this.services.emit({
       method: 'turn.failed',
       params: {
@@ -835,9 +1106,9 @@ export class SessionProjector {
         emittedAt: nowIso(),
         data: {
           error: {
-            domainCode: runtimeFailure?.domainCode ?? 'RUNTIME_ERROR',
-            message: runtimeFailure?.message ?? `ZCode turn ended with ${resultType}.`,
-            retryable: runtimeFailure?.retryable ?? false,
+            domainCode: failure?.domainCode ?? runtimeFailure?.domainCode ?? 'RUNTIME_ERROR',
+            message: failure?.message ?? runtimeFailure?.message ?? `ZCode turn ended with ${resultType}.`,
+            retryable: failure?.retryable ?? runtimeFailure?.retryable ?? false,
             details: errorDetails,
           },
         },
@@ -849,6 +1120,77 @@ export class SessionProjector {
         },
       },
     });
+    this.finishTurn('failed');
+  }
+
+  /** Release the binding after the single terminal: remember the native turn
+   *  so its late facts are dropped, then let the adapter mark the session
+   *  idle. */
+  private finishTurn(kind: 'completed' | 'failed'): void {
+    const turn = this.activeTurn;
+    this.clearTerminalFallbackTimer();
+    this.clearProviderFailureTimer();
+    this.providerFailureHint = null;
+    if (turn === null) return;
+    if (turn.nativeTurnId !== '') {
+      this.finishedNativeTurns.add(turn.nativeTurnId);
+      if (this.finishedNativeTurns.size > 256) {
+        const [oldest] = this.finishedNativeTurns;
+        if (oldest !== undefined) this.finishedNativeTurns.delete(oldest);
+      }
+    }
+    this.activeTurn = null;
+    this.services.onTerminal?.({ kind, gianTurnId: turn.gianTurnId, nativeTurnId: turn.nativeTurnId });
+  }
+
+  // ---- terminal watchdogs ----
+
+  private terminalFallbackTimer: NodeJS.Timeout | null = null;
+  private providerFailureTimer: NodeJS.Timeout | null = null;
+  private providerFailureHint: { providerCode?: string; domainCode?: string; message?: string; retryable?: boolean } | null = null;
+
+  private clearTerminalFallbackTimer(): void {
+    if (this.terminalFallbackTimer !== null) clearTimeout(this.terminalFallbackTimer);
+    this.terminalFallbackTimer = null;
+  }
+
+  private clearProviderFailureTimer(): void {
+    if (this.providerFailureTimer !== null) clearTimeout(this.providerFailureTimer);
+    this.providerFailureTimer = null;
+  }
+
+  /** A bounded stderr provider rejection carries no session or turn. The
+   *  adapter only forwards it when this projector owns the runtime's single
+   *  active turn. The typed terminal normally follows at once and wins; the
+   *  hint only ends the turn when the runtime stays silent. */
+  noteProviderFailure(
+    failure: { providerCode?: string; domainCode?: string; message?: string; retryable?: boolean },
+    graceMs = PROVIDER_FAILURE_GRACE_MS,
+  ): void {
+    if (this.activeTurn === null || this.terminalSent) return;
+    this.providerFailureHint = failure;
+    this.clearProviderFailureTimer();
+    this.providerFailureTimer = setTimeout(() => {
+      this.providerFailureTimer = null;
+      if (this.activeTurn === null || this.terminalSent) return;
+      this.finalizeTurn('error_during_execution', { runtimeFailure: this.providerFailureHint });
+    }, graceMs);
+    this.providerFailureTimer.unref?.();
+  }
+
+  /** End the bound turn locally when the native runtime confirmed a stop but
+   *  never sent its terminal. Returns false when no turn is bound. */
+  finalizeInterruptedLocally(): boolean {
+    if (this.activeTurn === null || this.terminalSent) return false;
+    this.activeTurn.interruptAccepted = true;
+    this.finalizeTurn('cancelled', {});
+    return true;
+  }
+
+  /** Release timers when the session detaches. */
+  dispose(): void {
+    this.clearTerminalFallbackTimer();
+    this.clearProviderFailureTimer();
   }
 
   private emitCompleted(stopReason: string): void {
@@ -882,10 +1224,32 @@ export class SessionProjector {
         params: { message: `[zcode] op-event kind=${kind} eventId=${nativeEventId} turnId=${turnId} activeTurn=${this.activeTurn ? `${this.activeTurn.gianTurnId}:${this.activeTurn.nativeTurnId || '-'}` : 'null'}` },
       });
     }
+    if (turnId !== null && this.finishedNativeTurns.has(turnId)) return;
+    this.clearProviderFailureTimer();
     if (kind === 'turn-completed' || kind === 'turn-failed' || kind === 'session-closed') {
       // The typed operation is emitted before the richer session/event and
       // intentionally shares its eventId. Do not consume the shared identity,
       // otherwise the terminal payload (resultType/usage/response) is lost.
+      // It is still a terminal fact: if the richer event never arrives, end
+      // the turn from it after a short grace instead of leaving it running.
+      const turn = this.activeTurn;
+      if (kind !== 'session-closed' && turn !== null && !this.terminalSent
+        && (turnId === null || turn.nativeTurnId === '' || turn.nativeTurnId === turnId)) {
+        this.clearTerminalFallbackTimer();
+        this.terminalFallbackTimer = setTimeout(() => {
+          this.terminalFallbackTimer = null;
+          if (this.activeTurn !== turn || this.terminalSent) return;
+          if (kind === 'turn-failed') {
+            this.finalizeTurn('turn_failed', { nativeError: {
+              type: 'turn_failed',
+              message: 'ZCode reported the turn as failed without error details.',
+            } });
+          } else {
+            this.finalizeTurn(turn.interruptAccepted ? 'cancelled' : 'success', {});
+          }
+        }, TERMINAL_FALLBACK_GRACE_MS);
+        this.terminalFallbackTimer.unref?.();
+      }
       return;
     }
     if (nativeEventId !== null) {
@@ -930,7 +1294,10 @@ export class SessionProjector {
           interruptAccepted: false,
           foregroundExecutionId: null,
           startedEmitted: true,
+          callUsage: emptyUsage(),
+          summaryUsage: null,
         };
+        this.terminalSent = false;
         this.emitTurnStarted(turnId, turnId, nativeEventId);
         return;
       }
@@ -1026,6 +1393,9 @@ export class SessionProjector {
       turn.nativeTurnId = request.nativeTurnId;
     }
     if (turn.nativeTurnId === '') return null; // no stable identity: fail closed
+    // The request names the native turn, so the turn has started even when
+    // the typed turn-started event is still on its way.
+    this.ensureTurnStarted(null);
     const interactionId = `int:${request.requestId}`;
     const existing = this.pendingInteractions.get(interactionId);
     if (existing !== undefined) {
@@ -1119,6 +1489,7 @@ export class SessionProjector {
       turn.nativeTurnId = request.nativeTurnId;
     }
     if (turn.nativeTurnId === '') return null;
+    this.ensureTurnStarted(null);
     const interactionId = `int:${request.requestId}`;
     const existing = this.pendingInteractions.get(interactionId);
     if (existing !== undefined) return existing;

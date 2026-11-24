@@ -389,3 +389,67 @@ test('80 MiB of replayable text fits a 64 MiB heap with protocol-byte-bounded di
   assert.ok(result.bytesRead > 80 * 1024 * 1024);
   t.diagnostic(`80 MiB replay: ${result.pages} pages, heap ${(result.memory.heapUsed / 1024 / 1024).toFixed(1)} MiB, RSS ${(result.memory.rss / 1024 / 1024).toFixed(1)} MiB`);
 });
+
+test('rollout lookups are cached per thread and invalidated when the file moves', async t => {
+  const { findSession, forgetRolloutPath, nativeHistoryScanMetrics } = await import('../src/protocol/native-history.js');
+  const home = await mkdtemp(join(tmpdir(), 'gian-codex-path-cache-'));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const day = join(home, '.codex', 'sessions', '2026', '11', '23');
+  const archive = join(home, '.codex', 'archived_sessions');
+  await mkdir(day, { recursive: true });
+  await mkdir(archive, { recursive: true });
+  const id = '019ab000-0000-7000-8000-000000000001';
+  const meta = `${JSON.stringify({ type: 'session_meta', payload: { id, cwd: '/test' } })}\n`;
+  const live = join(day, `rollout-2026-11-23T00-00-00-${id}.jsonl`);
+  await writeFile(live, meta);
+
+  const scans = () => nativeHistoryScanMetrics.fullScans;
+  const before = scans();
+  assert.equal(findSession(id, home)?.path, live);
+  assert.equal(findSession(id, home)?.path, live);
+  assert.equal(findSession(id, home, { poll: true })?.path, live);
+  assert.equal(scans() - before, 1, 'one scan, then the cached path');
+
+  // Archiving moves the rollout: the stale path is dropped and rescanned.
+  const archived = join(archive, `rollout-2026-11-23T00-00-00-${id}.jsonl`);
+  await rename(live, archived);
+  assert.equal(findSession(id, home)?.path, archived);
+  assert.equal(scans() - before, 2);
+  assert.equal(findSession(id, home)?.path, archived);
+  assert.equal(scans() - before, 2);
+  forgetRolloutPath(id, home);
+  assert.equal(findSession(id, home)?.path, archived);
+  assert.equal(scans() - before, 3);
+});
+
+test('an app-server path hint spares the per-second poll a scan until Codex writes the rollout', async t => {
+  const { findSession, nativeHistoryScanMetrics, rememberRolloutPath } = await import('../src/protocol/native-history.js');
+  const home = await mkdtemp(join(tmpdir(), 'gian-codex-path-hint-'));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const day = join(home, '.codex', 'sessions', '2026', '11', '23');
+  await mkdir(day, { recursive: true });
+  const id = '019ab000-0000-7000-8000-000000000002';
+  const hinted = join(day, `rollout-2026-11-23T00-00-01-${id}.jsonl`);
+  rememberRolloutPath(id, hinted, home);
+  rememberRolloutPath(id, '/elsewhere/rollout-other.jsonl', home); // not this thread's file: ignored
+  const before = nativeHistoryScanMetrics.fullScans;
+  for (let poll = 0; poll < 5; poll += 1) assert.equal(findSession(id, home, { poll: true }), null);
+  assert.equal(nativeHistoryScanMetrics.fullScans, before, 'polls trust the hint for a not-yet-written rollout');
+  // Every non-poll lookup still scans on a miss, so a wrong hint cannot hide history.
+  assert.equal(findSession(id, home), null);
+  assert.equal(nativeHistoryScanMetrics.fullScans, before + 1);
+  await writeFile(hinted, `${JSON.stringify({ type: 'session_meta', payload: { id, cwd: '/test' } })}\n`);
+  assert.equal(findSession(id, home, { poll: true })?.path, hinted);
+  assert.equal(findSession(id, home)?.path, hinted);
+  assert.equal(nativeHistoryScanMetrics.fullScans, before + 1);
+});
+
+test('a thread with no rollout is scanned at most once per miss window by the poll', async t => {
+  const { findSession, nativeHistoryScanMetrics } = await import('../src/protocol/native-history.js');
+  const home = await mkdtemp(join(tmpdir(), 'gian-codex-path-miss-'));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  await mkdir(join(home, '.codex', 'sessions'), { recursive: true });
+  const before = nativeHistoryScanMetrics.fullScans;
+  for (let poll = 0; poll < 5; poll += 1) assert.equal(findSession('missing-thread', home, { poll: true }), null);
+  assert.equal(nativeHistoryScanMetrics.fullScans, before + 1);
+});

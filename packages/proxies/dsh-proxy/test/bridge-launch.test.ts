@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseArgs } from '../src/cli/bridge-launch.js';
-import { gianProfileName } from '../src/runtime/profile.js';
+import { bridgeEnvironment, parseArgs } from '../src/cli/bridge-launch.js';
+import { dshHome, gianProfileName, launchPatchPath } from '../src/runtime/profile.js';
 
 const ENV_KEYS = [
   'GIAN_DSH_HOST_ARGS',
@@ -47,11 +47,27 @@ test('a non-.js bridge command keeps the direct spawn behavior', () => {
   });
 });
 
-test('a .js bridge command injects the same binding-scoped profile as the installer', () => {
+test('a .js bridge command injects the same binding-scoped profile and launch overlay as the installer', () => {
   withEnv({ GIAN_RUNTIME_BIN: '/opt/dsh/lib/bin.js' }, () => {
     const launch = parseArgs([]);
-    assert.deepEqual(launch.args.slice(2), ['--profile', gianProfileName()]);
+    assert.equal(launch.managedProfile, true);
+    assert.deepEqual(launch.args.slice(2), ['--profile', gianProfileName(), '--patch', launchPatchPath()]);
+    assert.ok(launchPatchPath().endsWith(`/profiles/${gianProfileName()}/gian-launch.patch.yml`));
   });
+});
+
+test('every DSH launch disables telemetry and receives the resolved DSH home', () => {
+  assert.deepEqual(bridgeEnvironment({ DSH_TELEMETRY_DISABLED: '' }), {
+    DSH_TELEMETRY_DISABLED: '1',
+    DSH_HOME: dshHome({}),
+  });
+  assert.equal(bridgeEnvironment({ DSH_HOME: '/tmp/inherited' }).DSH_HOME, '/tmp/inherited');
+  // The Host's Agent Home wins over an inherited provider variable.
+  assert.equal(bridgeEnvironment({
+    GIAN_AGENT_HOME: '/tmp/agent-home',
+    DSH_HOME: '/tmp/inherited',
+  }).DSH_HOME, '/tmp/agent-home');
+  assert.equal(bridgeEnvironment({ GIAN_AGENT_HOME: 'relative', DSH_HOME: '/tmp/inherited' }).DSH_HOME, '/tmp/inherited');
 });
 
 test('an explicit --bridge= .js override is wrapped and skips --profile injection', () => {

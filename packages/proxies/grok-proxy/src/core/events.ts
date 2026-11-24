@@ -138,6 +138,43 @@ export function parsePromptUsage(meta: unknown): {
   return Object.keys(usage).length > 0 ? usage : null;
 }
 
+export interface PromptTurnUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cachedInputTokens?: number;
+  thoughtTokens?: number;
+  totalTokens?: number;
+}
+
+/**
+ * Token usage of one prompt turn. The standard ACP `PromptResponse.usage`
+ * ("token usage for this turn": inputTokens, outputTokens, cachedReadTokens,
+ * cachedWriteTokens, thoughtTokens, totalTokens) wins; Grok's older
+ * `_meta` token fields are the fallback. Counts that are absent or null stay
+ * absent: a partial report never invents zeros. This is never the context
+ * occupancy, which only `usage_update` (`used`/`size`) reports.
+ */
+export function promptTurnUsage(response: unknown): PromptTurnUsage | null {
+  if (!response || typeof response !== 'object') return null;
+  const value = response as { usage?: unknown; _meta?: unknown };
+  if (value.usage && typeof value.usage === 'object') {
+    const usage = value.usage as Record<string, unknown>;
+    const parsed: PromptTurnUsage = {};
+    const inputTokens = numberOr(usage.inputTokens);
+    const outputTokens = numberOr(usage.outputTokens);
+    const cachedInputTokens = numberOr(usage.cachedReadTokens);
+    const thoughtTokens = numberOr(usage.thoughtTokens);
+    const totalTokens = numberOr(usage.totalTokens);
+    if (inputTokens !== undefined) parsed.inputTokens = inputTokens;
+    if (outputTokens !== undefined) parsed.outputTokens = outputTokens;
+    if (cachedInputTokens !== undefined) parsed.cachedInputTokens = cachedInputTokens;
+    if (thoughtTokens !== undefined) parsed.thoughtTokens = thoughtTokens;
+    if (totalTokens !== undefined) parsed.totalTokens = totalTokens;
+    if (Object.keys(parsed).length > 0) return parsed;
+  }
+  return parsePromptUsage(value._meta);
+}
+
 function textFromContent(value: unknown): string {
   const block = record(value);
   const inner = record(block.content);

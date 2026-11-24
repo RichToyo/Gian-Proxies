@@ -3,6 +3,7 @@ import { access, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { delimiter, isAbsolute, join, resolve } from 'node:path';
 import { runBoundedCommand } from '@gian/proxy-protocol/node';
+import { dshHome } from './profile.js';
 
 const COMMAND = 'dsh';
 const SETUP_URL = 'https://www.npmjs.com/package/@deepseek-ai/dsh';
@@ -89,7 +90,7 @@ export async function probeDshRuntime(path: string): Promise<{
     displayName: 'DeepSeek Harness',
     path,
     version,
-    configHome: join(homeDir(), '.dsh'),
+    configHome: dshHome(),
     contentRoots: [{ path, mode: 'file' }],
   };
 }

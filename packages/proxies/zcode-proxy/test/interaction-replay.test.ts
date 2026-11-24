@@ -365,7 +365,10 @@ test('repeated Desktop permission requests emit one interaction fact', () => {
     emitted.filter(notification => notification.method === 'interaction.requested').length,
     1,
   );
-  assert.equal(sequence, 1);
+  // The request names the native turn, so turn.started goes out first even
+  // when the typed turn-started event has not arrived yet.
+  assert.deepEqual(emitted.map(notification => notification.method), ['turn.started', 'interaction.requested']);
+  assert.equal(sequence, 2);
   // The exact native answer payload is preserved through the builder.
   assert.deepEqual(firstEntry!.respond('allow_once', {}), { decision: 'allow' });
 });

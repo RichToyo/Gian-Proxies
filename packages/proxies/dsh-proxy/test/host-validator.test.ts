@@ -107,11 +107,17 @@ function fakeBridge(records: NativeRecord[] = SINGLE_STEP_TURN) {
       if (method === 'catalog.list') {
         return {
           catalogRevision: 'fake-1',
+          providers: [{ id: 'deepseek', label: 'DeepSeek' }],
           models: [{ id: 'deepseek-chat', provider: 'deepseek', label: 'DeepSeek Chat' }],
         };
       }
       if (method === 'catalog.resolve') {
-        return { catalogRevision: 'fake-1', models: [], resolvedDefaults: { sessionConfig: {}, turnConfig: params.turnConfig ?? {} } };
+        return {
+          catalogRevision: 'fake-1',
+          providers: [{ id: 'deepseek', label: 'DeepSeek' }],
+          models: [{ id: 'deepseek-chat', provider: 'deepseek', label: 'DeepSeek Chat' }],
+          resolvedDefaults: { sessionConfig: {}, turnConfig: params.turnConfig ?? {} },
+        };
       }
       if (method === 'session.create') {
         return {};
@@ -294,4 +300,38 @@ test('HostProtocolValidator accepts turn-end with multiple leftover activities',
   const eventIds = activities.map((n) => String((n.params as { eventId?: string }).eventId ?? ''));
   assert.equal(new Set(eventIds).size, eventIds.length, 'each activity snapshot needs its own eventId');
   assert.equal(notifications.some((n) => n.method === 'turn.completed'), true);
+});
+
+test('a native credential failure reaches the Host as RUNTIME_AUTH_REQUIRED with the DSH text', async () => {
+  const notifications = await runTurn('s_auth', 't_auth', [
+    { type: 'turn/start', data: { turn: 1 } },
+    { type: 'step/start', data: { turn: 1, step: 1 } },
+    { type: 'step/end', data: { turn: 1, step: 1 } },
+    { type: 'turn/end', data: { turn: 1, reason: { kind: 'error', error: { code: 'MISSING_CREDENTIAL', message: 'DEEPSEEK_API_KEY is not configured' } } } },
+  ]);
+  const failed = notifications.find(event => event.method === 'turn.failed');
+  const error = failed?.params.data?.error as { domainCode: string; message: string; details: Record<string, unknown> };
+  assert.equal(error.domainCode, 'RUNTIME_AUTH_REQUIRED');
+  assert.match(error.message, /^DEEPSEEK_API_KEY is not configured /);
+  assert.equal(error.details.nativeCode, 'MISSING_CREDENTIAL');
+});
+
+test('usage counts cached prompt tokens inside input and reports context occupancy', async () => {
+  const notifications = await runTurn('s_usage', 't_usage', [
+    { type: 'turn/start', data: { turn: 1 } },
+    { type: 'request/context', data: { provider: 'deepseek', model: 'deepseek-chat', contextWindow: 1048576 } },
+    { type: 'step/start', data: { turn: 1, step: 1 } },
+    { type: 'assistant/message', data: {
+      turn: 1, step: 1,
+      message: { role: 'assistant', content: [{ type: 'text', text: 'ok' }] },
+      usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 900, cacheWriteTokens: 50, totalTokens: 1070 },
+    } },
+    { type: 'step/end', data: { turn: 1, step: 1 } },
+    { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } },
+  ]);
+  const usage = notifications.find(event => event.method === 'usage.updated')?.params.data;
+  assert.deepEqual(usage?.context, { used: 1050, window: 1048576 });
+  assert.deepEqual(usage?.conversation, {
+    mode: 'delta', inputTokens: 1050, outputTokens: 20, cachedInputTokens: 950, totalTokens: 1070,
+  });
 });

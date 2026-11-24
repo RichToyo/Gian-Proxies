@@ -509,7 +509,7 @@ test('replay projects durable events with live-identical content and usage ident
           { type: 'assistant/message', seq: 2, time: 3, data: {
             turn: 0, step: 0,
             message: { role: 'assistant', content: [{ type: 'text', text: 'answer' }] },
-            usage: { inputTokens: 5, outputTokens: 2 },
+            usage: { inputTokens: 5, outputTokens: 2, cacheReadTokens: 10 },
           } },
           { type: 'todo/write', seq: 3, time: 4, data: { todos: [{ content: 'Only step', status: 'pending' }] } },
           { type: 'tool/result', seq: 4, time: 5, data: {
@@ -543,4 +543,9 @@ test('replay projects durable events with live-identical content and usage ident
   assert.match(content.contentId, /^assistant-native-1:turn:0:step:0$/);
   const plan = events.find(event => event.method === 'plan.updated')!.data as { planId: string };
   assert.equal(plan.planId, 'plan-native-1');
+  const usage = events.find(event => event.method === 'usage.updated')!.data;
+  assert.deepEqual(usage.conversation, {
+    mode: 'delta', inputTokens: 15, outputTokens: 2, cachedInputTokens: 10, totalTokens: 17,
+  });
+  assert.deepEqual(usage.context, { used: 15 });
 });

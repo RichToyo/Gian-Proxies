@@ -2,11 +2,16 @@ import { createHash, randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 
 import type { SessionNotification } from '@agentclientprotocol/sdk';
-import { officialQuotaReadParamsSchema, OpaqueSidechatResumeStore } from '@gian/proxy-protocol';
+import {
+  MAX_ACTIVITY_JSON_BYTES,
+  MAX_NDJSON_LINE_BYTES,
+  officialQuotaReadParamsSchema,
+  OpaqueSidechatResumeStore,
+} from '@gian/proxy-protocol';
 
 import { toV2ConfigOptions } from '../core/catalog.js';
 import { GrokCustomizationInspector } from '../core/customization.js';
-import { GrokProxyError } from '../core/errors.js';
+import { GrokProxyError, isAcpAuthRequired, nativeErrorDetails } from '../core/errors.js';
 import {
   extensionName,
   isExcludedExtension,
@@ -18,11 +23,16 @@ import { normalizeInputItems } from '../core/input.js';
 import { parseGrokPermissionMode, type GrokPermissionMode } from '../core/permissions.js';
 import { parseGrokSandboxProfile, type GrokSandboxProfile } from '../core/sandbox.js';
 import { filterAdvertisedCommands } from '../core/slash-policy.js';
-import { GrokProxyService } from '../core/service.js';
+import { GrokProxyService, mapRuntimeError } from '../core/service.js';
 import { NativeTurnIdentityStore } from './replay-identity.js';
 import { discoverGrokRuntimes, probeGrokRuntime } from '../runtime/discover.js';
 import { GrokExtMethodUnsupportedError } from '../runtime/grok-acp-client.js';
-import { GrokJsonRpcError, GrokProtocolError, type DomainCode } from '../transport/protocol.js';
+import {
+  GrokFrameLimitError,
+  GrokJsonRpcError,
+  GrokProtocolError,
+  type DomainCode,
+} from '../transport/protocol.js';
 
 type ConfigValue = string | boolean | number | null;
 
@@ -406,13 +416,17 @@ export function standardError(error: unknown): GrokProtocolError | GrokJsonRpcEr
         default: return 'RUNTIME_ERROR';
       }
     })();
-    return new GrokProtocolError(code, error.message, false);
+    return new GrokProtocolError(code, error.message, false, error.details);
+  }
+  if (isAcpAuthRequired(error)) {
+    const mapped = mapRuntimeError(error);
+    return new GrokProtocolError('RUNTIME_AUTH_REQUIRED', mapped.message, false, mapped.details);
   }
   return new GrokProtocolError(
-    /auth|login/i.test(error instanceof Error ? error.message : String(error))
-      ? 'RUNTIME_AUTH_REQUIRED'
-      : 'INTERNAL',
+    'INTERNAL',
     error instanceof Error ? error.message : String(error),
+    false,
+    nativeErrorDetails(error),
   );
 }
 
@@ -476,6 +490,74 @@ function usageDeliverable(
   const next = { ...usage };
   delete next.conversation;
   return next;
+}
+
+/** Methods that never emit: they hold no notifications and the kit runs
+ *  them beside the session lanes. */
+export const PIPELINED_METHODS: ReadonlySet<string> = new Set([
+  'customization.list',
+  'customization.detail',
+  'account.quota.read',
+]);
+
+/** Every Host session a request names. Requests that name none form the
+ *  process scope ''. */
+export function requestScopes(request: WireRequest): string[] {
+  const scopes = new Set<string>();
+  for (const key of ['sessionId', 'sidechatId', 'parentSessionId', 'sourceSessionId'] as const) {
+    const value = request.params[key];
+    if (typeof value === 'string' && value.length > 0) scopes.add(value);
+  }
+  return scopes.size > 0 ? [...scopes] : [''];
+}
+
+/** The kit lane of a request: requests about one session run in order, and
+ *  different sessions run side by side. Forks and Side Chat creation read
+ *  the parent, so they queue behind it. */
+export function requestLane(request: WireRequest): string {
+  const params = request.params;
+  const pick = (key: string): string | null => (
+    typeof params[key] === 'string' && (params[key] as string).length > 0 ? params[key] as string : null
+  );
+  if (request.method === 'session.fork') return pick('sourceSessionId') ?? pick('sessionId') ?? '';
+  if (request.method === 'sidechat.create') return pick('parentSessionId') ?? pick('sidechatId') ?? '';
+  return pick('sessionId') ?? pick('sidechatId') ?? '';
+}
+
+function assertFitsFrame(id: string, result: unknown): void {
+  const line = JSON.stringify({ jsonrpc: '2.0', id, result: result === undefined ? null : result });
+  if (Buffer.byteLength(line, 'utf8') + 1 > MAX_NDJSON_LINE_BYTES) throw new GrokFrameLimitError();
+}
+
+/** A smaller copy of an oversized notification that keeps its identity and
+ *  sequence, or null when nothing can be dropped honestly. */
+function reducedNotification(
+  method: string,
+  params: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const data = record(params.data);
+  if (method === 'activity.updated') {
+    const presentation = record(data.presentation);
+    const next: Record<string, unknown> = { ...data, details: { omitted: 'frame-limit' } };
+    if (presentation.type === 'generic') {
+      next.presentation = {
+        ...presentation,
+        data: { name: String(record(presentation.data).name ?? 'grok'), payload: { omitted: 'frame-limit' } },
+      };
+    }
+    return { ...params, data: next };
+  }
+  if (method === 'diff.updated') {
+    return { ...params, data: { ...data, diff: '', truncated: true } };
+  }
+  return null;
+}
+
+/** Bounds a JSON activity field to the Host's per-field limit. */
+function boundedActivityJson(value: unknown): unknown {
+  if (value === undefined) return value;
+  const bytes = Buffer.byteLength(JSON.stringify(value) ?? '', 'utf8');
+  return bytes > MAX_ACTIVITY_JSON_BYTES ? { omitted: 'size-limit', bytes } : value;
 }
 
 export class GrokProtocolV2Adapter {
@@ -548,8 +630,15 @@ export class GrokProtocolV2Adapter {
    *  never persisted, so a stale process never guesses. */
   private readonly promptBaseByNativeId = new Map<string, number>();
   private readonly forkResults = new Map<string, { fingerprint: string; result: unknown }>();
-  private holdCount = 0;
-  private readonly heldNotifications: Array<{ method: string; params: Record<string, unknown> }> = [];
+  /** In-flight request barriers by session scope ('' = no session). */
+  private readonly barriers = new Map<string, Set<symbol>>();
+  private readonly activeBarriers = new Set<symbol>();
+  /** Notifications waiting for the Responses of requests in their scope. */
+  private readonly outboxes = new Map<string, Array<{
+    method: string;
+    params: Record<string, unknown>;
+    waitsFor: ReadonlySet<symbol>;
+  }>>();
 
   constructor(
     private readonly service: GrokProxyService,
@@ -560,20 +649,112 @@ export class GrokProtocolV2Adapter {
     service.setEventSink((method, params) => this.translateServiceEvent(method, params));
   }
 
-  beginRequest(): void {
-    this.holdCount += 1;
+  /**
+   * Serves one request and writes its Response through `respond`.
+   *
+   * Response-before-Notification holds per session scope: a notification for
+   * session S waits for every in-flight request that names S (or names no
+   * session), so an approval or interrupt for one session never delays the
+   * stream of another. A notification with no session waits for every
+   * in-flight request. A successful `sidechat.close` releases what it held
+   * before its own Response (Contract §10.5.4).
+   */
+  async dispatch(
+    request: WireRequest,
+    respond: (result: unknown, error?: unknown) => void,
+  ): Promise<void> {
+    const release = PIPELINED_METHODS.has(request.method)
+      ? () => undefined
+      : this.openBarrier(requestScopes(request));
+    try {
+      const result = await this.handle(request);
+      assertFitsFrame(request.id, result);
+      if (request.method === 'sidechat.close') {
+        release();
+        this.flushNotifications();
+      }
+      respond(result);
+    } catch (error) {
+      respond(undefined, error);
+    } finally {
+      release();
+      this.flushNotifications();
+    }
   }
 
-  flushNotifications(): void {
-    this.holdCount = Math.max(0, this.holdCount - 1);
-    if (this.holdCount > 0) return;
-    const pending = this.heldNotifications.splice(0);
-    for (const item of pending) this.sink(item.method, item.params);
+  private openBarrier(scopes: readonly string[]): () => void {
+    const token = Symbol('request');
+    this.activeBarriers.add(token);
+    for (const scope of scopes) {
+      const set = this.barriers.get(scope) ?? new Set<symbol>();
+      set.add(token);
+      this.barriers.set(scope, set);
+    }
+    let open = true;
+    return () => {
+      if (!open) return;
+      open = false;
+      this.activeBarriers.delete(token);
+      for (const scope of scopes) {
+        const set = this.barriers.get(scope);
+        set?.delete(token);
+        if (set?.size === 0) this.barriers.delete(scope);
+      }
+    };
+  }
+
+  private flushNotifications(): void {
+    for (const [scope, queue] of this.outboxes) {
+      while (queue.length > 0) {
+        const next = queue[0]!;
+        if ([...next.waitsFor].some((token) => this.activeBarriers.has(token))) break;
+        queue.shift();
+        this.deliver(next.method, next.params);
+      }
+      if (queue.length === 0) this.outboxes.delete(scope);
+    }
   }
 
   private emitEvent(method: string, params: Record<string, unknown>): void {
-    if (this.holdCount > 0) this.heldNotifications.push({ method, params });
-    else this.sink(method, params);
+    const scope = typeof params.sessionId === 'string' ? params.sessionId : null;
+    const waitsFor = new Set<symbol>(scope === null
+      ? this.activeBarriers
+      : [...(this.barriers.get(scope) ?? []), ...(this.barriers.get('') ?? [])]);
+    const key = scope ?? '';
+    const queue = this.outboxes.get(key) ?? [];
+    queue.push({ method, params, waitsFor });
+    this.outboxes.set(key, queue);
+    this.flushNotifications();
+  }
+
+  /** Writes one notification. A line over the frame limit is never written:
+   *  a reduced copy keeps the stream sequence, or the drop is reported. */
+  private deliver(method: string, params: Record<string, unknown>): void {
+    try {
+      this.sink(method, params);
+      return;
+    } catch (error) {
+      if (!(error instanceof GrokFrameLimitError)) throw error;
+    }
+    const reduced = reducedNotification(method, params);
+    if (reduced) {
+      try {
+        this.sink(method, reduced);
+        return;
+      } catch (error) {
+        if (!(error instanceof GrokFrameLimitError)) throw error;
+      }
+    }
+    this.sink('runtime.error', {
+      eventId: randomUUID(),
+      emittedAt: new Date().toISOString(),
+      data: {
+        domainCode: 'RUNTIME_ERROR',
+        message: `A Grok ${method} notification exceeded the frame limit and was not delivered.`,
+        retryable: false,
+        details: { method },
+      },
+    });
   }
 
   async handle(request: WireRequest): Promise<unknown> {
@@ -2234,13 +2415,39 @@ export class GrokProtocolV2Adapter {
       if (data.status === 'stale') {
         this.updateSession(session, {
           state: 'stale',
-          lastError: session.lastError ?? 'Grok runtime stopped.',
+          lastError: typeof data.lastError === 'string' && data.lastError
+            ? data.lastError
+            : session.lastError ?? 'Grok runtime stopped.',
         });
         this.emitSessionEvent('session.updated', session, {
           state: 'stale',
           lastError: session.lastError,
           updatedAt: session.updatedAt,
         });
+        return;
+      }
+      if (data.status === 'idle' && data.recovered === true) {
+        // The native session was resumed into a new Grok child.
+        this.updateSession(session, { state: 'idle', lastError: null });
+        this.emitSessionEvent('session.updated', session, {
+          state: 'idle',
+          lastError: null,
+          updatedAt: session.updatedAt,
+        });
+        return;
+      }
+      if (data.configChanged === true) {
+        // Grok changed this session's model or effort on its own (e.g. the
+        // model left the list) or confirmed a change: republish the
+        // session's turn options so the Host shows what will run.
+        const turnConfigOptions = toV2ConfigOptions(
+          this.service.currentCatalog(session.serviceSessionId).sessionOptions,
+        ).filter((option) => option.binding === 'turn');
+        this.emitSessionEvent('session.updated', session, sessionUpdatedData({
+          turnConfigOptions,
+          turnConfigRevision: stableId('turn-config', turnConfigOptions),
+          updatedAt: new Date().toISOString(),
+        }));
         return;
       }
       this.emitSessionEvent('session.updated', session, sessionUpdatedData({
@@ -2343,6 +2550,23 @@ export class GrokProtocolV2Adapter {
       let activityId = nonEmptyString(event.data.activityId);
       if (!activityId) return;
       const presentation = record(event.data.presentation);
+      // The Host bounds details and presentation.data per field; a tool's
+      // raw output must not make the whole activity invalid.
+      if (event.data.details !== undefined) {
+        event.data = { ...event.data, details: boundedActivityJson(event.data.details) };
+      }
+      if (presentation.type === 'generic' && presentation.data !== undefined) {
+        const boundedData = boundedActivityJson(presentation.data);
+        if (boundedData !== presentation.data) {
+          event.data = {
+            ...event.data,
+            presentation: {
+              ...presentation,
+              data: { name: String(record(presentation.data).name ?? 'grok'), payload: boundedData },
+            },
+          };
+        }
+      }
       if (presentation.type === 'generic') {
         const countKey = `${this.turnKey(session.id, turnId)}\u0000${activityId}`;
         const count = (this.genericActivityCounts.get(countKey) ?? 0) + 1;
@@ -2410,7 +2634,7 @@ export class GrokProtocolV2Adapter {
           domainCode,
           message,
           retryable: false,
-          details: {},
+          details: jsonValue(record(data.details ?? record(data.error).details)) as Record<string, unknown>,
         },
       });
     } else {

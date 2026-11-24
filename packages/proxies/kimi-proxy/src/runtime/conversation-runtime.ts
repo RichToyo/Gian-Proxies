@@ -5,13 +5,17 @@ import { KimiServerSupervisor, type KimiServerSupervisorResult } from './server-
 import { WsSocket } from './ws.js';
 
 type Frame = Record<string, unknown>;
+
+function isRejection(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith('Kimi conversation subscription rejected');
+}
 type EventHandlers = {
   on(event: 'conversation-event', listener: (frame: Frame) => void): void;
   on(event: 'resync', listener: (sessionId: string) => void): void;
   on(event: 'down', listener: () => void): void;
 };
 
-/** Runtime for the native 2.6.2 conversation socket. Every reconnect opens a
+/** Runtime for the native Kimi 2.7 conversation socket. Every reconnect opens a
  * new channel and requests native snapshots; no prior cursor is fabricated. */
 export class KimiConversationRuntime {
   private readonly events = new EventEmitter();
@@ -111,8 +115,19 @@ export class KimiConversationRuntime {
     });
     socket.on('close', () => this.disconnect(socket));
     try {
-      await Promise.all([...this.sessions].map(sessionId => channel.subscribe(sessionId)));
+      const sessions = [...this.sessions];
+      const results = await Promise.allSettled(sessions.map(sessionId => channel.subscribe(sessionId)));
       if (this.socket !== socket || this.stopped) throw new Error('Kimi conversation socket closed while reconnecting.');
+      const transport = results.find(result => result.status === 'rejected' && !isRejection(result.reason));
+      if (transport) throw (transport as PromiseRejectedResult).reason;
+      // A session the server refuses (deleted, archived elsewhere) must not
+      // take every other session's feed down with it: it alone resyncs, and
+      // its next request reports the native refusal.
+      for (const [index, result] of results.entries()) {
+        if (result.status === 'fulfilled') continue;
+        this.sessions.delete(sessions[index]!);
+        this.events.emit('resync', sessions[index]!);
+      }
       this.attempts = 0; this.clearTimer();
     } catch (error) {
       this.disconnect(socket);

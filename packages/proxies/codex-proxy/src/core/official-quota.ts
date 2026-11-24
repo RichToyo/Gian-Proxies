@@ -2,52 +2,130 @@ import { isProxyOfficialQuotaData, type ProxyOfficialQuotaWindow } from '@gian/p
 import type { OfficialQuotaReadParams, ProxyOfficialQuotaReadResult } from '@gian/proxy-protocol';
 import { hasBoundQuotaHome, quotaFailure, quotaIdentity, quotaState } from '@gian/proxy-protocol/node';
 
+import { redactCodexDiagnostic } from '../runtime/codex-app-server-client.js';
+import { isCodexAuthFailure } from './codex-errors.js';
+
 type AccountRequest = (method: 'config/read' | 'account/read' | 'account/rateLimits/read', params: Record<string, unknown>) => Promise<unknown>;
+
+export interface CodexQuotaQueryOptions {
+  /** Diagnostic sink for the reason behind a non-ready result. The text is
+   *  redacted and bounded; it never enters the quota result itself. */
+  log?: (line: string) => void;
+  /** Whole-read budget, kept under the Host's 28 s request bound so a slow
+   *  app-server start reports `timeout` instead of an opaque Host failure. */
+  deadlineMs?: number;
+}
+
+const QUOTA_DEADLINE_MS = 25_000;
+const QUOTA_LOG_TEXT_BYTES = 300;
+
+/** Account types that never use the ChatGPT subscription quota. */
+const EXCLUDED_ACCOUNT_TYPES = ['apiKey', 'agentIdentity', 'personalAccessToken', 'bedrockApiKey', 'amazonBedrock', 'gcp'];
+
+class QuotaStageError extends Error {
+  constructor(readonly stage: string, readonly cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = cause instanceof Error ? cause.name : 'Error';
+  }
+}
+
+function describeFailure(error: unknown): string {
+  const stage = error instanceof QuotaStageError ? `${error.stage}: ` : '';
+  const cause = error instanceof QuotaStageError ? error.cause : error;
+  const code = cause && typeof cause === 'object' && typeof (cause as { code?: unknown }).code === 'number'
+    ? ` (code ${(cause as { code: number }).code})`
+    : '';
+  const text = redactCodexDiagnostic(cause instanceof Error ? cause.message : String(cause)).replace(/\s+/g, ' ').trim();
+  const bounded = text.length > QUOTA_LOG_TEXT_BYTES ? `${text.slice(0, QUOTA_LOG_TEXT_BYTES)}...` : text;
+  return `${stage}${bounded}${code}`;
+}
 
 /** No thread/start or turn/start: only the bound app-server control surface. */
 export async function queryCodexOfficialQuota(request: AccountRequest, selection: OfficialQuotaReadParams,
-  env: NodeJS.ProcessEnv = process.env): Promise<ProxyOfficialQuotaReadResult> {
-  if (!hasBoundQuotaHome(env, 'CODEX_HOME')) return quotaState('unsupported');
+  env: NodeJS.ProcessEnv = process.env, options: CodexQuotaQueryOptions = {}): Promise<ProxyOfficialQuotaReadResult> {
+  const log = options.log ?? ((line: string) => console.warn(line));
+  const report = (result: ProxyOfficialQuotaReadResult, reason: string): ProxyOfficialQuotaReadResult => {
+    log(`[codex-proxy:quota] ${result.status === 'error' ? result.error : result.status}: ${reason}`);
+    return result;
+  };
+  if (!hasBoundQuotaHome(env, 'CODEX_HOME')) {
+    return report(quotaState('unsupported'), 'CODEX_HOME is not the Agent HOME bound by the Host, or the Runtime path is not absolute.');
+  }
   if (selection.provider && selection.provider !== 'openai') return quotaState('excluded');
   let revision: string | null = null;
+  const call = async (method: Parameters<AccountRequest>[0], params: Record<string, unknown>) => {
+    try { return await request(method, params); }
+    catch (error) { throw new QuotaStageError(method, error); }
+  };
   const identify = async () => {
-    const raw = object(await request('config/read', { includeLayers: false }));
-    if (!raw.config || typeof raw.config !== 'object') return quotaState('unsupported');
+    const raw = object(await call('config/read', { includeLayers: false }));
+    if (!raw.config || typeof raw.config !== 'object') {
+      return report(quotaState('unsupported'), 'config/read returned no effective config.');
+    }
     const config = object(raw.config);
-    if (config.model_provider != null && typeof config.model_provider !== 'string') throw new Error('invalid_response');
+    if (config.model_provider != null && typeof config.model_provider !== 'string') throw new QuotaStageError('config/read', new Error('invalid_response'));
     const override = object(object(config.model_providers).openai);
     if (config.model_provider != null && config.model_provider !== 'openai'
       || override.base_url != null || env.OPENAI_BASE_URL || env.CODEX_OPENAI_BASE_URL) return quotaState('excluded');
-    const auth = object(await request('account/read', { refreshToken: false }));
-    if (typeof auth.requiresOpenaiAuth !== 'boolean' || !Object.hasOwn(auth, 'account')) throw new Error('invalid_response');
+    const auth = object(await call('account/read', { refreshToken: false }));
+    if (typeof auth.requiresOpenaiAuth !== 'boolean' || !Object.hasOwn(auth, 'account')) throw new QuotaStageError('account/read', new Error('invalid_response'));
     if (!auth.requiresOpenaiAuth) return quotaState('excluded');
-    if (auth.account === null) return quotaState('auth_required');
+    if (auth.account === null) return report(quotaState('auth_required'), 'account/read reports no signed-in account.');
     const account = object(auth.account);
-    if (typeof account.type !== 'string') throw new Error('invalid_response');
-    if (['apiKey', 'agentIdentity', 'personalAccessToken', 'bedrockApiKey'].includes(account.type)) return quotaState('excluded');
-    if (account.type !== 'chatgpt') return quotaState('unsupported');
-    const id = account.accountId ?? account.id ?? account.email;
-    if (typeof id !== 'string' || !id) return quotaState('unsupported');
-    return quotaIdentity(['codex', env.CODEX_HOME, id, account.workspaceId ?? null, account.organizationId ?? null, account.planType ?? null], selection.identityNonce);
+    if (typeof account.type !== 'string') throw new QuotaStageError('account/read', new Error('invalid_response'));
+    if (EXCLUDED_ACCOUNT_TYPES.includes(account.type)) return quotaState('excluded');
+    if (account.type !== 'chatgpt') return report(quotaState('unsupported'), `account type ${JSON.stringify(account.type)} has no subscription quota.`);
+    // Codex 0.171 identifies a ChatGPT account by email and the top-level
+    // userId; workspace routing arrives later and must not change identity.
+    const id = account.email ?? auth.userId;
+    if (typeof id !== 'string' || !id) return report(quotaState('unsupported'), 'account/read returned no account identity.');
+    return quotaIdentity(['codex', env.CODEX_HOME, id, account.planType ?? null], selection.identityNonce);
   };
-  try {
-    const before = await identify();
-    if (typeof before !== 'string') return before;
-    revision = before;
-    const data = normalizeCodexOfficialQuota(await request('account/rateLimits/read', {}));
-    const after = await identify();
-    if (typeof after !== 'string') return after;
-    if (before !== after) return quotaFailure(new Error('unavailable'), after);
-    return { status: 'ready', authRevision: revision, error: null, ...data };
-  } catch (error) {
-    if (revision) {
-      try {
-        const current = await identify();
-        if (typeof current !== 'string') return current;
-        return quotaFailure(error, current);
-      } catch { return quotaFailure(error, null); }
+  const classify = (error: unknown, authRevision: string | null) => {
+    const cause = error instanceof QuotaStageError ? error.cause : error;
+    const message = cause instanceof Error ? cause.message : String(cause);
+    const failure = isCodexAuthFailure({ message }) ? { status: 401 } : cause;
+    return report(quotaFailure(failure, authRevision), describeFailure(error));
+  };
+  const read = async (): Promise<ProxyOfficialQuotaReadResult> => {
+    try {
+      const before = await identify();
+      if (typeof before !== 'string') return before;
+      revision = before;
+      const limits = await call('account/rateLimits/read', {});
+      let data;
+      try { data = normalizeCodexOfficialQuota(limits); }
+      catch (error) { throw new QuotaStageError('account/rateLimits/read', error); }
+      const after = await identify();
+      if (typeof after !== 'string') return after;
+      if (before !== after) {
+        return report(quotaFailure(new Error('unavailable'), after), 'the signed-in account changed while quota was read.');
+      }
+      return { status: 'ready', authRevision: revision, error: null, ...data };
+    } catch (error) {
+      if (revision) {
+        try {
+          const current = await identify();
+          if (typeof current !== 'string') return current;
+          return classify(error, current);
+        } catch { return classify(error, null); }
+      }
+      return classify(error, null);
     }
-    return quotaFailure(error, null);
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadlineMs = options.deadlineMs ?? QUOTA_DEADLINE_MS;
+  const expired = new Promise<ProxyOfficialQuotaReadResult>((resolve) => {
+    timer = setTimeout(() => {
+      const timeout = new Error(`quota read exceeded ${deadlineMs}ms`);
+      timeout.name = 'TimeoutError';
+      resolve(report(quotaFailure(timeout, null), timeout.message));
+    }, deadlineMs);
+  });
+  try {
+    return await Promise.race([read(), expired]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

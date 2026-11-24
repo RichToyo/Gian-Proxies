@@ -276,6 +276,53 @@ test('a process that dies while idle reports nothing; the next turn resumes', as
   });
 });
 
+const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
+const idleStops = (h: Harness) => h.debug.filter((message) => /Stopping idle Claude process/.test(message)).length;
+
+test('an idle process is stopped after the idle timeout; the next turn resumes', async () => {
+  await withRuntime(async (h) => {
+    assert.equal(await h.turn('first'), 'completed');
+    await h.waitFor(() => idleStops(h) === 1, 'idle stop');
+    assert.equal(await h.turn('second'), 'completed');
+    assert.equal(flag(h.launches()[1]!, '--resume'), NATIVE);
+  }, { runtime: { idleTimeoutMs: 50 } });
+});
+
+test('the idle stop waits for background tasks and for the run Claude starts when they end', async () => {
+  await withRuntime(async (h) => {
+    const reviewed = [{ wait: 150 }, { text: 'background work reviewed' }, { result: 'reviewed' }];
+    assert.equal(await h.turn([{ background: { id: 'bg1', after: 250, then: reviewed } }, { result: 'started' }]), 'completed');
+    // The turn is over but its background task still runs, well past the
+    // idle timeout: stopping the process now would kill the task.
+    await sleep(150);
+    assert.equal(idleStops(h), 0, 'stopped while a background task was running');
+    await h.waitFor(() => h.debug.some((message) => /Background tasks finished/.test(message)), 'background task end');
+    // Claude reacts to the finished task with a run of its own, which also
+    // outlasts the idle timeout.
+    await sleep(100);
+    assert.equal(idleStops(h), 0, 'stopped during a run Claude started on its own');
+    await h.waitFor(() => idleStops(h) === 1, 'idle stop after that run');
+    const position = (pattern: RegExp) => h.debug.findIndex((message) => pattern.test(message));
+    assert.ok(position(/Result of a run outside the active turn/) < position(/Stopping idle Claude process/));
+    // That run belongs to no Gian turn: it reaches Gian through native
+    // history replay, not as output of the finished turn.
+    assert.ok(!h.texts.some(({ text }) => text === 'background work reviewed'));
+    assert.deepEqual(h.exits, []);
+    assert.equal(h.launches().length, 1);
+  }, { runtime: { idleTimeoutMs: 50 } });
+});
+
+test('a turn started while a background task runs keeps the process and the task', async () => {
+  await withRuntime(async (h) => {
+    assert.equal(await h.turn([{ background: { id: 'bg2', after: 200 } }, { result: 'started' }]), 'completed');
+    await sleep(100);
+    assert.equal(await h.turn('meanwhile'), 'completed');
+    await h.waitFor(() => h.debug.some((message) => /Background tasks finished/.test(message)), 'background task end');
+    await h.waitFor(() => idleStops(h) === 1, 'idle stop after the task');
+    assert.equal(h.launches().length, 1);
+  }, { runtime: { idleTimeoutMs: 50 } });
+});
+
 test('resetClaudeSessionId (/clear) starts the next turn as a fresh session', async () => {
   await withRuntime(async (h) => {
     await h.turn('before clear');

@@ -4,6 +4,8 @@ import { homedir } from 'node:os';
 import { delimiter, isAbsolute, join, resolve } from 'node:path';
 import { runBoundedCommand } from '@gian/proxy-protocol/node';
 
+import { agentHome } from '../core/home.js';
+
 const COMMAND = 'grok';
 const SETUP_URL = 'https://x.ai/cli/install.sh';
 
@@ -11,17 +13,10 @@ function firstVersion(text: string): string | null {
   return text.match(/\b\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?\b/)?.[0] ?? null;
 }
 
-function agentHome(env: NodeJS.ProcessEnv): string | undefined {
-  if (env.GIAN_AGENT_HOME !== undefined && env.GIAN_AGENT_HOME !== '') return env.GIAN_AGENT_HOME;
-  return env.GROK_HOME;
-}
-
+/** The user's machine HOME. Binaries are installed relative to it; the
+ *  Agent HOME (GIAN_AGENT_HOME, Grok's GROK_HOME) is Grok's state directory,
+ *  not a HOME, so `~/.grok/bin/grok` is never looked up beneath it. */
 function homeDir(): string {
-  // The Agent-scoped HOME (GIAN_AGENT_HOME) wins over the machine HOME: all
-  // Grok state (.grok) is read relative to the served Agent, not the user.
-  if (process.env.GIAN_AGENT_HOME && isAbsolute(process.env.GIAN_AGENT_HOME)) {
-    return process.env.GIAN_AGENT_HOME;
-  }
   return process.env.HOME && isAbsolute(process.env.HOME) ? process.env.HOME : homedir();
 }
 

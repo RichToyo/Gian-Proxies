@@ -29,9 +29,9 @@ test('managed Runtime candidates pin exact official Claude, Codex, Kimi, and Gro
   assert.equal(upstreamRuntimeCandidates.kimi.publish, true);
   assert.equal(upstreamRuntimeCandidates.grok.format, 'raw');
   assert.equal(upstreamRuntimeCandidates.grok.entryRelativePath, 'bin/grok');
-  assert.equal(upstreamRuntimeCandidates.grok.version, '1.0.89');
+  assert.equal(upstreamRuntimeCandidates.grok.version, '1.0.92');
   assert.equal(upstreamRuntimeCandidates.grok.publish, true);
-  assert.match(upstreamRuntimeCandidates.grok.url, /^https:\/\/x\.ai\/cli\/grok-1\.0\.89-macos-aarch64$/);
+  assert.match(upstreamRuntimeCandidates.grok.url, /^https:\/\/x\.ai\/cli\/grok-1\.0\.92-macos-aarch64$/);
   assert.match(upstreamRuntimeCandidates.kimi.url, /^https:\/\/github\.com\/MoonshotAI\/kimi-code\/releases\/download\//);
 });
 
@@ -62,8 +62,8 @@ test('DeepSeek Harness Runtime has a complete exact npm lock', async () => {
     'utf8',
   ));
   assert.equal(lock.lockfileVersion, 3);
-  assert.equal(lock.packages[''].dependencies['@deepseek-ai/dsh'], '0.2.2-rc.3');
-  assert.equal(lock.packages['node_modules/@deepseek-ai/dsh'].version, '0.2.2-rc.3');
+  assert.equal(lock.packages[''].dependencies['@deepseek-ai/dsh'], '0.2.2-rc.5');
+  assert.equal(lock.packages['node_modules/@deepseek-ai/dsh'].version, '0.2.2-rc.5');
   assert.equal(lock.packages['node_modules/@modelcontextprotocol/client'].version, '2.3.0');
   assert.equal(lock.packages['node_modules/fflate'].version, '0.8.3');
   for (const [path, candidate] of Object.entries(lock.packages)) {
@@ -142,6 +142,8 @@ test('the Runtime integration is anchored to reviewed source and owns standalone
   const snippet = [
     'create: () => startProcessProviderRegistryRuntime(runtimeEnv),',
     '          env: {\n            ...telemetryEnv,',
+    '    const mcpCredentialStore = createSharedZCodeCredentialStore({\n      env: options.env,\n'
+      + '      cipher: credentialCipherBridge.cipher,\n    });',
     '      handleMessage: (message) => server.handleMessage(message),',
   ].join('\n');
   assert.throws(() => integrateZcodeEntrypoint(snippet), /reviewed integration source/);
@@ -150,7 +152,18 @@ test('the Runtime integration is anchored to reviewed source and owns standalone
   assert.match(integrated, /providerRuntimeHeadersPort: activeProviderRegistryRuntime.providerRuntimeHeadersPort/);
   assert.match(integrated, /serializeModelCatalog\(modelSelectionFacade.getView\(preferred\)\)/);
   assert.match(integrated, /return server.handleMessage\(message\)/, 'all native session/reverse traffic keeps the upstream handler');
+  // The MCP OAuth store uses the standalone in-process cipher, never the
+  // Desktop-only client round trip.
+  assert.doesNotMatch(integrated, /cipher: credentialCipherBridge\.cipher/);
+  assert.match(integrated, /createSharedZCodeCredentialStore\(\{\n      env: options\.env,\n      \/\/ Gian: standalone/);
+  // Catalog failures keep one bounded, masked reason instead of a fixed text.
+  assert.match(integrated, /"ZCode model catalog is unavailable: " \+ reason/);
   assert.throws(() => applyZcodeIntegrationEdits(snippet + '\n' + snippet), /ambiguous/);
+  for (const missing of [0, 1, 2, 3]) {
+    const parts = snippet.split('\n');
+    assert.throws(() => applyZcodeIntegrationEdits(parts.filter((_, index) => index !== [0, 1, 5, 7][missing]).join('\n')),
+      /missing or ambiguous/);
+  }
 });
 
 
@@ -177,6 +190,8 @@ test('the English ZCode fixture preserves overlay routing without replacing the 
   assert.match(integrated, /resolveProcessProviderEndpointRoutingPort/);
   assert.match(integrated, /elicitationServer = server;/);
   assert.match(integrated, /return server.handleMessage\(message\)/);
+  assert.doesNotMatch(integrated, /cipher: credentialCipherBridge\.cipher/);
+  assert.match(integrated, /mcpOAuth: \{ credentialStore: mcpCredentialStore \}/);
 });
 
 test('explicit Runtime selection excludes unrelated builds and rejects ambiguous providers', () => {

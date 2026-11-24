@@ -1,13 +1,55 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmod, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { access, chmod, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { dirname, join, sep } from 'node:path';
 import { promisify } from 'node:util';
 
 import { validateZcodeRuntimeSource, zcodeRuntimeSource as source } from './zcode-runtime-source.mjs';
 import { installZcodeIntegration } from './zcode-runtime-integration.mjs';
 
 const execFileAsync = promisify(execFile);
+
+/** Native key-store binding for this platform (upstream keyringPlatformPackage). */
+export const ZCODE_KEYRING_PACKAGES = Object.freeze(['@napi-rs/keyring', '@napi-rs/keyring-darwin-arm64']);
+
+/** 3.18 encrypts credentials.json with a key held in the system key store
+ * through the external `@napi-rs/keyring` native module. Upstream stages it
+ * next to the Desktop agent bundle (scripts/stage-credential-keyring.mjs), but
+ * `build:zcode` does not ship it. Stage the same two locked packages, with the
+ * same resolution root and filter, next to zcode.cjs so the standalone
+ * cipher can load its key. */
+export async function stageZcodeCredentialKeyring(checkout, agentDir) {
+  // The binding resolves its platform package from its own location (pnpm
+  // keeps that package beside it in the store, not beside packages/shared).
+  const fromShared = createRequire(join(checkout, 'packages/shared/package.json'));
+  const fromKeyring = createRequire(fromShared.resolve(`${ZCODE_KEYRING_PACKAGES[0]}/package.json`));
+  // Node resolves zcode.cjs's `import("@napi-rs/keyring")` from agent/node_modules
+  // first; the binding then finds its platform package beside itself.
+  const target = name => join(agentDir, 'node_modules', name);
+  const staged = async name => {
+    try {
+      const manifest = JSON.parse(await readFile(join(target(name), 'package.json'), 'utf8'));
+      await access(join(target(name), manifest.main ?? 'index.js'));
+      return true;
+    } catch { return false; }
+  };
+  for (const name of ZCODE_KEYRING_PACKAGES) {
+    if (await staged(name)) continue;
+    const source = dirname((name === ZCODE_KEYRING_PACKAGES[0] ? fromShared : fromKeyring).resolve(`${name}/package.json`));
+    const manifest = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'));
+    if (name !== ZCODE_KEYRING_PACKAGES[0]) await access(join(source, manifest.main));
+    await cp(source, target(name), {
+      recursive: true, dereference: true, errorOnExist: true, force: false,
+      filter: file => !file.slice(source.length).split(sep).includes('node_modules'),
+    });
+  }
+  for (const name of ZCODE_KEYRING_PACKAGES) {
+    if (!await staged(name)) {
+      throw new Error(`ZCode Runtime does not resolve its staged ${name}.`);
+    }
+  }
+}
 
 /** Build only on the selected hosted release runner. Installation on a user's
  * machine downloads the resulting archive; it never clones or runs pnpm. */
@@ -72,6 +114,7 @@ export async function stageZcodeRuntime(workDir, releaseBaseUrl) {
   await cp(join(extracted, 'zcode'), join(runtimeRoot, 'zcode'), {
     recursive: true, dereference: true, errorOnExist: true, force: false,
   });
+  await stageZcodeCredentialKeyring(checkout, join(runtimeRoot, 'zcode/agent'));
   for (const name of ['LICENSE', 'NOTICE.md', 'THIRD-PARTY-NOTICES.md']) {
     await cp(join(checkout, name), join(runtimeRoot, 'zcode', name));
   }
@@ -81,7 +124,9 @@ export async function stageZcodeRuntime(workDir, releaseBaseUrl) {
   await writeFile(join(runtimeRoot, 'zcode/GIAN-INTEGRATION.md'),
     '# Gian ZCode integration\n\nBuilt from zai-org/ZCode at ' + source.commit + '.\n\n'
     + 'Gian modifies the protocol entrypoint to use the official standalone CLI Provider lifecycle, '
-    + 'including its request-time authentication port, and adds gian/modelCatalog for metadata-only discovery. '
+    + 'including its request-time authentication port and its in-process credential cipher, '
+    + 'and adds gian/modelCatalog for metadata-only discovery. '
+    + 'The darwin-arm64 @napi-rs/keyring binding is staged next to zcode.cjs, as upstream does for Desktop. '
     + 'No provider credentials or headers are returned by this method. '
     + 'gian-source.json and gian-integration.json record source and modification digests.\n');
   await chmod(join(runtimeRoot, source.entryRelativePath), 0o755);

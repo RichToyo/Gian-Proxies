@@ -1,7 +1,7 @@
 # Antigravity
 
-Antigravity Proxy 0.1.0 connects Gian to the ACP server built into Google's
-official Antigravity CLI (`agy acp`). The managed Runtime is agy 1.5.14,
+Antigravity Proxy 0.1.1 connects Gian to the ACP server built into Google's
+official Antigravity CLI (`agy acp`). The managed Runtime is agy 1.5.16,
 Google's release binary installed as `agy`. The Proxy version and the
 Runtime version are independent.
 

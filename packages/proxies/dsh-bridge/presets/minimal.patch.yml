@@ -1,4 +1,5 @@
-# Official DSH minimal Agent preset for the Gian Bridge profile.
+# Official DSH minimal Agent preset for the Gian Bridge profile, synced with
+# @deepseek-ai/dsh-web-app@0.2.2-rc.5 presets/minimal.patch.yml.
 - insert:
     - id: preset-minimal
       name: '@deepseek-ai/dsh-agent-preset'

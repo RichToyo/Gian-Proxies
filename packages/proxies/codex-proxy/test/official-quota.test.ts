@@ -96,3 +96,56 @@ test('Codex rejects unqualified/default HOME, API-key identity and malformed per
   assert.equal(multiple.windows.length, 1);
   assert.equal(multiple.windows[0]?.label, '15 min');
 });
+
+test('a quota failure logs the stage and Codex text, and a 401 from the backend is auth_required', async () => {
+  const lines: string[] = [];
+  const failWith = (message: string, code = -32603) => async (method: string) => {
+    if (method === 'config/read') return { config: {} };
+    if (method === 'account/read') return { requiresOpenaiAuth: true, account: { type: 'chatgpt', email: 'private@example.invalid', planType: 'plus' } };
+    throw Object.assign(new Error(message), { code });
+  };
+  const auth = await queryCodexOfficialQuota(
+    failWith('failed to fetch codex rate limits: GET https://chatgpt.com/backend-api/wham/usage failed: 401 Unauthorized'),
+    selection, quotaEnv, { log: line => lines.push(line) },
+  );
+  assert.equal(auth.status, 'auth_required');
+  assert.match(auth.authRevision!, /^[a-f0-9]{64}$/u);
+  const generic = await queryCodexOfficialQuota(
+    failWith('failed to fetch codex rate limits: error decoding response body; Authorization: Bearer abc.def'),
+    selection, quotaEnv, { log: line => lines.push(line) },
+  );
+  assert.equal(generic.status, 'error');
+  assert.equal(generic.error, 'unavailable');
+  assert.equal(JSON.stringify(generic).includes('decoding'), false, 'native text stays out of the result');
+  assert.deepEqual(lines, [
+    '[codex-proxy:quota] auth_required: account/rateLimits/read: failed to fetch codex rate limits: GET https://chatgpt.com/backend-api/wham/usage failed: 401 Unauthorized (code -32603)',
+    '[codex-proxy:quota] unavailable: account/rateLimits/read: failed to fetch codex rate limits: error decoding response body; Authorization: Bearer [redacted] (code -32603)',
+  ]);
+  assert.equal(lines.join('\n').includes('private@example.invalid'), false);
+});
+
+test('a quota read that outlives its budget reports timeout instead of hanging past the Host', async () => {
+  const lines: string[] = [];
+  const result = await queryCodexOfficialQuota(
+    () => new Promise(() => undefined),
+    selection, quotaEnv, { log: line => lines.push(line), deadlineMs: 20 },
+  );
+  assert.equal(result.status, 'error');
+  assert.equal(result.error, 'timeout');
+  assert.deepEqual(lines, ['[codex-proxy:quota] timeout: quota read exceeded 20ms']);
+});
+
+test('Codex 0.171 accounts: cloud-provider accounts are excluded and userId identifies an email-less account', async () => {
+  for (const type of ['amazonBedrock', 'gcp']) {
+    const result = await queryCodexOfficialQuota(async method => (
+      method === 'config/read' ? { config: {} } : { requiresOpenaiAuth: true, account: { type } }
+    ), selection, quotaEnv, { log: () => undefined });
+    assert.equal(result.status, 'excluded', type);
+  }
+  const ready = await queryCodexOfficialQuota(async method => {
+    if (method === 'config/read') return { config: {} };
+    if (method === 'account/read') return { requiresOpenaiAuth: true, userId: 'user-1', account: { type: 'chatgpt', email: null, planType: 'pro' } };
+    return { rateLimits: { primary: { usedPercent: 5 } } };
+  }, selection, quotaEnv, { log: () => undefined });
+  assert.equal(ready.status, 'ready');
+});

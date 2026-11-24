@@ -1,7 +1,8 @@
-/** Test harness: spawn the compiled kimi-proxy CLI against the fake Kimi
+/** Test harness: spawn the compiled kimi-proxy CLI against the fake Kimi 2.7
  *  local server (`test/fixtures/fake-kimi-server.mjs`), speak gian.proxy over
- *  its stdio, and collect every line. This exercises the full stack:
- *  supervisor → REST client → WS event socket → projector → adapter. */
+ *  its stdio, and collect every line. This exercises the full stack: kit
+ *  server → adapter → service → supervisor → REST client → WS conversation
+ *  feed. */
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -32,7 +33,7 @@ export class Harness {
   private readonly logPath: string;
   private readonly validator: HostProtocolValidator | null;
 
-  constructor(scenario: Record<string, unknown>, options: { validateProtocol?: boolean } = {}) {
+  constructor(scenario: Record<string, unknown>, options: { validateProtocol?: boolean; env?: Record<string, string | undefined> } = {}) {
     this.validator = options.validateProtocol === true ? new HostProtocolValidator({
       pluginId: 'kimi',
       pluginVersion: (JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as { version: string }).version,
@@ -67,6 +68,7 @@ export class Harness {
         FAKE_SCENARIO: scenarioPath,
         FAKE_LOG: this.logPath,
         FAKE_STATE: join(this.dir, 'fake-state.json'),
+        ...options.env,
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     }) as ChildProcessWithoutNullStreams;
@@ -226,7 +228,7 @@ function readLogs(logPath: string): Array<Record<string, unknown>> {
     .map((entry) => JSON.parse(entry) as Record<string, unknown>);
 }
 
-export function startHarness(scenario: Record<string, unknown>, options: { validateProtocol?: boolean } = {}): Harness {
+export function startHarness(scenario: Record<string, unknown>, options: { validateProtocol?: boolean; env?: Record<string, string | undefined> } = {}): Harness {
   return new Harness(scenario, options);
 }
 

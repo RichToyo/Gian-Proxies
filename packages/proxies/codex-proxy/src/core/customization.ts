@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process';
 import { promises as fsp, type Stats } from 'node:fs';
-import { homedir } from 'node:os';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import {
@@ -16,6 +15,7 @@ import {
   type CustomizationListResult,
 } from '@gian/proxy-protocol';
 import type { CodexRuntime, HookMetadata, SkillMetadata } from '../runtime/types.js';
+import { resolveCodexHome } from '../runtime/home.js';
 
 export const SCAN_TIMEOUT_MS = 15_000;
 export const SCAN_MAX_DIRECTORIES = 500;
@@ -63,7 +63,7 @@ function codexBin(): string {
 }
 
 function codexHome(): string {
-  return process.env.CODEX_HOME ?? join(homedir(), '.codex');
+  return resolveCodexHome();
 }
 
 /** Bounded head read: returns up to `cap` bytes plus the truncation fact.

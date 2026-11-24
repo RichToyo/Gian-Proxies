@@ -45,6 +45,7 @@ export class KimiProtocolError extends Error {
     readonly domainCode: DomainCode,
     message: string,
     retryable = false,
+    readonly details: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = 'KimiProtocolError';
@@ -95,7 +96,7 @@ export function jsonRpcError(error: unknown) {
       data: {
         domainCode: error.domainCode,
         retryable: error.retryable,
-        details: {},
+        details: error.details,
       },
     };
   }

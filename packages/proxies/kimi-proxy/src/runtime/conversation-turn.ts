@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { terminalEventIdFor } from '../core/replay.js';
+import { terminalEventIdFor } from './conversation-replay.js';
 import { KimiConversationBinding } from './conversation-binding.js';
 import { KimiConversationContent } from './conversation-content.js';
 import { KimiInteractionOwnership } from './conversation-interaction-ownership.js';
@@ -8,7 +8,8 @@ import { approvalResponse, interactionEndpoint, questionResponse, type NativeQue
 import { KimiConversationSettlement } from './conversation-settlement.js';
 import { KimiConversationTools } from './conversation-tools.js';
 import { KimiConversationTasks } from './conversation-tasks.js';
-import { projectConversationUsage } from './conversation-usage.js';
+import { conversationTurnError, type GianError } from './conversation-error.js';
+import { conversationUsageEventSource, sumConversationUsage } from './conversation-usage.js';
 import { projectConversationItem } from './conversation-item.js';
 
 type Frame = Record<string, unknown>;
@@ -19,7 +20,7 @@ function object(value: unknown): value is Frame { return typeof value === 'objec
 function id(value: unknown): value is string { return typeof value === 'string' && value !== ''; }
 function digest(value: unknown): string { return createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16); }
 
-/** One submitted Gian turn over the native 2.6.2 conversation feed. */
+/** One submitted Gian turn over the native Kimi 2.7 conversation feed. */
 export class KimiConversationTurn {
   private readonly binding: KimiConversationBinding;
   private readonly ownership: KimiInteractionOwnership;
@@ -30,13 +31,17 @@ export class KimiConversationTurn {
   private readonly pending = new Map<string, Pending>();
   private readonly responding = new Map<string, string>();
   private readonly endedWhileResponding = new Map<string, string>();
-  private nativeEnd: { outcome: string; reason?: string; emittedAt: string; usage: Record<string, unknown> | null } | null = null;
+  private nativeEnd: { outcome: string; reason?: string; emittedAt: string } | null = null;
+  private failure: GianError | null = null;
+  private readonly retries = new Map<string, Frame>();
+  private readonly notices = new Set<string>();
+  private queued = false;
   private finished = false;
   private interruptAccepted = false;
   private interruptPending = false;
   private fencePending = false;
   private readonly nativeTurnNumbers = new Map<string, number>();
-  private readonly nativeUsage = new Map<string, { data: Record<string, unknown>; emittedAt: string }>();
+  private readonly nativeUsage = new Map<string, unknown>();
   private readonly notificationEvents = new Set<string>();
   private anyNativeFailure = false;
   private anyNativeLimit = false;
@@ -64,15 +69,16 @@ export class KimiConversationTurn {
 
   receive(frame: Frame): void {
     if (this.finished || frame.session_id !== this.context.nativeSessionId
-      || (frame.type !== 'event.session.work_changed' && frame.agent_id !== 'main')) return;
+      || (frame.type !== 'session' && frame.agent_id !== 'main')) return;
     this.revision += 1;
     if (frame.type === 'interaction') this.ownership.receive(frame);
-    else if (frame.type === 'agent' || frame.type === 'task' || frame.type === 'task.list' || frame.type === 'event.session.work_changed') {
+    else if (frame.type === 'agent' || frame.type === 'task' || frame.type === 'task.list' || frame.type === 'session') {
       if (frame.type === 'task' || frame.type === 'task.list') this.tasks.receive(frame);
       this.settlement.receive(frame);
     }
     else if (frame.type === 'todo' && this.binding.isBound()) this.todo(frame);
-    else if (frame.type === 'usage' && this.binding.isBound()) this.usage(frame);
+    else if (frame.type === 'context' && this.binding.isBound()) this.contextOccupancy(frame);
+    else if (frame.type === 'notice' && this.binding.isBound()) this.notice(frame);
     else if (frame.type === 'turns' || String(frame.type).startsWith('turn.') || String(frame.type).startsWith('item.')) this.binding.receive(frame);
     this.maybeFinish();
   }
@@ -118,6 +124,28 @@ export class KimiConversationTurn {
   hasPendingInteractions(): boolean { return this.pending.size > 0 || this.ownership.hasUnbound() || this.binding.hasUnbound(); }
   pendingInteractionKind(interactionId: string): 'approval' | 'question' | null { return this.pending.get(interactionId)?.kind ?? null; }
   getNativeTurnNumber(): number | null { return [...this.nativeTurnNumbers.values()].at(-1) ?? null; }
+  isBound(): boolean { return this.binding.isBound(); }
+
+  /** 2.7.1 keeps a new prompt `queued` while another native turn (a
+   *  background-notification turn or another client's prompt) finishes. The
+   *  binding already ignores foreign turns; the prompt binds when its own
+   *  opener appears. */
+  markQueued(): void { this.queued = true; this.revision += 1; }
+  isQueued(): boolean { return this.queued && !this.binding.isBound(); }
+
+  /** A queued prompt removed by an accepted abort never starts a native
+   *  turn, so the interrupt is the terminal fact. */
+  finishQueuedInterrupt(emittedAt: string): boolean {
+    if (this.finished || this.binding.isBound() || !this.interruptAccepted) return false;
+    this.finished = true; this.revision += 1;
+    if (this.finishTimer) clearTimeout(this.finishTimer);
+    this.finishTimer = null;
+    this.context.emit({ method: 'turn.completed', params: { eventId: terminalEventIdFor(this.context.nativeSessionId, this.context.promptId, 'turn.completed'),
+      sessionId: this.context.sessionId, streamId: this.context.streamId, turnId: this.context.turnId,
+      sourceTurnId: this.context.promptId, sequence: this.context.nextSequence(), emittedAt, data: { stopReason: 'interrupted' } } });
+    this.context.onFinalized();
+    return true;
+  }
 
   admit(): void { this.admitted = true; this.maybeFinish(); }
 
@@ -137,6 +165,7 @@ export class KimiConversationTurn {
     if (this.finishTimer) clearTimeout(this.finishTimer);
     this.finishTimer = null;
     const emittedAt = new Date().toISOString();
+    this.closeRetries('failed', emittedAt);
     for (const interactionId of this.pending.keys()) this.emit('interaction.resolved', [interactionId, 'runtime-ended'],
       { interactionId, outcome: 'runtime_ended' }, emittedAt);
     this.pending.clear();
@@ -201,6 +230,7 @@ export class KimiConversationTurn {
       if (!object(frame.turn)) throw new Error('Invalid Kimi terminal turn.');
       this.end(frame.turn, frame.event_created_at); return;
     }
+    if (frame.type === 'turn.updated') { this.retry(frame, frame.event_created_at); return; }
     if (String(frame.type).startsWith('item.')) this.item(frame);
   }
 
@@ -235,11 +265,15 @@ export class KimiConversationTurn {
   private end(turn: Frame, emittedAt: string): void {
     this.recordTurnNumber(turn);
     if (turn.status !== 'ended' || !['completed', 'interrupted', 'failed'].includes(String(turn.outcome))) throw new Error('Kimi terminal turn has no recognized outcome.');
-    this.nativeEnd = { outcome: turn.outcome as string, emittedAt, usage: projectConversationUsage(turn.usage),
+    this.nativeEnd = { outcome: turn.outcome as string, emittedAt,
       ...(typeof turn.end_reason === 'string' ? { reason: turn.end_reason } : {}) };
     if (!id(turn.turn_id)) throw new Error('Kimi terminal turn has no native identity.');
-    if (this.nativeEnd.usage) this.nativeUsage.set(turn.turn_id, { data: this.nativeEnd.usage, emittedAt });
-    if (turn.outcome === 'failed' && turn.end_reason !== 'max_steps') this.anyNativeFailure = true;
+    if (turn.usage !== undefined) this.nativeUsage.set(turn.turn_id, turn.usage);
+    this.closeRetries(turn.outcome === 'completed' ? 'succeeded' : turn.outcome === 'interrupted' ? 'cancelled' : 'failed', emittedAt, turn.turn_id);
+    if (turn.outcome === 'failed' && turn.end_reason !== 'max_steps') {
+      this.anyNativeFailure = true;
+      this.failure = conversationTurnError(turn.error, typeof turn.end_reason === 'string' ? turn.end_reason : undefined);
+    }
     if (turn.end_reason === 'max_steps') this.anyNativeLimit = true;
     this.settlement.turnFinished();
   }
@@ -266,7 +300,46 @@ export class KimiConversationTurn {
     this.emit('plan.updated', ['plan', fingerprint], { planId: `kimi:todos:${this.context.nativeSessionId}`, title: 'Plan', steps }, frame.event_created_at);
   }
 
-  private usage(frame: Frame): void {
+  /** Native retry state (`turn.updated` with `retry`) is a running activity
+   *  until the step succeeds or the native turn ends. */
+  private retry(frame: Frame, emittedAt: string): void {
+    if (!id(frame.turn_id)) return;
+    const activityId = `retry:${this.context.promptId}:${frame.turn_id}`;
+    const retry = frame.retry;
+    if (object(retry) && Number.isSafeInteger(retry.next_attempt) && Number.isSafeInteger(retry.max_attempts)) {
+      const error = object(retry.error) && typeof retry.error.message === 'string' ? retry.error.message.slice(0, 2_000) : 'The model request failed.';
+      const delay = typeof retry.delay_ms === 'number' && retry.delay_ms > 0 ? ` in ${Math.ceil(retry.delay_ms / 1000)} s` : '';
+      const data = { activityId, kind: 'kimi:retry', title: 'Retrying the model request', status: 'running',
+        presentation: { type: 'notice', data: { message: `${error} Retry ${String(retry.next_attempt)} of ${String(retry.max_attempts)}${delay}.` } } };
+      this.retries.set(frame.turn_id, data);
+      this.emit('activity.updated', ['retry', frame.turn_id, data], data, emittedAt);
+    } else if (object(frame.step)) this.closeRetries('succeeded', emittedAt, frame.turn_id);
+  }
+
+  private closeRetries(status: 'succeeded' | 'failed' | 'cancelled', emittedAt: string, turnId?: string): void {
+    for (const [nativeTurnId, data] of [...this.retries]) {
+      if (turnId !== undefined && nativeTurnId !== turnId) continue;
+      this.retries.delete(nativeTurnId);
+      const closed = { ...data, status };
+      this.emit('activity.updated', ['retry', nativeTurnId, closed], closed, emittedAt);
+    }
+  }
+
+  /** Native warnings and agent errors (`notice` frames) are shown, never
+   *  turned into a terminal of their own. */
+  private notice(frame: Frame): void {
+    if (!id(frame.event_created_at) || !id(frame.title) || !['info', 'warning', 'error'].includes(String(frame.level))) return;
+    const message = (typeof frame.detail === 'string' && frame.detail !== '' ? frame.detail : frame.title).slice(0, 64 * 1024);
+    const data = { activityId: `notice:${this.context.promptId}:${digest([frame.title, frame.detail, frame.code, frame.event_created_at])}`,
+      kind: 'kimi:notice', title: frame.title.slice(0, 500), status: frame.level === 'error' ? 'failed' : 'succeeded',
+      presentation: { type: 'notice', data: { message } } };
+    if (this.notices.has(data.activityId)) return;
+    this.notices.add(data.activityId);
+    this.emit('activity.updated', ['notice', data], data, frame.event_created_at);
+  }
+
+  /** 2.7 renamed the occupancy feed from `usage` to `context`. */
+  private contextOccupancy(frame: Frame): void {
     if (!id(frame.event_created_at) || !Number.isSafeInteger(frame.context_tokens) || (frame.context_tokens as number) < 0
       || (frame.max_context_tokens !== undefined && (!Number.isSafeInteger(frame.max_context_tokens) || (frame.max_context_tokens as number) <= 0))) {
       throw new Error('Invalid Kimi context usage.');
@@ -330,7 +403,10 @@ export class KimiConversationTurn {
     this.finalizing = false;
     if (revision !== this.revision || !this.readyToFinish()) { this.maybeFinish(); return; }
     const end = this.nativeEnd!;
-    for (const [turnId, usage] of this.nativeUsage) this.emit('usage.updated', ['turn-usage', turnId, usage.data], usage.data, usage.emittedAt);
+    // One delta per Gian turn: a turn that spans background continuations
+    // sums its native turns (the Host and conformance key one delta per turn).
+    const usage = sumConversationUsage([...this.nativeUsage.values()]);
+    if (usage) this.emit('usage.updated', conversationUsageEventSource([...this.nativeUsage.keys()], usage), usage, end.emittedAt);
     for (const { number, value } of diffs) if (value.diff !== '' || value.files.length > 0) this.emit('diff.updated', ['diff', number, digest(value)], {
       diffId: `turn-${number}`, diff: value.diff, truncated: value.truncated,
       ...(value.files.length ? { files: value.files } : {}),
@@ -338,7 +414,8 @@ export class KimiConversationTurn {
     this.finished = true;
     const failed = this.anyNativeFailure;
     const method = failed ? 'turn.failed' : 'turn.completed';
-    const data = failed ? { error: { domainCode: 'RUNTIME_ERROR', message: 'Kimi turn failed.', retryable: false, details: {} } }
+    this.closeRetries(failed ? 'failed' : end.outcome === 'interrupted' ? 'cancelled' : 'succeeded', end.emittedAt);
+    const data = failed ? { error: this.failure ?? conversationTurnError(undefined, end.reason) }
       : { stopReason: this.anyNativeLimit ? 'limit_reached' : end.outcome === 'interrupted' ? (this.interruptAccepted ? 'interrupted' : 'cancelled')
         : end.reason === 'blocked' ? 'other' : 'completed' };
     this.context.emit({ method, params: { eventId: terminalEventIdFor(this.context.nativeSessionId, this.context.promptId, method),

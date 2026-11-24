@@ -9,11 +9,11 @@ the base global tools, and preserves native preset activation diagnostics.
 
 ## Runtime baseline
 
-The source candidate targets `@deepseek-ai/dsh@0.2.2-rc.3`, official tag
-`dsh-v0.2.2-rc.3`, commit `38a6a5c965aa99ab525161efb7cc5cf1fe62fced`.
-The published baseline is 0.2.2-rc.3 after exact-artifact qualification.
-The Bridge
-retains the old peer range and adds the exact 0.2.2-rc.3 prerelease. Model
+The source candidate targets `@deepseek-ai/dsh@0.2.2-rc.5`, official tag
+`dsh-v0.2.2-rc.5`, commit `9c2670d3bce5275e0d1610272958121af87787bb`.
+The published baseline is still 0.2.2-rc.3 until rc.5 passes exact-artifact
+qualification. The Bridge retains the old peer range and adds the exact
+0.2.2-rc.5 prerelease (rc.4 was never qualified and stays outside the range). Model
 selection uses the native Agent API when present and the legacy waterfall on
 older runtimes. Handshake reads the Bridge version from package metadata.
 The real Cordis host probes the mounted services at `initialize` and reports
@@ -25,6 +25,18 @@ only what is present.
 - Transport: `src/jsonrpc.ts` (UTF-8 NDJSON stdio, no batch, ≤16 MiB lines).
 - Server: `src/server.ts` (bridge/1.0 request routing and correlation).
 - Real runtime seam: `src/cordis-host.ts`; deterministic fake: `src/fake-host.ts`.
+
+## Scheduling and lifecycle
+
+`runBridgeInput` runs one lane per Gian session; process-level reads run
+concurrently, `turn.interrupt` / `interaction.respond` / `shutdown` overtake,
+and `initialize` is a barrier. A request whose envelope `deadlineAt` has passed
+is refused without running; `turn.start` re-checks it before the native turn is
+admitted and `session.create` / `resume` / `fork` dispose an Agent created after
+it. Stdin EOF leaves DSH through `appExit` (SIGTERM as fallback). The catalog
+revision is derived from the catalog content, and `catalog.changed` is
+announced only when that revision changes. The host patch disables
+`session-log-deepseek` and mounts `skill-office` for the presets' `tool-office`.
 
 ## Native capabilities
 

@@ -65,15 +65,56 @@ export interface TransportOptions {
   extraArgs?: string[];
   /** Production uses the same protocol surface as ZCode Desktop. */
   launchMode?: 'desktop-stdio' | 'legacy-cwd';
-  /** Environment allowlist for the child (Revision 2 §4.3). */
-  env?: {
-    home: string;
-    path: string;
-    tmpdir: string;
-    lang?: string;
-    gian?: Readonly<Record<string, string>>;
-  };
+  /** Complete child environment (see buildAppServerEnvironment). Omitted:
+   *  this process's environment minus Gian internals. */
+  env?: Readonly<Record<string, string>>;
 }
+
+/** Gian Host/Proxy internals that must not reach the ZCode runtime or the
+ *  tools it runs. GIAN_PLUGIN_ID / GIAN_PLUGIN_DATA_DIR stay (plugin
+ *  identity contract); everything else under GIAN_ is Host plumbing (agent
+ *  homes, Runtime paths, catalog and remote-session channels, test seams). */
+const KEPT_GIAN_VARIABLES = new Set(['GIAN_PLUGIN_ID', 'GIAN_PLUGIN_DATA_DIR']);
+const DROPPED_VARIABLES = new Set([
+  // Node/Electron loader switches belong to the Proxy process, not to the
+  // separate app-server Node process (or the shells and tools it spawns).
+  'NODE_OPTIONS', 'NODE_CHANNEL_FD', 'NODE_CHANNEL_SERIALIZATION_MODE', 'NODE_UNIQUE_ID',
+  'ELECTRON_RUN_AS_NODE', 'ELECTRON_NO_ATTACH_CONSOLE',
+]);
+
+/** Directories a macOS GUI launch leaves out of PATH. ZCode's Bash tool,
+ *  MCP stdio servers and Git rely on the user's normal toolchain. */
+const MACOS_TOOL_PATHS = ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
+
+/** The app-server environment: the Proxy's full environment (SHELL, proxy
+ *  variables such as HTTPS_PROXY/NO_PROXY, locale, user toolchain), as the
+ *  Claude and Antigravity Proxies pass it, minus Gian internals. HOME is the
+ *  Host's ZCode HOME contract (the parent of the bound .zcode directory) and
+ *  always wins. PATH keeps the inherited order and appends the standard
+ *  macOS tool directories that a GUI launch omits. */
+export function buildAppServerEnvironment(
+  source: Readonly<Record<string, string | undefined>>,
+  overrides: { home: string; tmpdir?: string },
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined) continue;
+    if (key.startsWith('GIAN_') && !KEPT_GIAN_VARIABLES.has(key)) continue;
+    if (DROPPED_VARIABLES.has(key)) continue;
+    env[key] = value;
+  }
+  const inherited = (env.PATH ?? '').split(':').filter((entry) => entry !== '');
+  env.PATH = [...new Set([...inherited, ...MACOS_TOOL_PATHS])].join(':');
+  env.HOME = overrides.home;
+  if (!env.TMPDIR && overrides.tmpdir) env.TMPDIR = overrides.tmpdir;
+  if (!env.LANG && !env.LC_ALL) env.LANG = 'en_US.UTF-8';
+  return env;
+}
+
+/** Bounded, redacted stderr kept for failure text (startup crashes print
+ *  their reason only there). */
+const STDERR_TAIL_LINES = 12;
+const STDERR_TAIL_CHARS = 1_200;
 
 /** Deterministic redaction for anything that might reach logs or errors. */
 const SECRET_KEY = /api[-_]?key|token|authorization|secret|cookie|password|credential/i;
@@ -113,9 +154,11 @@ export interface InnerRuntimeFailure {
   retryable: boolean;
 }
 
-/** ZCode 0.16.5 reports asynchronous provider rejection only on stderr and
- * emits no terminal protocol event. Parse the bounded typed prefix without
- * retaining provider text, request ids, headers, or response bodies. */
+/** ZCode logs a provider rejection on stderr. 0.16.5 sent no terminal
+ * protocol event at all; 3.18 follows with a typed turn.failed, so this is
+ * only a hint (see ZcodeV2Adapter.handleInnerRuntimeFailure). Parse the
+ * bounded typed prefix without retaining provider text, request ids,
+ * headers, or response bodies. */
 export function parseInnerRuntimeFailure(line: string): InnerRuntimeFailure | null {
   const match = line.match(/ProviderBusinessError:\s*\[([0-9A-Za-z_-]{1,64})\]/);
   if (!match) return null;
@@ -143,7 +186,8 @@ export class ZCodeTransport extends EventEmitter {
   private readonly reverseHandlers = new Map<string, ReverseHandler>();
   private buffer = '';
   private stderrBuffer = '';
-  private readonly seenRuntimeFailures = new Set<string>();
+  private readonly stderrLines: string[] = [];
+  private lastRuntimeFailure: { line: string; at: number } | null = null;
   private exited = false;
   exitCode: number | null = null;
   exitSignal: string | null = null;
@@ -159,16 +203,25 @@ export class ZCodeTransport extends EventEmitter {
     this.reverseHandlers.set(method, handler);
   }
 
+  /** Spawn a fresh app-server after a deliberate stop (idle park). Reverse
+   *  handlers and listeners on this transport stay registered. */
+  restart(): void {
+    if (this.child && !this.exited) throw new Error('ZCode transport is still running.');
+    this.child = null;
+    this.exited = false;
+    this.exitCode = null;
+    this.exitSignal = null;
+    this.buffer = '';
+    this.stderrBuffer = '';
+    this.stderrLines.length = 0;
+    this.start();
+  }
+
   /** Spawn the app-server child. Handlers must already be registered. */
   start(): void {
     if (this.child) throw new Error('ZCode transport already started.');
-    const env: NodeJS.ProcessEnv = {
-      HOME: this.options.env?.home ?? process.env.HOME ?? '',
-      PATH: this.options.env?.path ?? '/usr/bin:/bin:/usr/sbin:/sbin',
-      TMPDIR: this.options.env?.tmpdir ?? '/tmp',
-      ...(this.options.env?.lang ? { LANG: this.options.env.lang } : {}),
-      ...(this.options.env?.gian ?? {}),
-    };
+    const env: NodeJS.ProcessEnv = { ...(this.options.env
+      ?? buildAppServerEnvironment(process.env, { home: process.env.HOME ?? '' })) };
     const launchArgs = this.options.launchMode === 'legacy-cwd'
       ? ['app-server', '--cwd', this.options.cwd]
       : ['app-server', '--stdio', '--surface', 'desktop'];
@@ -190,9 +243,12 @@ export class ZCodeTransport extends EventEmitter {
       this.exited = true;
       this.exitCode = code;
       this.exitSignal = signal;
+      const tail = this.stderrTail();
       const error = new InnerError({
         code: -32603,
-        message: `app-server exited (code=${code ?? 'null'}, signal=${signal ?? 'null'}).`,
+        message: `ZCode app-server exited (code ${code ?? 'none'}, signal ${signal ?? 'none'})`
+          + (tail ? `: ${tail}` : '.'),
+        data: { reason: 'app_server_exited', exitCode: code, signal, ...(tail ? { stderrTail: tail } : {}) },
       });
       for (const pending of this.pending.values()) {
         clearTimeout(pending.timer);
@@ -228,13 +284,24 @@ export class ZCodeTransport extends EventEmitter {
   private handleStderrLine(raw: string): void {
     const line = raw.trim();
     if (line.length === 0) return;
-    this.emit('stderr', redactSecrets(line.slice(0, 4_000)));
+    const redacted = redactSecrets(line.slice(0, 4_000)) as string;
+    this.stderrLines.push(redacted.replace(/\x1b\[[0-9;]*m/g, '').slice(0, 400));
+    if (this.stderrLines.length > STDERR_TAIL_LINES) this.stderrLines.shift();
+    this.emit('stderr', redacted);
     const failure = parseInnerRuntimeFailure(line);
     if (failure === null) return;
-    const fingerprint = `${failure.kind}:${failure.providerCode}`;
-    if (this.seenRuntimeFailures.has(fingerprint)) return;
-    this.seenRuntimeFailures.add(fingerprint);
+    // One logged error can print the same line more than once; a later,
+    // separate failure with the same provider code must still be reported.
+    const now = Date.now();
+    if (this.lastRuntimeFailure?.line === line && now - this.lastRuntimeFailure.at < 1_000) return;
+    this.lastRuntimeFailure = { line, at: now };
     this.emit('runtime-failure', failure);
+  }
+
+  /** The last stderr lines, redacted and bounded, joined for failure text. */
+  stderrTail(): string {
+    const joined = this.stderrLines.join(' | ');
+    return joined.length > STDERR_TAIL_CHARS ? `…${joined.slice(-STDERR_TAIL_CHARS)}` : joined;
   }
 
   private consume(chunk: string): void {
@@ -428,4 +495,44 @@ export function registerGianReverseHandlers(transport: ZCodeTransport): void {
       message: 'Gian does not provide official MCP auth headers.',
     },
   }));
+  transport.registerReverseHandler('interaction/requestCredentialCipher', answerCredentialCipherRequest);
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** credentialCipherRequestSchema bound (packages/shared/src/validation.ts). */
+const CREDENTIAL_CIPHERTEXT_MAX_CHARS = Math.ceil(1_048_576 / 3) * 4 + 128;
+
+/** `interaction/requestCredentialCipher` (ZCode 3.18): the app-server asks
+ *  its Host to encrypt/decrypt a credentials.json value with the system
+ *  key-store key the Host owns (Desktop: Electron main through
+ *  executeCredentialCipherRequest). Gian's integrated Runtime keeps that key
+ *  in-process, as the standalone CLI does, so this request is not expected.
+ *  If it arrives anyway, answer exactly as upstream Hosts do, and never touch
+ *  the Keychain or invent a key from the Proxy:
+ *  - malformed params: JSON-RPC -32602 "Credential cipher is unavailable"
+ *    (zcodeAgentService without a cipher provider);
+ *  - a valid request: a typed CREDENTIAL_SECURE_STORAGE_UNAVAILABLE result,
+ *    which the bridge turns into a storage error without migrating or
+ *    rewriting any credential. */
+export function answerCredentialCipherRequest(params: Record<string, unknown>):
+  { result: unknown } | { error: InnerErrorShape } {
+  const keys = Object.keys(params);
+  const valid = keys.length === 3
+    && typeof params.requestId === 'string' && UUID.test(params.requestId)
+    && (params.operation === 'encrypt' || params.operation === 'decrypt')
+    && typeof params.value === 'string' && params.value.length <= CREDENTIAL_CIPHERTEXT_MAX_CHARS;
+  if (!valid) return { error: { code: -32602, message: 'Credential cipher is unavailable' } };
+  return {
+    result: {
+      requestId: params.requestId,
+      result: {
+        ok: false,
+        error: {
+          code: 'CREDENTIAL_SECURE_STORAGE_UNAVAILABLE',
+          message: 'Gian does not hold the ZCode credential key; the ZCode Runtime reads its own system '
+            + 'credential store. Unlock the macOS Keychain and allow access when asked, then retry.',
+        },
+      },
+    },
+  };
 }

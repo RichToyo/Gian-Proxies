@@ -45,13 +45,20 @@ test('the host patch supplies preset services and disables every official base-g
     'tool-bash', 'tool-pwsh', 'tool-jobs', 'tool-fs', 'tool-fs-search',
     'skill-filesystem', 'tool-skill', 'command-goal', 'tool-goal', 'plan-mode',
     'compaction-basic', 'command-compact', 'tool-result-pruner',
-    'tool-subagent-control', 'tool-subagent-list-agents', 'tool-subagent',
+    'tool-subagent-control', 'tool-subagent',
     'tool-subagent-fork', 'workflow-ptc', 'tool-workflow', 'agent-instructions',
     'tool-todo', 'tool-web',
   ]) {
     assert.match(patch, new RegExp(`- id: ${row}\\n  disabled: true`));
   }
   assert.match(patch, /default: standard/);
+  assert.doesNotMatch(patch, /tool-subagent-list-agents/, 'dsh-base no longer has this row');
+  assert.match(patch, /name: '@deepseek-ai\/dsh-skill-office'\n\s+config:\n\s+pythonEnvironment: user/);
+});
+
+test('the host patch disables the official-API Session-log upload', async () => {
+  const patch = await read('cordis.patch.yml');
+  assert.match(patch, /^- id: session-log-deepseek\n  disabled: true$/m);
 });
 
 test('preset declarations retain their distinct native tool compositions', async () => {
@@ -61,8 +68,8 @@ test('preset declarations retain their distinct native tool compositions', async
   const cordis = await read('presets/cordis.patch.yml');
   assert.match(standard, /name: '@deepseek-ai\/dsh-tool-web'/);
   assert.match(standard, /name: '@deepseek-ai\/dsh-tool-workflow'/);
-  assert.match(ptc, /name: '@deepseek-ai\/dsh-agent-tool-presentation'/);
-  assert.match(ptc, /mode: ptc/);
+  assert.match(ptc, /name: '@deepseek-ai\/dsh-tool-executor-ptc'/);
+  assert.doesNotMatch(ptc, /dsh-agent-tool-presentation/);
   assert.match(cordis, /name: '@deepseek-ai\/dsh-tool-cordis'/);
   assert.match(minimal, /read: false/);
   assert.match(minimal, /write: false/);
@@ -72,25 +79,22 @@ test('preset declarations retain their distinct native tool compositions', async
   assert.doesNotMatch(minimal, /name: '@deepseek-ai\/dsh-tool-workflow'/);
 });
 
-test('preset subagent wiring selects the native old or new export without hiding other errors', async () => {
+test('presets carry the rc.5 office tool, bundled skills and non-interrupting subagent control', async () => {
+  for (const name of ['standard', 'ptc']) {
+    assert.match(await read(`presets/${name}.patch.yml`), /name: '@deepseek-ai\/dsh-tool-office'/, name);
+  }
   for (const name of ['standard', 'ptc', 'cordis']) {
     const patch = await read(`presets/${name}.patch.yml`);
-    const disabled = patch.match(/name: '@deepseek-ai\/dsh-tool-subagent-control\/list-agents'\n\s+disabled: !!js "([^\n"]+)"/)?.[1];
-    const config = patch.match(/name: '@deepseek-ai\/dsh-tool-subagent'\n\s+config: !!js "([^\n"]+)"/)?.[1];
-    assert.ok(disabled, name);
-    assert.ok(config, name);
-    const evaluate = (expression: string, mode: 'old' | 'new' | 'broken'): unknown => {
-      const fakeProcess = { getBuiltinModule: () => ({ createRequire: () => ({ resolve: () => {
-        if (mode === 'old') return '/fixture/list-agents.js';
-        throw Object.assign(new Error('fixture resolution'), { code: mode === 'new' ? 'ERR_PACKAGE_PATH_NOT_EXPORTED' : 'MODULE_NOT_FOUND' });
-      } }) }) };
-      return Function('process', 'baseUrl', `return (${expression});`)(fakeProcess, '/fixture/package.json');
-    };
-    assert.equal(evaluate(disabled, 'old'), false);
-    assert.equal(evaluate(disabled, 'new'), true);
-    assert.deepEqual(evaluate(config, 'old'), { provider: 'spawn', toolName: 'subagent', modelSelectionSettings: true });
-    assert.deepEqual(evaluate(config, 'new'), { provider: 'spawn', toolName: 'subagent', modelSelection: true, modelDiscovery: true });
-    assert.throws(() => evaluate(disabled, 'broken'), /fixture resolution/);
-    assert.throws(() => evaluate(config, 'broken'), /fixture resolution/);
+    assert.match(patch, /name: '@deepseek-ai\/dsh-tool-subagent-control'\n\s+config:\n\s+interrupt: false/, name);
+    assert.match(patch, /provider: spawn\n\s+toolName: subagent\n\s+modelSelection: true\n\s+modelDiscovery: true/, name);
+    assert.doesNotMatch(patch, /list-agents|0\.2\.0|0\.2\.1-rc/, name);
   }
+  for (const name of ['standard', 'cordis']) {
+    const patch = await read(`presets/${name}.patch.yml`);
+    assert.match(patch, /customSkillDirs:\n\s+- !!js .*'@deepseek-ai\/dsh-agent-preset\/package\.json'.*'skills'\)/, name);
+  }
+  // Gian keeps plugin installation out of the standard preset: the profile is
+  // Proxy-managed and rewritten on launch.
+  const standard = await read('presets/standard.patch.yml');
+  assert.match(standard, /name: '@deepseek-ai\/dsh-plugin-manager\/tools'\n\s+disabled: true/);
 });

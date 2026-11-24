@@ -14,7 +14,7 @@ test('turn terminal waits for native idle, task completion and interaction settl
   state.receive(frame({ type: 'task', task_id: 'bg', status: 'ended', outcome: 'completed' }));
   assert.equal(state.canFinish(true), false);
   assert.equal(state.canFinish(false), false);
-  state.receive({ type: 'event.session.work_changed', session_id: 's1', payload: { busy: false, main_turn_active: false, pending_interaction: 'none' } });
+  state.receive({ type: 'session', change: 'updated', session_id: 's1', session: { id: 's1', activity: 'idle', pending_interaction: 'none' } });
   assert.equal(state.canFinish(false), true);
 });
 

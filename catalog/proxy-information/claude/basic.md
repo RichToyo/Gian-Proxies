@@ -14,7 +14,7 @@ The name and icon stay in the title. Install and update actions and progress com
 
 ## Current release-target snapshot
 
-The candidate release target is Proxy **0.4.2**, Runtime **2.1.330**, pending qualification and publication. This is a publication target, not this machine's install state.
+The candidate release target is Proxy **0.4.3**, Runtime **2.1.330**, pending qualification and publication. This is a publication target, not this machine's install state.
 
 Example target location:
 

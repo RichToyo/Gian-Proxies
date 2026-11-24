@@ -43,6 +43,8 @@ export interface AttachedSession {
     retiredModel: string;
     fallbackModel: string;
   } | null;
+  /** Context window the latest native `request/context` advertised. */
+  contextWindow?: number | undefined;
 }
 
 export interface TurnState {
@@ -101,6 +103,75 @@ export interface InputItem {
 export interface ServiceOptions {
   emit: (event: EmittedEvent) => void;
   pluginVersion?: string;
+  /** DSH home named in actionable credential errors. */
+  dshHome?: string;
+}
+
+export interface RuntimeErrorData {
+  domainCode: 'RUNTIME_AUTH_REQUIRED' | 'RUNTIME_ERROR';
+  message: string;
+  retryable: boolean;
+  details: Record<string, unknown>;
+}
+
+/** DSH LLM failure codes that mean the Provider needs a (valid) credential. */
+const AUTH_FAILURE_CODES = new Set([
+  'MISSING_CREDENTIAL',
+  'INVALID_CREDENTIAL',
+  'AUTH',
+  'ACCOUNT_SIGN_IN_REQUIRED',
+  'ACCOUNT_TOKEN_INVALID',
+  'NO_CREDENTIAL_STORE',
+]);
+
+/** Transient DSH failure codes: the same turn may succeed when sent again.
+ *  DSH's own llm-retry policy has already retried them before failing. */
+const TRANSIENT_FAILURE_CODES = new Set([
+  'RATE_LIMIT',
+  'SERVER',
+  'TIMEOUT',
+  'TRANSPORT',
+  'STREAM_CLOSED',
+  'EMPTY_RESPONSE',
+  'MALFORMED_RESPONSE',
+]);
+
+/**
+ * Project a native `turn/end` `{ kind: 'error', error: LlmFailure }` onto the
+ * Gian turn failure. DSH's own message reaches the user verbatim; credential
+ * failures become RUNTIME_AUTH_REQUIRED with the fix; everything else stays
+ * RUNTIME_ERROR with the native code in details (QUOTA, ACCOUNT_QUOTA and
+ * CONTENT_REFUSED are not retryable; transient codes are).
+ */
+export function nativeTurnError(native: unknown, dshHome?: string): RuntimeErrorData {
+  const record = native !== null && typeof native === 'object' && !Array.isArray(native)
+    ? native as Record<string, unknown>
+    : {};
+  const code = typeof record.code === 'string' && record.code.length > 0 ? record.code : 'UNKNOWN';
+  const nativeMessage = typeof record.message === 'string' ? record.message.trim() : '';
+  const message = nativeMessage.length > 0 ? nativeMessage : `DeepSeek Harness turn failed (${code}).`;
+  const details: Record<string, unknown> = {
+    nativeCode: code,
+    ...(typeof record.status === 'number' ? { status: record.status } : {}),
+    ...(typeof record.requestId === 'string' ? { requestId: record.requestId } : {}),
+    native: (native ?? null) as unknown,
+  };
+  if (AUTH_FAILURE_CODES.has(code)) {
+    const home = dshHome ?? '$DSH_HOME';
+    return {
+      domainCode: 'RUNTIME_AUTH_REQUIRED',
+      message: `${message} Add the Provider's API key under \`refs:\` in ${home}/.credentials.yaml `
+        + '(DEEPSEEK_API_KEY for DeepSeek), or sign in with `dsh` in a terminal, then retry.',
+      retryable: false,
+      details,
+    };
+  }
+  return {
+    domainCode: 'RUNTIME_ERROR',
+    message,
+    retryable: TRANSIENT_FAILURE_CODES.has(code) || /^HTTP_5\d\d$/u.test(code),
+    details,
+  };
 }
 
 export function nowIso(): string {
@@ -112,6 +183,45 @@ export function hashId(parts: unknown[]): string {
   const hash = createHash('sha256');
   hash.update(JSON.stringify(parts));
   return hash.digest('hex').slice(0, 32);
+}
+
+/**
+ * Project one native step's TokenUsage onto Gian usage, cc's convention:
+ * `inputTokens` counts every prompt token (DSH reports cache reads/writes
+ * separately, Anthropic-style), `cachedInputTokens` is the cached part, and
+ * `totalTokens = inputTokens + outputTokens`. Context occupancy is that
+ * prompt size against the route's advertised window (`request/context`).
+ */
+export function usageFromNative(
+  usage: Record<string, unknown>,
+  stepId: string,
+  contextWindow: number | undefined,
+): Record<string, unknown> {
+  const count = (key: string): number => {
+    const value = usage[key];
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  };
+  const cachedInputTokens = count('cacheReadTokens') + count('cacheWriteTokens');
+  const inputTokens = count('inputTokens') + cachedInputTokens;
+  const outputTokens = count('outputTokens');
+  return {
+    stepId,
+    ...(inputTokens > 0
+      ? { context: { used: inputTokens, ...(contextWindow !== undefined ? { window: contextWindow } : {}) } }
+      : {}),
+    conversation: {
+      mode: 'delta',
+      inputTokens,
+      outputTokens,
+      cachedInputTokens,
+      totalTokens: inputTokens + outputTokens,
+    },
+  };
+}
+
+/** A positive safe-integer context window, or undefined. */
+export function contextWindowOf(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
 
 /** `sourceTurnId` is derived from the native session id + native turn ordinal. */
@@ -365,16 +475,26 @@ export class DshProxyService {
    * fails with a durable terminal error and every pending interaction settles
    * as `runtime_ended`; no session may stay open-ended across a crash.
    */
-  handleRuntimeExited(): void {
+  handleRuntimeExited(info: { code?: number | null; signal?: string | null; stderrTail?: string } = {}): void {
+    const exit = info.code !== undefined || info.signal !== undefined
+      ? ` (code=${info.code ?? null}, signal=${info.signal ?? null})`
+      : '';
+    const tail = typeof info.stderrTail === 'string' && info.stderrTail.length > 0
+      ? ` DSH stderr (last lines):\n${info.stderrTail}`
+      : '';
     for (const session of this.sessions.values()) {
       if (session.closed) continue;
       for (const turn of session.turnState.values()) {
         this.terminalEvent(session, turn, 'turn.failed', {
           error: {
             domainCode: 'RUNTIME_ERROR',
-            message: 'The shared DSH runtime process exited before the turn reached a terminal state.',
+            message: `The shared DSH runtime process exited${exit} before the turn reached a terminal state.${tail}`,
             retryable: false,
-            details: { runtimeExited: true },
+            details: {
+              runtimeExited: true,
+              ...(info.code !== undefined ? { exitCode: info.code } : {}),
+              ...(info.signal !== undefined ? { signal: info.signal } : {}),
+            },
           },
         }, session.sequence + 1, 'runtime_ended');
       }
@@ -694,12 +814,7 @@ export class DshProxyService {
         return;
       case 'error':
         this.terminalEvent(session, turn, 'turn.failed', {
-          error: {
-            domainCode: 'RUNTIME_ERROR',
-            message: 'Native turn failed.',
-            retryable: false,
-            details: { native: (reason.error ?? null) as unknown },
-          },
+          error: nativeTurnError(reason.error, this.options.dshHome),
         }, nativeSeq);
         return;
       default:
@@ -854,11 +969,6 @@ export class DshProxyService {
     const usage = data.usage as Record<string, unknown> | undefined;
     if (usage && turn.usageSteps.has(stepIdFor(turn.sourceTurnId, step)) === false) {
       turn.usageSteps.add(stepIdFor(turn.sourceTurnId, step));
-      const inputTokens = numberField(usage, 'inputTokens') ?? 0;
-      const outputTokens = numberField(usage, 'outputTokens') ?? 0;
-      const cacheReadTokens = typeof usage.cacheReadTokens === 'number' ? usage.cacheReadTokens : 0;
-      const cacheWriteTokens = typeof usage.cacheWriteTokens === 'number' ? usage.cacheWriteTokens : 0;
-      const cachedInputTokens = cacheReadTokens + cacheWriteTokens;
       session.sequence += 1;
       this.emit('usage.updated', {
         eventId: this.nextEventId(session, 'usage-updated', nativeSeq),
@@ -868,16 +978,7 @@ export class DshProxyService {
         turnId: turn.gianTurnId,
         sourceTurnId: turn.sourceTurnId,
         emittedAt: nowIso(),
-        data: {
-          stepId: stepIdFor(turn.sourceTurnId, step),
-          conversation: {
-            mode: 'delta',
-            inputTokens,
-            outputTokens,
-            ...(cachedInputTokens === 0 ? {} : { cachedInputTokens }),
-            totalTokens: inputTokens + outputTokens + cachedInputTokens,
-          },
-        },
+        data: usageFromNative(usage, stepIdFor(turn.sourceTurnId, step), session.contextWindow),
       });
     }
   }
@@ -987,8 +1088,9 @@ export class DshProxyService {
     const reason = data.reason === 'resume' ? 'resume' : data.reason === 'change' ? 'change' : 'initial';
     const header = (data.header ?? {}) as Record<string, unknown>;
     const config = (header.config ?? {}) as Record<string, unknown>;
-    const model = config.model !== undefined ? String(config.model) : 'deepseek-chat';
-    const provider = config.provider !== undefined ? String(config.provider) : 'deepseek';
+    // A header without a model id carries no model fact; none is invented.
+    const model = typeof config.model === 'string' && config.model.length > 0 ? config.model : null;
+    const provider = typeof config.provider === 'string' ? config.provider : undefined;
     session.sequence += 1;
     this.emit('request.updated', {
       eventId: this.nextEventId(session, 'request-updated', nativeSeq),
@@ -1002,7 +1104,7 @@ export class DshProxyService {
         requestId: `request-${stepIdFor(turn.sourceTurnId, step)}`,
         reason,
         stepId: stepIdFor(turn.sourceTurnId, step),
-        model: { provider, id: model },
+        ...(model === null ? {} : { model: { ...(provider === undefined ? {} : { provider }), id: model } }),
         ...(typeof header.system === 'string' ? { systemPrompt: { text: header.system, truncated: false } } : {}),
         ...(Array.isArray(header.tools)
           ? { tools: (header.tools as Array<Record<string, unknown>>).map((tool) => ({ name: String(tool.name ?? '') })) }
@@ -1012,11 +1114,12 @@ export class DshProxyService {
   }
 
   private onRequestContext(session: AttachedSession, data: Record<string, unknown>, nativeSeq: number): void {
+    const contextWindow = contextWindowOf(data.contextWindow);
+    // The window describes the route of every later request until the next
+    // request/context, so usage occupancy can report it.
+    session.contextWindow = contextWindow;
     const turn = session.activeTurn ? session.turnState.get(session.activeTurn) : undefined;
     if (!turn) return;
-    const contextWindow = typeof data.contextWindow === 'number'
-      ? data.contextWindow
-      : undefined;
     session.sequence += 1;
     this.emit('request.updated', {
       eventId: this.nextEventId(session, 'request-context', nativeSeq),

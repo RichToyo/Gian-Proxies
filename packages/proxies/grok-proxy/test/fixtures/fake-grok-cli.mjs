@@ -22,6 +22,11 @@ function extDispatch(method, handle) {
   return handle();
 }
 
+if (process.env.GROK_TEST_STARTUP_FAIL === '1') {
+  process.stderr.write('error: sandbox profile "workspace" could not be applied: seatbelt unavailable\n');
+  process.exit(2);
+}
+
 if (process.env.GROK_TEST_SPAWN_RECORD) {
   await writeFile(process.env.GROK_TEST_SPAWN_RECORD, JSON.stringify({
     argv: process.argv.slice(2),
@@ -141,9 +146,6 @@ new AgentSideConnection((agentConn) => ({
       if (logical === 'x.ai/session/usage') {
         return { usage: {} };
       }
-      if (logical === 'x.ai/session/update_mcp_servers') {
-        return { ok: true };
-      }
       throw RequestError.methodNotFound(method);
     });
   },
@@ -153,6 +155,11 @@ new AgentSideConnection((agentConn) => ({
     }
   },
   async prompt() {
+    if (process.env.GROK_TEST_PROMPT === 'crash') {
+      process.stderr.write('thread panicked: model stream ended unexpectedly\n');
+      setTimeout(() => process.exit(3), 10);
+      return new Promise(() => {});
+    }
     await agentConn.sessionUpdate({
       sessionId: 'native-new',
       update: {

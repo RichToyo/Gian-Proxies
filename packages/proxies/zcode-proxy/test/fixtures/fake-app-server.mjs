@@ -22,8 +22,28 @@ const log = (entry) => {
 };
 
 let nextServerId = 1;
+// Sessions persist across app-server processes (like ZCode's SQLite store)
+// when the scenario asks for it, so an idle-stopped runtime can resume them.
+const sessionStorePath = scenario.behavior?.persistSessions && scenarioPath ? `${scenarioPath}.sessions.json` : null;
+const persistedSessions = sessionStorePath && fs.existsSync(sessionStorePath)
+  ? JSON.parse(fs.readFileSync(sessionStorePath, 'utf8')) : [];
+function persistSession(sessionId) {
+  if (!sessionStorePath) return;
+  const known = fs.existsSync(sessionStorePath) ? JSON.parse(fs.readFileSync(sessionStorePath, 'utf8')) : [];
+  if (!known.includes(sessionId)) fs.writeFileSync(sessionStorePath, JSON.stringify([...known, sessionId]));
+}
+log({
+  kind: 'start',
+  env: Object.fromEntries(['HOME', 'SHELL', 'HTTPS_PROXY', 'NO_PROXY', 'PATH', 'GIAN_PLUGIN_ID', 'GIAN_AGENT_HOME',
+    'GIAN_RUNTIME_BIN', 'GIAN_ZCODE_IDLE_TIMEOUT_MS', 'NODE_OPTIONS', 'ZCODE_TEST_PASSTHROUGH']
+    .map((key) => [key, process.env[key] ?? null])),
+});
+if (scenario.behavior?.exitOnStart) {
+  process.stderr.write(`${scenario.behavior.exitOnStart.stderr ?? 'fixture startup failure'}\n`);
+  setTimeout(() => process.exit(scenario.behavior.exitOnStart.code ?? 1), 20);
+}
 const state = {
-  sessions: [], // known native session ids (created, resumed, or forked)
+  sessions: [...persistedSessions], // known native session ids (created, resumed, or forked)
   // Sessions created through the LEGACY session/create surface. Real 0.16.9
   // keeps those rows outside the v4 conversation store, so a v4 sendText
   // against them dies on the session_input foreign key — the fake reproduces
@@ -204,6 +224,10 @@ async function runTurnScript(script, sessionId) {
       await sleep(event.ms ?? 10);
       continue;
     }
+    if (event.op === 'stderr') {
+      process.stderr.write(`${event.text}\n`);
+      continue;
+    }
     const nativeEventId = event.eventId ?? `evt_${Math.random().toString(36).slice(2, 10)}`;
     if (event.channel === 'computer-use') {
       write({
@@ -243,6 +267,8 @@ const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
 rl.on('line', (line) => {
   const trimmed = line.trim();
   if (trimmed === '') return;
+  // A Runtime that fails at startup never answers.
+  if (scenario.behavior?.exitOnStart) return;
   let envelope;
   try {
     envelope = JSON.parse(trimmed);
@@ -431,7 +457,12 @@ async function handle(request) {
         // take a sendText while a legacy-created one cannot.
         const sessionId = `sess_${Math.random().toString(36).slice(2, 12)}`;
         state.sessions.push(sessionId);
+        persistSession(sessionId);
         await reverseRequest('session/requestRuntimePreferences', { sessionId, scope: 'runtime-materialization' });
+        if (scenario.behavior?.cipherRequest) {
+          const answer = await reverseRequest('interaction/requestCredentialCipher', scenario.behavior.cipherRequest);
+          log({ kind: 'cipher-answer', answer });
+        }
         reply(id, {
           ack: {
             ...ackBase,
@@ -442,10 +473,14 @@ async function handle(request) {
         return;
       }
       if (params.type === 'stop') {
-        reply(id, { ack: { ...ackBase, status: 'accepted' } });
+        const stopAcks = scenario.behavior?.stopAcks ?? [];
+        const stops = (state.stopCount = (state.stopCount ?? 0) + 1);
+        const status = stopAcks[stops - 1] ?? 'accepted';
+        reply(id, { ack: { ...ackBase, status, ...(status === 'accepted' ? {} : { reasonCode: 'guard.stopTargetChanged' }) } });
         return;
       }
       if (params.type === 'sendText') {
+        if (scenario.behavior?.sendAckDelayMs) await sleep(scenario.behavior.sendAckDelayMs);
         const payload = params.payload ?? {};
         const delivery = payload.requestedDelivery ?? 'startNow';
         if (delivery === 'guide') state.steerCommands.push(params);
@@ -481,7 +516,8 @@ async function handle(request) {
           },
         });
         if (delivery === 'guide') return; // a guide never starts its own turn
-        const script = scenario.turn ?? {};
+        // `turns` scripts the next turns in order; `turn` scripts every other one.
+        const script = (Array.isArray(scenario.turns) ? scenario.turns.shift() : undefined) ?? scenario.turn ?? {};
         if (scenario.behavior?.turnStartedBeforeAck) {
           // Real 0.16.9 emits the typed turn-started operation event on input
           // admission, which can precede the command ack.

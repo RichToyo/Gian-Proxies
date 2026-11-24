@@ -1,3 +1,3 @@
 # Troubleshooting
 
-If authentication is required, log in from the affected Agent HOME. Grok CLI 1.0.41 does not expose the x.ai Steer, Rename or Fork extension methods on its published stdio surface, so Gian does not advertise those actions.
+If Gian reports that Grok requires sign-in, run `grok login` in the affected Agent's maintenance terminal, or configure a model with its own API key in that Agent's `config.toml`. Errors keep the CLI's own text; when the Grok process exits, the message includes what Grok wrote to its error output. A session marked stale after a crash resumes on the next message. If an interrupted turn does not stop within ten seconds, Gian stops the Grok process so the session can continue. Steer, Rename and Fork are offered only after the Runtime confirms the native method; a Method-not-found answer removes the action instead of faking it.

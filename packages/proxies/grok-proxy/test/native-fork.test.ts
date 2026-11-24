@@ -95,7 +95,6 @@ class ExtRecordingAgent {
         if (logical === 'x.ai/skills/list') return { skills: [] };
         if (logical === 'x.ai/hooks/list') return { hooks: [] };
         if (logical === 'x.ai/session/usage') return { usage: {} };
-        if (logical === 'x.ai/session/update_mcp_servers') return { ok: true };
         if (logical === 'x.ai/interject') {
           const sessionId = params && typeof params === 'object'
             ? String((params as { sessionId?: unknown }).sessionId ?? '')
@@ -197,19 +196,14 @@ test('rename sends {sessionId,title,cwd}; an unregistered method refutes the att
   });
 });
 
-test('delete sends cwd scoping; update_mcp_servers sends the admitted list', async () => {
+test('delete sends cwd scoping', async () => {
   await withExtClient({}, async (client, agent) => {
     await client.deleteSession('native-old', '/repo');
-    await client.updateSessionMcpServers('native-new', [
-      { type: 'http', name: 'hosted', url: 'https://hosted.example.com/mcp' },
-    ] as never);
     const del = agent.extRequests.find((item) => item.method === '_x.ai/session/delete');
     assert.deepEqual(del?.params, { sessionId: 'native-old', cwd: '/repo' });
-    const update = agent.extRequests.find((item) => item.method === '_x.ai/session/update_mcp_servers');
-    assert.deepEqual(update?.params, {
-      sessionId: 'native-new',
-      mcpServers: [{ type: 'http', name: 'hosted', url: 'https://hosted.example.com/mcp' }],
-    });
+    // Grok 1.0.92 has no x.ai/session/update_mcp_servers; the client no
+    // longer offers it.
+    assert.equal((client as unknown as Record<string, unknown>).updateSessionMcpServers, undefined);
   });
 });
 

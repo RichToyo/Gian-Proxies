@@ -26,6 +26,8 @@ export interface BridgeSessionCreateParams {
   nativeSessionId?: string;
   hostBindingProof?: string;
   restartNewStream?: boolean;
+  /** Epoch ms after which the Proxy stopped waiting; see BridgeRequest.deadlineAt. */
+  deadlineAt?: number;
 }
 
 export interface BridgeTurnInputItem {
@@ -50,6 +52,7 @@ export interface BridgeSessionForkParams {
   /** Gian id for the fork child, allocated by the proxy. */
   newSessionId: string;
   anchor: BridgeForkAnchor;
+  deadlineAt?: number;
 }
 
 export interface BridgeCustomizationListParams {
@@ -68,6 +71,8 @@ export interface BridgeTurnStartParams {
   turnId: string;
   input: BridgeTurnInputItem[];
   config: Record<string, BridgeJsonValue>;
+  /** The native turn is not admitted after this epoch-ms deadline. */
+  deadlineAt?: number;
 }
 
 export interface BridgeInteractionRequest {
@@ -119,7 +124,7 @@ export interface BridgeHost {
   accountQuotaRead?(params: { provider: string | null; model: string | null; identityNonce: string }): Promise<Record<string, unknown>>;
   catalogResolve(params: Record<string, unknown>): Promise<Record<string, unknown>>;
   sessionCreate(params: BridgeSessionCreateParams): Promise<Record<string, unknown>>;
-  sessionResume(params: { sessionId: string; nativeSessionId: string }): Promise<Record<string, unknown>>;
+  sessionResume(params: { sessionId: string; nativeSessionId: string; deadlineAt?: number }): Promise<Record<string, unknown>>;
   sessionGet(params: { sessionId: string }): Promise<Record<string, unknown>>;
   sessionClose(params: { sessionId: string }): Promise<Record<string, unknown>>;
   sessionNativeList(params: Record<string, unknown>): Promise<Record<string, unknown>>;

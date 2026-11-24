@@ -1,6 +1,6 @@
 {
   "name": "@gian/dsh-proxy",
-  "version": "0.3.13",
+  "version": "0.4.1",
   "private": true,
   "description": "ai.deepseek.harness — shared-scope Gian Proxy translating gian.proxy/2.1 over gian.dsh.bridge/1.0",
   "type": "module",
@@ -26,7 +26,7 @@
     ]
   },
   "scripts": {
-    "build": "pnpm run clean && tsc -p tsconfig.json",
+    "build": "pnpm --filter @gian/proxy-kit build && pnpm run clean && tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "node dist/src/cli/spawn.js",
@@ -34,6 +34,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@gian/proxy-kit": "workspace:*",
     "@gian/proxy-protocol": "https://github.com/RichToyo/Gian/releases/download/proxy-protocol-v1.0.5/gian-proxy-protocol-1.0.5.tgz"
   },
   "devDependencies": {

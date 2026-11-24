@@ -8,25 +8,53 @@
  *
  * DSH 0.2.0 imports `$DSH_HOME/settings.yaml` once and renames it
  * `settings.yaml.imported`. This installer writes only the profile package
- * manifest and the bridge symlink. Credentials stay at
+ * manifest, the bridge symlink and the Gian launch overlay
+ * (`gian-launch.patch.yml`, passed with `dsh --patch`). Credentials stay at
  * `$DSH_HOME/.credentials.yaml`; settings are not copied into the profile
  * directory.
+ *
+ * The DSH home is the Host's Agent Home: `GIAN_AGENT_HOME` wins over an
+ * inherited `DSH_HOME`, and the Proxy hands the result to DSH as `DSH_HOME`.
+ * `~/.agents` (global AGENTS.md and skills) stays shared across Agent Homes:
+ * it is the user's cross-tool instruction root and holds no credentials or
+ * sessions. An inherited `DSH_AGENTS_HOME` still reaches DSH unchanged.
  */
 
 import { createHash } from 'node:crypto';
-import { lstat, mkdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const BRIDGE_PACKAGE_NAME = '@gian/dsh-bridge';
 const PROFILE_MANIFEST_NAME = 'gian-dsh-profile';
 const PROFILE_BUNDLES = ['@deepseek-ai/dsh-base', '@gian/dsh-bridge'];
+const PROFILE_NAME_PATTERN = /^gian-[0-9a-f]{16}$/;
+
+/** Launch overlay file, passed with `dsh --patch` above the home patch. */
+export const LAUNCH_PATCH_NAME = 'gian-launch.patch.yml';
+
+/**
+ * Owner decision: no DSH that Gian launches uploads its Session log to the official
+ * DeepSeek API. `--patch` overlays apply after `$DSH_HOME/cordis.patch.yml`,
+ * so a home patch cannot turn the upload back on. Telemetry is disabled
+ * separately through `DSH_TELEMETRY_DISABLED` (see `bridgeEnvironment`).
+ */
+export const LAUNCH_PATCH = [
+  '# Written by the Gian DSH Proxy on every launch; edits are overwritten.',
+  '# Gian disables the DeepSeek Session-log upload (dsh_session_log) for every',
+  '# DSH it launches. Applied with `dsh --patch`, above $DSH_HOME/cordis.patch.yml.',
+  '- id: session-log-deepseek',
+  '  disabled: true',
+  '',
+].join('\n');
 
 export interface EnsureProfileResult {
   profileName: string;
   profileDir: string;
   bridgePackageDir: string;
+  /** `dsh --patch` overlay carrying the Gian launch policy. */
+  launchPatchPath: string;
   /** Empty when the profile was already consistent (no writes performed). */
   actions: string[];
 }
@@ -49,9 +77,20 @@ export function gianProfileName(
   return `gian-${createHash('sha256').update(identity).digest('hex').slice(0, 16)}`;
 }
 
+/**
+ * The DSH home this Proxy serves: the Host's Agent Home (`GIAN_AGENT_HOME`)
+ * when it is set, else an inherited `DSH_HOME`, else `~/.dsh`.
+ */
 export function dshHome(env: NodeJS.ProcessEnv = process.env): string {
+  const agentHome = env.GIAN_AGENT_HOME?.trim();
+  if (agentHome && isAbsolute(agentHome)) return resolve(agentHome);
   const configured = env.DSH_HOME?.trim();
   return configured ? resolve(configured) : join(homedir(), '.dsh');
+}
+
+/** Path of the launch overlay for this binding's profile. */
+export function launchPatchPath(env: NodeJS.ProcessEnv = process.env, proxyEntry?: string): string {
+  return join(dshHome(env), 'profiles', gianProfileName(env, proxyEntry), LAUNCH_PATCH_NAME);
 }
 
 async function readBridgePackageName(dir: string): Promise<string | null> {
@@ -180,5 +219,49 @@ export async function ensureGianProfile(
     );
   }
 
-  return { profileName, profileDir, bridgePackageDir, actions };
+  const patchPath = join(profileDir, LAUNCH_PATCH_NAME);
+  const patchStats = await lstat(patchPath).catch(() => null);
+  const currentPatch = patchStats !== null && patchStats.isFile()
+    ? await readFile(patchPath, 'utf8')
+    : null;
+  if (currentPatch !== LAUNCH_PATCH) {
+    if (patchStats !== null && !patchStats.isFile()) await rm(patchPath, { recursive: true, force: true });
+    await writeFile(patchPath, LAUNCH_PATCH, 'utf8');
+    actions.push(currentPatch === null ? `created ${LAUNCH_PATCH_NAME}` : `repaired ${LAUNCH_PATCH_NAME}`);
+  }
+
+  for (const removed of await removeStaleProfiles(join(home, 'profiles'), profileName)) {
+    actions.push(`removed stale profile ${removed}`);
+  }
+
+  return { profileName, profileDir, bridgePackageDir, launchPatchPath: patchPath, actions };
+}
+
+/**
+ * The profile name changes with every Proxy, Runtime or data-directory move,
+ * so earlier `gian-<hash>` profiles accumulate. A profile is stale only when
+ * it is a Gian profile whose Bridge symlink no longer resolves: its install is
+ * gone, so no live Gian can boot it. Live sibling bindings (formal and
+ * development Gian side by side), the legacy `gian` profile and anything that
+ * is not exactly a Gian profile are kept.
+ */
+async function removeStaleProfiles(profilesDir: string, current: string): Promise<string[]> {
+  const entries = await readdir(profilesDir, { withFileTypes: true }).catch(() => []);
+  const removed: string[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name === current || !PROFILE_NAME_PATTERN.test(entry.name)) continue;
+    const dir = join(profilesDir, entry.name);
+    try {
+      const manifest = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')) as { name?: unknown };
+      if (manifest.name !== PROFILE_MANIFEST_NAME) continue;
+      const link = join(dir, 'node_modules', '@gian', 'dsh-bridge');
+      if (!(await lstat(link)).isSymbolicLink()) continue;
+      if (await stat(link).then(() => true, () => false)) continue;
+      await rm(dir, { recursive: true, force: true });
+      removed.push(entry.name);
+    } catch {
+      // Unreadable or partial entries are not provably Gian-owned; keep them.
+    }
+  }
+  return removed;
 }

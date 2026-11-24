@@ -10,8 +10,16 @@ import { proxyNotificationSchema, replayEventSchemaUnion, resultSchemas } from '
 
 import { GrokProxyService } from '../src/core/service.js';
 import { NativeTurnIdentityStore } from '../src/protocol/replay-identity.js';
-import { GrokProtocolV2Adapter, type WireRequest } from '../src/protocol/v2-adapter.js';
+import { GrokProtocolV2Adapter, standardError, type WireRequest } from '../src/protocol/v2-adapter.js';
 import type { GrokAcpClient, GrokAcpStopOptions } from '../src/runtime/grok-acp-client.js';
+
+/** The exact refusal Grok 1.0.92 sends for `session/new` without sign-in. */
+function acpAuthRequired() {
+  return Object.assign(new Error('Authentication required'), {
+    code: -32000,
+    data: 'no auth method id provided',
+  });
+}
 
 function v2Request(id: string, method: string, params: Record<string, unknown>): WireRequest {
   return { id, method, params };
@@ -183,7 +191,7 @@ test('concurrent and repeated catalog queries share one process-local inspection
 test('failed catalog inspections clean up and remain retryable', async () => {
   const stopOptions: Array<GrokAcpStopOptions | undefined> = [];
   const failing = fakeRuntime({
-    async ensureStarted() { throw new Error('AUTH_REQUIRED: please login'); },
+    async ensureStarted() { throw acpAuthRequired(); },
     async stop(options?: GrokAcpStopOptions) { stopOptions.push(options); },
   });
   const healthy = fakeRuntime({
@@ -291,7 +299,7 @@ test('rejects a second attached session and non-empty MCP', async () => {
   await service.closeSession({ sessionId: first.session.id });
 });
 
-test('model and reasoning effort use session/set_model, never set_config_option', async () => {
+test('a runtime without native configOptions falls back to session/set_model', async () => {
   const runtime = fakeRuntime();
   const service = new GrokProxyService({
     binaryPath: '/managed/grok',
@@ -1317,15 +1325,13 @@ test('turn config notices stay behind turn.started and usage deltas keep a turn'
     workspace: { cwd: '/workspace', roots: ['/workspace'] },
     config: {},
   })) as { session: { streamId: string } };
-  adapter.beginRequest();
-  await adapter.handle(v2Request('3', 'turn.start', {
+  await adapter.dispatch(v2Request('3', 'turn.start', {
     sessionId: 'host-model-turn',
     streamId: created.session.streamId,
     turnId: 'host-turn-model',
     input: [{ type: 'text', text: 'hi' }],
     config: { model: 'grok-4.6', reasoning_effort: 'low' },
-  }));
-  adapter.flushNotifications();
+  }), (_result, error) => assert.equal(error, undefined));
   for (let attempt = 0; attempt < 50 && !notifications.some(notification => notification.method === 'turn.completed'); attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
@@ -1476,16 +1482,18 @@ test('a failed request flushes held turn notifications instead of dropping them'
     workspace: { cwd: '/workspace', roots: ['/workspace'] },
     config: {},
   })) as { session: { streamId: string } };
-  adapter.beginRequest();
-  await adapter.handle(v2Request('3', 'turn.start', {
+  await adapter.dispatch(v2Request('3', 'turn.start', {
     sessionId: 'host-hold',
     streamId: created.session.streamId,
     turnId: 'host-turn-hold',
     input: [{ type: 'text', text: 'hello' }],
     config: {},
-  }));
-  adapter.flushNotifications();
-  adapter.beginRequest();
+  }), (_result, error) => assert.equal(error, undefined));
+  let failedResponseAt = -1;
+  const pending = adapter.dispatch(v2Request('4', 'catalog.resolve', {}), (_result, error) => {
+    assert.ok(error);
+    failedResponseAt = notifications.length;
+  });
   runtime.emit('sessionUpdate', {
     sessionId: 'native-1',
     update: {
@@ -1493,12 +1501,14 @@ test('a failed request flushes held turn notifications instead of dropping them'
       content: { type: 'text', text: 'streamed-while-held' },
     },
   });
-  await assert.rejects(adapter.handle(v2Request('4', 'catalog.resolve', {})));
-  adapter.flushNotifications();
-  assert.ok(notifications.some(notification => (
+  assert.ok(!notifications.some(notification => notification.method === 'content.delta'));
+  await pending;
+  const deltaAt = notifications.findIndex(notification => (
     notification.method === 'content.delta'
     && (notification.params.data as { delta?: string }).delta === 'streamed-while-held'
-  )));
+  ));
+  assert.ok(deltaAt >= 0);
+  assert.ok(failedResponseAt >= 0 && failedResponseAt <= deltaAt, 'the held delta follows the failed Response');
   releasePrompt?.();
   await service.close();
 });
@@ -1865,16 +1875,90 @@ test('Grok gian.proxy/2 maps ACP session/fork to durable Side Chat and head Fork
   await service.close();
 });
 
-test('auth failures map to AUTH_REQUIRED', async () => {
+test('auth failures map to AUTH_REQUIRED by the ACP auth code and keep the CLI text', async () => {
   const service = new GrokProxyService({
     binaryPath: '/managed/grok',
     createRuntime: () => fakeRuntime({
       async ensureStarted() {
-        throw new Error('AUTH_REQUIRED: please login');
+        throw acpAuthRequired();
       },
     }),
   });
-  await assert.rejects(service.listCapabilities(), /Workbench Terminal/);
+  await assert.rejects(service.listCapabilities(), (error: unknown) => {
+    const value = error as { code?: string; message?: string; details?: Record<string, unknown> };
+    assert.equal(value.code, 'AUTH_REQUIRED');
+    assert.match(value.message ?? '', /Workbench Terminal/);
+    assert.match(value.message ?? '', /no auth method id provided/);
+    assert.equal(value.details?.nativeCode, -32000);
+    return true;
+  });
+});
+
+test('a message that merely mentions auth or 401 is not a sign-in prompt', async () => {
+  const providerError = Object.assign(new Error('OpenAI returned 401 Unauthorized: invalid api key sk-abcdefghijklmnop'), {
+    code: -32603,
+  });
+  const runtime = fakeRuntime({
+    async prompt() {
+      runtime.calls.push('session/prompt');
+      throw providerError;
+    },
+  });
+  const service = new GrokProxyService({ binaryPath: '/managed/grok', createRuntime: () => runtime });
+  const notifications: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const adapter = new GrokProtocolV2Adapter(service, '0.3.0', (method, params) => {
+    notifications.push({ method, params });
+  });
+  await adapter.handle(v2Request('1', 'initialize', {
+    protocol: { name: 'gian.proxy', versions: ['2.1'] },
+    host: { name: 'Gian', version: '0.0.0' },
+  }));
+  const created = await adapter.handle(v2Request('2', 'session.create', {
+    sessionId: 'host-byok-401',
+    workspace: { cwd: '/workspace', roots: ['/workspace'] },
+    config: {},
+  })) as { session: { streamId: string } };
+  await adapter.handle(v2Request('3', 'turn.start', {
+    sessionId: 'host-byok-401',
+    streamId: created.session.streamId,
+    turnId: 'turn-401',
+    input: [{ type: 'text', text: 'hi' }],
+    config: {},
+  }));
+  await waitFor(() => notifications.some(n => n.method === 'turn.failed'), 'turn.failed');
+  const failed = notifications.find(n => n.method === 'turn.failed')!;
+  proxyNotificationSchema.parse({ jsonrpc: '2.0', method: failed.method, params: failed.params });
+  const error = (failed.params.data as { error: { domainCode: string; message: string; details: Record<string, unknown> } }).error;
+  assert.equal(error.domainCode, 'RUNTIME_ERROR');
+  assert.match(error.message, /401 Unauthorized/);
+  assert.doesNotMatch(error.message, /sk-abcdefghijklmnop/);
+  assert.equal(error.details.nativeCode, -32603);
+  await service.close();
+});
+
+test('a sign-in refusal on session/new surfaces RUNTIME_AUTH_REQUIRED on the wire', async () => {
+  const runtime = fakeRuntime({
+    async newSession() {
+      runtime.calls.push('session/new');
+      throw acpAuthRequired();
+    },
+  });
+  const service = new GrokProxyService({ binaryPath: '/managed/grok', createRuntime: () => runtime });
+  const adapter = new GrokProtocolV2Adapter(service, '0.3.0', () => undefined);
+  await adapter.handle(v2Request('1', 'initialize', {
+    protocol: { name: 'gian.proxy', versions: ['2.1'] },
+    host: { name: 'Gian', version: '0.0.0' },
+  }));
+  let answered: unknown;
+  await adapter.dispatch(v2Request('2', 'session.create', {
+    sessionId: 'host-auth',
+    workspace: { cwd: '/workspace', roots: ['/workspace'] },
+    config: {},
+  }), (_result, error) => { answered = error; });
+  const wire = standardError(answered);
+  assert.equal((wire as { domainCode?: string }).domainCode, 'RUNTIME_AUTH_REQUIRED');
+  assert.equal((wire as { details?: Record<string, unknown> }).details?.nativeCode, -32000);
+  assert.match(wire.message, /grok login/);
 });
 
 test('a failed permission notification does not start the turn', async () => {
@@ -3120,5 +3204,133 @@ test('native stop reasons map to the protocol stop table', async () => {
       stopReason,
     );
   }
+  await service.close();
+});
+
+test('kit lanes: requests about one session share a lane, forks queue behind the parent', async () => {
+  const { requestLane, requestScopes } = await import('../src/protocol/v2-adapter.js');
+  assert.equal(requestLane(v2Request('1', 'turn.start', { sessionId: 'a' })), 'a');
+  assert.equal(requestLane(v2Request('2', 'session.fork', { sessionId: 'child', sourceSessionId: 'a' })), 'a');
+  assert.equal(requestLane(v2Request('3', 'sidechat.create', { sidechatId: 's', parentSessionId: 'a' })), 'a');
+  assert.equal(requestLane(v2Request('4', 'sidechat.close', { sidechatId: 's' })), 's');
+  assert.equal(requestLane(v2Request('5', 'catalog.list', {})), '');
+  assert.deepEqual(requestScopes(v2Request('6', 'sidechat.create', { sidechatId: 's', parentSessionId: 'a' })).sort(), ['a', 's']);
+  assert.deepEqual(requestScopes(v2Request('7', 'catalog.list', {})), ['']);
+});
+
+test('notifications wait only for in-flight requests of their own session', async () => {
+  const runtime = fakeRuntime();
+  const service = new GrokProxyService({ binaryPath: '/managed/grok', createRuntime: () => runtime });
+  const log: string[] = [];
+  const adapter = new GrokProtocolV2Adapter(service, '0.3.0', (method, params) => {
+    log.push(`${method}:${String((params.data as { context?: { used?: number } } | undefined)?.context?.used ?? '')}`);
+  });
+  await adapter.handle(v2Request('1', 'initialize', {
+    protocol: { name: 'gian.proxy', versions: ['2.1'] },
+    host: { name: 'Gian', version: '0.0.0' },
+  }));
+  await adapter.handle(v2Request('2', 'session.create', {
+    sessionId: 'host-a',
+    workspace: { cwd: '/workspace', roots: ['/workspace'] },
+    config: {},
+  }));
+  const original = adapter.handle.bind(adapter);
+  const gates = new Map<string, () => void>();
+  adapter.handle = async (request) => {
+    const key = String(request.params.sessionId ?? request.params.sidechatId ?? '');
+    if (request.method === 'session.get' && (key === 'host-a' || key === 'host-b')) {
+      await new Promise<void>((resolve) => gates.set(key, resolve));
+      return { ok: key };
+    }
+    if (request.method === 'sidechat.close') {
+      runtime.emit('sessionUpdate', { sessionId: 'native-1', update: { sessionUpdate: 'usage_update', used: 30, size: 100 } });
+      return { ok: true };
+    }
+    return original(request);
+  };
+  const usage = (used: number) => runtime.emit('sessionUpdate', {
+    sessionId: 'native-1',
+    update: { sessionUpdate: 'usage_update', used, size: 100 },
+  });
+
+  // Another session's in-flight request does not hold this session's stream.
+  const other = adapter.dispatch(v2Request('3', 'session.get', { sessionId: 'host-b' }), () => log.push('response:3'));
+  await waitFor(() => gates.has('host-b'), 'host-b request in flight');
+  usage(10);
+  assert.ok(log.includes('usage.updated:10'));
+
+  // This session's in-flight request holds it until its Response.
+  const own = adapter.dispatch(v2Request('4', 'session.get', { sessionId: 'host-a' }), () => log.push('response:4'));
+  await waitFor(() => gates.has('host-a'), 'host-a request in flight');
+  usage(20);
+  assert.ok(!log.includes('usage.updated:20'));
+  gates.get('host-a')!();
+  await own;
+  assert.ok(log.indexOf('response:4') < log.indexOf('usage.updated:20'));
+  gates.get('host-b')!();
+  await other;
+
+  // sidechat.close releases what it held before its own Response.
+  await adapter.dispatch(v2Request('5', 'sidechat.close', { sidechatId: 'host-a' }), () => log.push('response:5'));
+  assert.ok(log.indexOf('usage.updated:30') < log.indexOf('response:5'));
+  await service.close();
+});
+
+test('an oversized Response becomes a frame-limit error instead of a lost reply', async () => {
+  const runtime = fakeRuntime();
+  const service = new GrokProxyService({ binaryPath: '/managed/grok', createRuntime: () => runtime });
+  const adapter = new GrokProtocolV2Adapter(service, '0.3.0', () => undefined);
+  adapter.handle = async () => ({ blob: 'x'.repeat(17 * 1024 * 1024) });
+  let answered: { result: unknown; error: unknown } | null = null;
+  await adapter.dispatch(v2Request('1', 'session.replay', { sessionId: 'host-a' }), (result, error) => {
+    answered = { result, error };
+  });
+  assert.ok(answered);
+  assert.equal((answered as { error: { domainCode?: string } }).error.domainCode, 'RUNTIME_ERROR');
+  await service.close();
+});
+
+test('turn totals stay conversation deltas and only usage_update sets the context', async () => {
+  const runtime = fakeRuntime({
+    async prompt() {
+      runtime.calls.push('session/prompt');
+      runtime.emit('sessionUpdate', {
+        sessionId: 'native-1',
+        update: { sessionUpdate: 'usage_update', used: 42_000, size: 500_000 },
+      });
+      return {
+        stopReason: 'end_turn',
+        usage: { inputTokens: 40_000, outputTokens: 900, cachedReadTokens: 30_000, thoughtTokens: 120, totalTokens: 40_900 },
+      };
+    },
+  });
+  const service = new GrokProxyService({ binaryPath: '/managed/grok', createRuntime: () => runtime });
+  const notifications: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const adapter = new GrokProtocolV2Adapter(service, '0.3.0', (method, params) => {
+    proxyNotificationSchema.parse({ jsonrpc: '2.0', method, params });
+    notifications.push({ method, params });
+  });
+  await adapter.handle(v2Request('1', 'initialize', {
+    protocol: { name: 'gian.proxy', versions: ['2.1'] },
+    host: { name: 'Gian', version: '0.0.0' },
+  }));
+  const created = await adapter.handle(v2Request('2', 'session.create', {
+    sessionId: 'host-usage',
+    workspace: { cwd: '/workspace', roots: ['/workspace'] },
+    config: {},
+  })) as { session: { streamId: string } };
+  await adapter.handle(v2Request('3', 'turn.start', {
+    sessionId: 'host-usage',
+    streamId: created.session.streamId,
+    turnId: 'turn-usage',
+    input: [{ type: 'text', text: 'hi' }],
+    config: {},
+  }));
+  await waitFor(() => notifications.some(n => n.method === 'turn.completed'), 'turn.completed');
+  const usage = notifications.filter(n => n.method === 'usage.updated').map(n => n.params.data as Record<string, unknown>);
+  assert.deepEqual(usage, [
+    { context: { used: 42_000, window: 500_000 } },
+    { conversation: { mode: 'delta', inputTokens: 40_000, outputTokens: 900, cachedInputTokens: 30_000, totalTokens: 40_900 } },
+  ]);
   await service.close();
 });

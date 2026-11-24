@@ -13,10 +13,11 @@ const pkgRoot = join(here, '..', '..');
 const repoRoot = join(here, '..', '..', '..', '..', '..');
 
 /** The bridge peer range must admit the exact pinned Runtime with real semver
- *  resolution. npm treats prerelease tuples strictly: `^0.2.0-rc.2` does NOT
- *  satisfy 0.2.1-rc.2, so the range must name the 0.2.1 RC line explicitly
- *  while retaining the 0.2.0 RC line. */
-test('bridge peer range admits the pinned DSH runtime and retains the 0.2.0 RC line', () => {
+ *  resolution, and only Runtimes whose packages the bundled presets mount.
+ *  The presets follow 0.2.2-rc.5 (tool-office, tool-executor-ptc, subagent
+ *  `interrupt`), which 0.2.0/0.2.1 do not ship; DSH refuses to boot a profile
+ *  bundle whose peer range excludes it, which is the honest failure. */
+test('bridge peer range admits the pinned DSH runtime and only preset-compatible Runtimes', () => {
   const bridgePkg = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8'));
   const range = bridgePkg.peerDependencies['@deepseek-ai/dsh'];
   assert.equal(typeof range, 'string');
@@ -36,9 +37,10 @@ test('bridge peer range admits the pinned DSH runtime and retains the 0.2.0 RC l
 
   assert.equal(satisfies(pinned, range, { includePrerelease: false }), true,
     `${pinned} must satisfy the bridge peer range ${range}`);
-  assert.equal(satisfies('0.2.1-rc.2', range), true, 'the current published Runtime must stay admitted');
-  assert.equal(satisfies('0.2.0-rc.2', range), true,
-    'the 0.2.0 RC line must stay admitted');
+  assert.equal(satisfies('0.2.2-rc.3', range), true, 'the published 0.3.13 Runtime must stay admitted');
+  assert.equal(satisfies('0.2.2-rc.4', range), false, 'an unqualified prerelease must not be admitted');
+  assert.equal(satisfies('0.2.1-rc.2', range), false, 'Runtimes without the preset packages must be refused');
+  assert.equal(satisfies('0.2.0-rc.2', range), false, 'Runtimes without the preset packages must be refused');
   assert.equal(satisfies('0.2.1-alpha.5', range), false,
     'the alpha channel must not be silently admitted');
   assert.equal(satisfies('0.3.0', range), false,

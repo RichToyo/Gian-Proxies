@@ -48,6 +48,7 @@ export class BridgeServer {
     id: string;
     method: string;
     params: Record<string, unknown>;
+    deadlineAt?: number;
   }): Promise<Record<string, unknown>> {
     if (this.shuttingDown) {
       throw new BridgeProtocolError(-32000, 'Bridge is shutting down.', 'RUNTIME_UNAVAILABLE');
@@ -72,19 +73,22 @@ export class BridgeServer {
     id: string;
     method: string;
     params: Record<string, unknown>;
+    deadlineAt?: number;
   }): Promise<Record<string, unknown>> {
     const host = this.options.host;
+    const deadline = request.deadlineAt === undefined ? {} : { deadlineAt: request.deadlineAt };
     switch (request.method) {
       case 'catalog.list':
         return host.catalogList();
       case 'catalog.resolve':
         return host.catalogResolve(request.params);
       case 'session.create':
-        return host.sessionCreate(this.sessionCreateParams(request.params));
+        return host.sessionCreate({ ...this.sessionCreateParams(request.params), ...deadline });
       case 'session.resume':
         return host.sessionResume({
           sessionId: stringField(request.params, 'sessionId'),
           nativeSessionId: stringField(request.params, 'nativeSessionId'),
+          ...deadline,
         });
       case 'session.get':
         return host.sessionGet({ sessionId: stringField(request.params, 'sessionId') });
@@ -108,7 +112,7 @@ export class BridgeServer {
         });
       }
       case 'turn.start':
-        return host.turnStart(this.turnStartParams(request.params));
+        return host.turnStart({ ...this.turnStartParams(request.params), ...deadline });
       case 'turn.steer': {
         const turnId = optionalString(request.params, 'turnId');
         return host.turnSteer({
@@ -131,6 +135,7 @@ export class BridgeServer {
           sessionId: stringField(request.params, 'sessionId'),
           newSessionId: stringField(request.params, 'newSessionId'),
           anchor: forkAnchor(request.params.anchor),
+          ...deadline,
         });
       case 'account.quota.read':
         if (!host.accountQuotaRead) throw new BridgeProtocolError(-32601, 'Account quota is unsupported.');

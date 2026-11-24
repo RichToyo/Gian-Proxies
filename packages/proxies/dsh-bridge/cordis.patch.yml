@@ -34,8 +34,6 @@
   disabled: true
 - id: tool-subagent-control
   disabled: true
-- id: tool-subagent-list-agents
-  disabled: true
 - id: tool-subagent
   disabled: true
 - id: tool-subagent-fork
@@ -49,6 +47,13 @@
 - id: tool-todo
   disabled: true
 - id: tool-web
+  disabled: true
+
+# Owner decision: no DSH that Gian launches uploads its Session log to the
+# official DeepSeek API (`dsh_session_log`). The Proxy repeats this row in its
+# `--patch` launch overlay, which outranks $DSH_HOME/cordis.patch.yml.
+# OTel telemetry is disabled by the Proxy's DSH_TELEMETRY_DISABLED=1.
+- id: session-log-deepseek
   disabled: true
 
 - insert:
@@ -81,6 +86,13 @@
 
     - id: cordis-inspect-providers
       name: '@deepseek-ai/dsh-tool-cordis/host'
+
+    # Packaged Office skills that activate each preset's tool-office row.
+    # Like every non-Desktop upstream profile, they use the user's Python.
+    - id: skill-office
+      name: '@deepseek-ai/dsh-skill-office'
+      config:
+        pythonEnvironment: user
 
     - id: agent-preset-registry
       name: '@deepseek-ai/dsh-agent-preset-registry'
