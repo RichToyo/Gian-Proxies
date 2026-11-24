@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "Gian-Proxies",
   "sourceRepository": "RichToyo/Gian-Dev",
-  "sourceCommit": "4c87f7037d669245fe305212cfcffacd4a07b88a",
+  "sourceCommit": "83e01a6f82835f558b730d3dccbe858cb0c32290",
   "workingTree": false,
   "externalPackages": [
     {
@@ -576,7 +576,7 @@
     {
       "source": "delivery/proxies/scripts/dsh-hosted-smoke.mjs",
       "path": "scripts/dsh-hosted-smoke.mjs",
-      "sha256": "c9dbbe3fca920031bb6940cf57b53eda9d37b4027630ec4ca9309d386688b8e0"
+      "sha256": "ce5c8eb85a802ec7b672dafea0fd44ffd5236830b4fcc6ba28a521ec32a74fad"
     },
     {
       "source": "delivery/proxies/scripts/grok-native-comparison.mjs",
@@ -606,7 +606,7 @@
     {
       "source": "packages/host/src/runtime/dev-runtime-coordinates.json",
       "path": "support/runtime-extractor/dev-runtime-coordinates.json",
-      "sha256": "ac54bd50566779541d91c1143a9debea7efc00412aa171278eff2265396fd186"
+      "sha256": "5197cf9c8ba937042cbde876519a81aaa01313e8475741c89f05ffa17d351f09"
     },
     {
       "source": "packages/host/src/runtime/errors.ts",
@@ -6658,7 +6658,7 @@
     {
       "path": "scripts/dsh-hosted-smoke.mjs",
       "mode": 420,
-      "sha256": "c9dbbe3fca920031bb6940cf57b53eda9d37b4027630ec4ca9309d386688b8e0"
+      "sha256": "ce5c8eb85a802ec7b672dafea0fd44ffd5236830b4fcc6ba28a521ec32a74fad"
     },
     {
       "path": "scripts/grok-native-comparison.mjs",
@@ -6743,7 +6743,7 @@
     {
       "path": "support/runtime-extractor/dev-runtime-coordinates.json",
       "mode": 420,
-      "sha256": "ac54bd50566779541d91c1143a9debea7efc00412aa171278eff2265396fd186"
+      "sha256": "5197cf9c8ba937042cbde876519a81aaa01313e8475741c89f05ffa17d351f09"
     },
     {
       "path": "support/runtime-extractor/src/errors.ts",

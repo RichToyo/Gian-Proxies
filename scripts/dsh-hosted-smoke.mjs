@@ -26,7 +26,7 @@ const temporary = await mkdtemp(join(tmpdir(), 'gian-dsh-hosted-'));
 try {
   const history = JSON.parse(await readFile(join(root, 'catalog/proxy-information/evidence/current-combinations.json'), 'utf8'));
   const baseline = history.plugins.find(item => item.id === 'ai.deepseek.harness')?.combination?.runtime;
-  assert.equal(baseline?.version, '0.2.2-rc.2');
+  assert.equal(baseline?.version, '0.2.2-rc.3');
   const baseUrl = new URL(baseline.asset.url);
   assert.equal(baseUrl.origin, 'https://github.com');
   const parts = baseUrl.pathname.split('/');
