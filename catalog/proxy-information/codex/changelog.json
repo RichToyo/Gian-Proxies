@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "codex",
-  "currentVersion": "0.3.15",
+  "currentVersion": "0.4.1",
   "entries": [
+    {
+      "version": "0.4.1",
+      "firstPublishedAt": "2026-11-24T07:58:43Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-codex-v0.4.1",
+          "publishedAt": "2026-11-24T07:58:43Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.4.1",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.4.1/gian-proxy-codex-0.4.1-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "f82642037ccf0743cc334e52894dfcc9198b29af78d4a6eec4b5c427bbf117fe",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-codex-v0.4.1/gian-proxy-codex-0.4.1-darwin-arm64.tar.gz",
+            "sha256": "3191f358ee2c19999342ab5c5bdcc0ec4f9dbf9bd91a47870a9954ba1b702cc7",
+            "size": 254020
+          },
+          "runtimeDeclaration": {
+            "id": "codex",
+            "versions": [
+              "0.171.0"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Upgrade the managed Codex Runtime from 0.169.1 to official 0.171.0 with pinned archive bytes. Serve sessions on per-session lanes so a slow session no longer stalls others; a timed-out request fails only itself instead of restarting the shared app-server; interrupts are bounded and end as interrupted. Keep Codex's own error text, report sign-in failures and HTTP 401 as sign-in required, refuse unknown server requests, and map the Agent HOME onto CODEX_HOME in the Proxy. Retain read-only ChatGPT subscription quota inspection with failure causes logged. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.4.1",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.4.1/packages/proxies/codex-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.15",
       "firstPublishedAt": "2026-11-18T04:05:28Z",

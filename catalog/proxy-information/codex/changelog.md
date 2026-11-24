@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.15**, Runtime **0.169.1**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.1**, Runtime **0.171.0**. These are distribution targets, not this machine's installed state.
+
+## 0.4.1
+
+First published: 2026-11-24T07:58:43Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.4.1): 2026-11-24T07:58:43Z.
+- CLI: 0.171.0 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Upgrade the managed Codex Runtime from 0.169.1 to official 0.171.0 with pinned archive bytes. Serve sessions on per-session lanes so a slow session no longer stalls others; a timed-out request fails only itself instead of restarting the shared app-server; interrupts are bounded and end as interrupted. Keep Codex's own error text, report sign-in failures and HTTP 401 as sign-in required, refuse unknown server requests, and map the Agent HOME onto CODEX_HOME in the Proxy. Retain read-only ChatGPT subscription quota inspection with failure causes logged. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-codex-v0.4.1) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-codex-v0.4.1/packages/proxies/codex-proxy/README.md)
 
 ## 0.3.15
 

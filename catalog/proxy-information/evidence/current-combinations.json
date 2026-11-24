@@ -1,27 +1,27 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.74.0",
-  "sequence": 74,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.75.0",
+  "sequence": 75,
   "sourceId": "gian-official",
   "plugins": [
     {
       "id": "claude",
       "displayName": "Claude Code",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "session",
       "combination": {
         "certificate": {
-          "id": "proxies-5ab74e8894081193da9dc75f539814bf1fa237ff-45127018091-1",
-          "sha256": "8871fbeb5ba0307f7c1ca01c8ed1a3cbd33dfb4c0bc9b34fc3debe08ac97aa93"
+          "id": "proxies-bbf36e5df7c0738b587fd8f28710d54cea63b5df-45349539300-1",
+          "sha256": "289d30e1fa69f1515f9ec407fd45462c311b4ffe8335d20d60f2d4c7a6f7d909"
         },
         "companions": [],
-        "generationId": "claude-0.4.2-runtime-2.1.330",
+        "generationId": "claude-0.4.3-runtime-2.1.330",
         "runtime": {
           "kind": "native-binary",
           "runtimeId": "claude",
           "version": "2.1.330",
           "asset": {
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.4.2/claude-2.1.330-darwin-arm64",
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.4.3/claude-2.1.330-darwin-arm64",
             "sha256": "f7c5093b9dd6560d08af28bc27b123fb55091deae3180ac39df199522da86815",
             "size": 363855808
           },
@@ -33,162 +33,162 @@
     {
       "id": "codex",
       "displayName": "Codex",
-      "version": "0.3.15",
+      "version": "0.4.1",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "shared",
       "combination": {
         "certificate": {
-          "id": "proxies-eb6357b690e9dea54b5de6e58b82ca671f6db44a-44234460075-1",
-          "sha256": "e01d1017b1fcfc4e2a0a37c0249912dfa4f4408fd9598c5862a5f90f627be009"
+          "id": "proxies-bbf36e5df7c0738b587fd8f28710d54cea63b5df-45349539300-1",
+          "sha256": "289d30e1fa69f1515f9ec407fd45462c311b4ffe8335d20d60f2d4c7a6f7d909"
         },
         "companions": [],
-        "generationId": "codex-0.3.15-runtime-0.169.1",
+        "generationId": "codex-0.4.1-runtime-0.171.0",
         "runtime": {
-          "asset": {
-            "sha256": "1f39d0dc51f55103d8b043332e0b3dba53b35295392899a911a7714a4c342dcd",
-            "size": 172465794,
-            "url": "https://github.com/openai/codex/releases/download/rust-v0.169.1/codex-package-aarch64-apple-darwin.tar.gz"
-          },
-          "entryRelativePath": "bin/codex",
-          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "codex",
-          "version": "0.169.1"
+          "version": "0.171.0",
+          "asset": {
+            "url": "https://github.com/openai/codex/releases/download/rust-v0.171.0/codex-package-aarch64-apple-darwin.tar.gz",
+            "sha256": "58c88032ec446e72922d911d8f03773102da20c16a6059cf21f6744bce57f210",
+            "size": 176190739
+          },
+          "format": "tar.gz",
+          "entryRelativePath": "bin/codex"
         }
       }
     },
     {
       "id": "kimi",
       "displayName": "Kimi Code",
-      "version": "0.4.17",
+      "version": "0.5.0",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "shared",
       "combination": {
         "certificate": {
-          "id": "proxies-612b57cddcb9188c2596ce79327a6e4a876b59f3-44367108634-1",
-          "sha256": "f9dffa35b9e7fd8f1a5f828431ed791f06020d7ab8d039a03847905c6517134b"
+          "id": "proxies-bbf36e5df7c0738b587fd8f28710d54cea63b5df-45349539300-1",
+          "sha256": "289d30e1fa69f1515f9ec407fd45462c311b4ffe8335d20d60f2d4c7a6f7d909"
         },
         "companions": [],
-        "generationId": "kimi-0.4.17-runtime-2.6.3",
+        "generationId": "kimi-0.5.0-runtime-2.7.2",
         "runtime": {
-          "asset": {
-            "sha256": "2f65c94f666b02641a20d305d84a3f5513938bf21d4884c82f9e479ffebccc00",
-            "size": 59942626,
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.4.17/kimi-2.6.3-darwin-arm64.tar.gz"
-          },
-          "entryRelativePath": "kimi",
-          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "kimi",
-          "version": "2.6.3"
+          "version": "2.7.2",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.0/kimi-2.7.2-darwin-arm64.tar.gz",
+            "sha256": "46cb6bf4afe3a6d7931e0a47418035fde53a43b286329c8dabb5f71bfc9e71b4",
+            "size": 61167615
+          },
+          "format": "tar.gz",
+          "entryRelativePath": "kimi"
         }
       }
     },
     {
       "id": "ai.deepseek.harness",
       "displayName": "DeepSeek Harness",
-      "version": "0.3.13",
+      "version": "0.4.1",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "shared",
       "combination": {
         "certificate": {
-          "id": "proxies-197b4b8f1111124642e62b1b453a9538e5741305-43484231391-1",
-          "sha256": "41d83dfc9be42d2d278dc5234c5acc522b573dfdd4acf356c61ec538bd0667b3"
+          "id": "proxies-bbf36e5df7c0738b587fd8f28710d54cea63b5df-45349539300-1",
+          "sha256": "289d30e1fa69f1515f9ec407fd45462c311b4ffe8335d20d60f2d4c7a6f7d909"
         },
         "companions": [],
-        "generationId": "dsh-0.3.13-runtime-0.2.2-rc.3",
+        "generationId": "dsh-0.4.1-runtime-0.2.2-rc.5",
         "runtime": {
-          "asset": {
-            "sha256": "4813830917dd06d240a1350e0e8ea63cd5a01d12e67ea402172842c459177c46",
-            "size": 226412398,
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.3.13/gian-runtime-dsh-0.2.2-rc.3-darwin-arm64.tar.gz"
-          },
-          "entryRelativePath": "node_modules/@deepseek-ai/dsh/lib/bin.js",
-          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "deepseek-harness",
-          "version": "0.2.2-rc.3"
+          "version": "0.2.2-rc.5",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.4.1/gian-runtime-dsh-0.2.2-rc.5-darwin-arm64.tar.gz",
+            "sha256": "19991f6c1a76122126c4359a3a574ac6fbf2dd46c8a5d9071c094844a3ee053b",
+            "size": 227549134
+          },
+          "format": "tar.gz",
+          "entryRelativePath": "node_modules/@deepseek-ai/dsh/lib/bin.js"
         }
       }
     },
     {
       "id": "com.zhipu.zcode",
       "displayName": "ZCode",
-      "version": "0.4.7",
+      "version": "0.5.0",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "shared",
       "combination": {
         "certificate": {
-          "id": "proxies-9bd1222dbcd765eea845fab76521efecb7b6477c-39597322631-1",
-          "sha256": "1a5f122915b2e741a3ac4abb9f9ae2626d0968ee3584b0ae2f87d05bcce0ba8f"
+          "id": "proxies-bbf36e5df7c0738b587fd8f28710d54cea63b5df-45349539300-1",
+          "sha256": "289d30e1fa69f1515f9ec407fd45462c311b4ffe8335d20d60f2d4c7a6f7d909"
         },
         "companions": [],
-        "generationId": "zcode-0.4.7-runtime-0.17.0",
+        "generationId": "zcode-0.5.0-runtime-0.17.1",
         "runtime": {
-          "asset": {
-            "sha256": "9f8de44ba5778853235cb9e2cd9813378fd51382ccc14af115fbe13be131186f",
-            "size": 83430722,
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-zcode-v0.4.7/zcode.tar.gz"
-          },
-          "entryRelativePath": "zcode/agent/zcode.cjs",
-          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "zcode",
-          "version": "0.17.0"
+          "version": "0.17.1",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-zcode-v0.5.0/zcode.tar.gz",
+            "sha256": "5845804b315e419ef17e99cec0c60e93e96dd26ee414827b26e134614735a5e5",
+            "size": 89011649
+          },
+          "format": "tar.gz",
+          "entryRelativePath": "zcode/agent/zcode.cjs"
         }
       }
     },
     {
       "id": "grok",
       "displayName": "Grok Build",
-      "version": "0.3.17",
+      "version": "0.4.0",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "session",
       "combination": {
         "certificate": {
-          "id": "proxies-d197a82f779a44f1764463b9cb1ce3601afe9e6f-44375328237-1",
-          "sha256": "d6010be60d7fb1862cadb4f1ad406a01306876de2435f8b341342634bbe8c9ee"
+          "id": "proxies-bbf36e5df7c0738b587fd8f28710d54cea63b5df-45349539300-1",
+          "sha256": "289d30e1fa69f1515f9ec407fd45462c311b4ffe8335d20d60f2d4c7a6f7d909"
         },
         "companions": [],
-        "generationId": "grok-0.3.17-runtime-1.0.89",
+        "generationId": "grok-0.4.0-runtime-1.0.92",
         "runtime": {
-          "asset": {
-            "sha256": "f149e6ad81339491f8d6e0c5fd712f2813042c0dfbb595c28d5767e4567c17a1",
-            "size": 190386368,
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.3.17/grok-1.0.89-darwin-arm64"
-          },
-          "entryRelativePath": "bin/grok",
-          "format": "raw",
           "kind": "native-binary",
           "runtimeId": "grok",
-          "version": "1.0.89"
+          "version": "1.0.92",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.4.0/grok-1.0.92-darwin-arm64",
+            "sha256": "8b5f67b24f2cc9a4341d8e2eb7f67e3228d7d647ed04752a4f932f7133e5ab08",
+            "size": 190640272
+          },
+          "format": "raw",
+          "entryRelativePath": "bin/grok"
         }
       }
     },
     {
       "id": "io.gian.antigravity",
       "displayName": "Antigravity",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "shared",
       "combination": {
         "certificate": {
-          "id": "proxies-0a7c32eff368d9f18ae4b6532cda8ba7bebb2387-45109711961-1",
-          "sha256": "53233c13b222b0230ab9a20511ee6ce642f85e5db717810cdc9546f865f6d09f"
+          "id": "proxies-bbf36e5df7c0738b587fd8f28710d54cea63b5df-45349539300-1",
+          "sha256": "289d30e1fa69f1515f9ec407fd45462c311b4ffe8335d20d60f2d4c7a6f7d909"
         },
         "companions": [],
-        "generationId": "antigravity-0.1.0-runtime-1.5.14",
+        "generationId": "antigravity-0.1.1-runtime-1.5.16",
         "runtime": {
-          "asset": {
-            "sha256": "624a2c06fe1286d4f4e6b366f066bef31d031eb3e510688ed090719a1ae89fc5",
-            "size": 85907847,
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.1.0/gian-runtime-antigravity-1.5.14-darwin-arm64.tar.gz"
-          },
-          "entryRelativePath": "agy",
-          "format": "tar.gz",
           "kind": "native-binary",
           "runtimeId": "antigravity-acp",
-          "version": "1.5.14"
+          "version": "1.5.16",
+          "asset": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-antigravity-v0.1.1/gian-runtime-antigravity-1.5.16-darwin-arm64.tar.gz",
+            "sha256": "42490dbd4ff469c3a651731c37dafb45153c5bb3dcc8f0b8141742d1be322290",
+            "size": 86463263
+          },
+          "format": "tar.gz",
+          "entryRelativePath": "agy"
         }
       }
     }

@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "kimi",
-  "currentVersion": "0.4.17",
+  "currentVersion": "0.5.0",
   "entries": [
+    {
+      "version": "0.5.0",
+      "firstPublishedAt": "2026-11-24T07:58:49Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-kimi-v0.5.0",
+          "publishedAt": "2026-11-24T07:58:49Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.5.0",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.0/gian-proxy-kimi-0.5.0-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "a4258c0554c68b3ef9831c10c00d476e201e3bae3ddcedf513a589efba94d6b0",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.0/gian-proxy-kimi-0.5.0-darwin-arm64.tar.gz",
+            "sha256": "0b61d286dd636832e6a07fd481628774075ccaf0c37dce1f72179bc67e3f39e4",
+            "size": 221576
+          },
+          "runtimeDeclaration": {
+            "id": "kimi",
+            "versions": [
+              "2.7.2"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Port to Kimi Code 2.7 and upgrade the managed Runtime from 2.6.3 to 2.7.2 with pinned archive bytes: kimi web --json, the 2.7 session API and context usage frame, and native forks for Side Chat and turn forks. Only Kimi Code 2.7.1 and 2.7.2 are accepted. Serve sessions on per-session lanes, keep Kimi's own error text, report authentication errors as sign-in required, and report usage as one delta per Gian turn, which Gian 0.6.16 or later records. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.5.0",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.5.0/packages/proxies/kimi-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.4.17",
       "firstPublishedAt": "2026-11-18T18:27:12Z",

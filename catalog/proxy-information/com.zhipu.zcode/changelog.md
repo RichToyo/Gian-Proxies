@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.7**, Runtime **0.17.0**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.5.0**, Runtime **0.17.1**. These are distribution targets, not this machine's installed state.
+
+## 0.5.0
+
+First published: 2026-11-24T07:59:19Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-zcode-v0.5.0): 2026-11-24T07:59:19Z.
+- CLI: 0.17.1 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Upgrade the Gian-built ZCode Runtime from App-source 3.16.2 (CLI 0.17.0) to v3.18.2 at commit fec9759 (CLI 0.17.1), with 3.18's Keychain-encrypted credentials supported, without altering original upstream source or notices. End failed turns with ZCode's own text instead of leaving the session busy, report sign-in, API-key and Keychain failures as sign-in required, label usage per turn, bound interrupts, inherit the environment minus Gian internals, and stop an idle app-server after 10 minutes but never while a background task runs. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-zcode-v0.5.0) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-zcode-v0.5.0/packages/proxies/zcode-proxy/README.md)
 
 ## 0.4.7
 

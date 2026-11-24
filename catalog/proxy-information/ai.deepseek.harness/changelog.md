@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.13**, Runtime **0.2.2-rc.3**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.1**, Runtime **0.2.2-rc.5**. These are distribution targets, not this machine's installed state.
+
+## 0.4.1
+
+First published: 2026-11-24T07:59:01Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.4.1): 2026-11-24T07:59:01Z.
+- CLI: 0.2.2-rc.5 (Manifest compatibility declaration, not local installation state). Bridge: 0.1.10 (source package corresponding to this archive).
+
+### Changed
+
+- Upgrade the managed DeepSeek Harness Runtime from 0.2.2-rc.3 to 0.2.2-rc.5 with the bundled Bridge 0.1.12 and synced Agent presets. Launch DSH without telemetry or the Session-log upload, in the Agent Home. Serve sessions on per-session lanes in the Proxy and the Bridge, fence execution past a request deadline, stop the DSH process group on shutdown or crash, keep DSH's own failure text, count cached prompt tokens as input, report context occupancy, and announce only real catalog changes. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.4.1) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-dsh-v0.4.1/packages/proxies/dsh-proxy/README.md)
 
 ## 0.3.13
 

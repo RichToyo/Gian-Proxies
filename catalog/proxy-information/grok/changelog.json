@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "grok",
-  "currentVersion": "0.3.17",
+  "currentVersion": "0.4.0",
   "entries": [
+    {
+      "version": "0.4.0",
+      "firstPublishedAt": "2026-11-24T07:59:12Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-grok-v0.4.0",
+          "publishedAt": "2026-11-24T07:59:12Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.4.0",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.4.0/gian-proxy-grok-0.4.0-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "cca8b86f1aac970ac70878c930d05cac80e71e788e9d6fdbeffee3495d874062",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-grok-v0.4.0/gian-proxy-grok-0.4.0-darwin-arm64.tar.gz",
+            "sha256": "ceb687ab8f5e8c4eb4c7e70c490c976ebd4a502c3213d9c1edd97f8809506c8c",
+            "size": 229590
+          },
+          "runtimeDeclaration": {
+            "id": "grok",
+            "versions": [
+              "1.0.92"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Upgrade the managed Grok CLI from 1.0.89 to 1.0.92 with independently matched official distribution bytes. Keep Grok's own error text and decide sign-in by the ACP authentication code. Resume the native session in a new child after a crash, a forced interrupt or an idle stop; bound interrupts with a watchdog; stop an idle child after 10 minutes but never while a background task or a turn Grok runs on its own is in progress; change model and effort through set_config_option; and take turn usage from the prompt response. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.4.0",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-grok-v0.4.0/packages/proxies/grok-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.17",
       "firstPublishedAt": "2026-11-18T19:17:12Z",

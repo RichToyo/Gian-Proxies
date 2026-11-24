@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.4.17**, Runtime **2.6.3**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.5.0**, Runtime **2.7.2**. These are distribution targets, not this machine's installed state.
+
+## 0.5.0
+
+First published: 2026-11-24T07:58:49Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.5.0): 2026-11-24T07:58:49Z.
+- CLI: 2.7.2 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Port to Kimi Code 2.7 and upgrade the managed Runtime from 2.6.3 to 2.7.2 with pinned archive bytes: kimi web --json, the 2.7 session API and context usage frame, and native forks for Side Chat and turn forks. Only Kimi Code 2.7.1 and 2.7.2 are accepted. Serve sessions on per-session lanes, keep Kimi's own error text, report authentication errors as sign-in required, and report usage as one delta per Gian turn, which Gian 0.6.16 or later records. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.5.0) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.5.0/packages/proxies/kimi-proxy/README.md)
 
 ## 0.4.17
 

@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.3.17**, Runtime **1.0.89**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.4.0**, Runtime **1.0.92**. These are distribution targets, not this machine's installed state.
+
+## 0.4.0
+
+First published: 2026-11-24T07:59:12Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.4.0): 2026-11-24T07:59:12Z.
+- CLI: 1.0.92 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Upgrade the managed Grok CLI from 1.0.89 to 1.0.92 with independently matched official distribution bytes. Keep Grok's own error text and decide sign-in by the ACP authentication code. Resume the native session in a new child after a crash, a forced interrupt or an idle stop; bound interrupts with a watchdog; stop an idle child after 10 minutes but never while a background task or a turn Grok runs on its own is in progress; change model and effort through set_config_option; and take turn usage from the prompt response. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-grok-v0.4.0) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-grok-v0.4.0/packages/proxies/grok-proxy/README.md)
 
 ## 0.3.17
 

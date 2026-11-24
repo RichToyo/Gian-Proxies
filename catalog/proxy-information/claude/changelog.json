@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "claude",
-  "currentVersion": "0.4.2",
+  "currentVersion": "0.4.3",
   "entries": [
+    {
+      "version": "0.4.3",
+      "firstPublishedAt": "2026-11-24T07:58:39Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-claude-v0.4.3",
+          "publishedAt": "2026-11-24T07:58:39Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.4.3",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.4.3/gian-proxy-claude-0.4.3-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "24f0e2962201984efde82ebc85aedd1406a137ee292a1687b53b6900570163d7",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-claude-v0.4.3/gian-proxy-claude-0.4.3-darwin-arm64.tar.gz",
+            "sha256": "8a557275af54ceb108c986b9637f09f09f1c0a616a7fdcfeb976929bcd341472",
+            "size": 279253
+          },
+          "runtimeDeclaration": {
+            "id": "claude",
+            "versions": [
+              "2.1.330"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "session"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Keep the Claude Code process while a Bash command or subagent started in the background, or a run Claude starts on its own when one finishes, is in progress, instead of stopping it 10 minutes after the last turn and killing that work. Runs Claude starts on its own reach Gian through native history replay. The streaming-input mode, native control requests and turn.steer are unchanged, and the managed Runtime stays Claude Code 2.1.330. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-claude-v0.4.3",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-claude-v0.4.3/packages/proxies/cc-proxy/src/protocol/v2-adapter.ts"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.4.2",
       "firstPublishedAt": "2026-11-23T06:55:43Z",

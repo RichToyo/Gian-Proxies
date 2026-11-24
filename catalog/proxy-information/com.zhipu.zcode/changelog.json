@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "com.zhipu.zcode",
-  "currentVersion": "0.4.7",
+  "currentVersion": "0.5.0",
   "entries": [
+    {
+      "version": "0.5.0",
+      "firstPublishedAt": "2026-11-24T07:59:19Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-zcode-v0.5.0",
+          "publishedAt": "2026-11-24T07:59:19Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-zcode-v0.5.0",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-zcode-v0.5.0/gian-proxy-zcode-0.5.0-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "00e522fce24947ce67c8029e90ff1449b5b14d13080cdda3eb1be1e3dc18a684",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-zcode-v0.5.0/gian-proxy-zcode-0.5.0-darwin-arm64.tar.gz",
+            "sha256": "70146f0da6e6ca58d9a139e28d9540512ec4543b4f33c04044fddb032a20f203",
+            "size": 192196
+          },
+          "runtimeDeclaration": {
+            "id": "zcode",
+            "versions": [
+              "0.17.1"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Upgrade the Gian-built ZCode Runtime from App-source 3.16.2 (CLI 0.17.0) to v3.18.2 at commit fec9759 (CLI 0.17.1), with 3.18's Keychain-encrypted credentials supported, without altering original upstream source or notices. End failed turns with ZCode's own text instead of leaving the session busy, report sign-in, API-key and Keychain failures as sign-in required, label usage per turn, bound interrupts, inherit the environment minus Gian internals, and stop an idle app-server after 10 minutes but never while a background task runs. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-zcode-v0.5.0",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-zcode-v0.5.0/packages/proxies/zcode-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.4.7",
       "firstPublishedAt": "2026-10-21T12:23:51Z",

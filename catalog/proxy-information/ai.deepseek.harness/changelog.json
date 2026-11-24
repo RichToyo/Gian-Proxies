@@ -1,8 +1,56 @@
 {
   "schemaVersion": 1,
   "pluginId": "ai.deepseek.harness",
-  "currentVersion": "0.3.13",
+  "currentVersion": "0.4.1",
   "entries": [
+    {
+      "version": "0.4.1",
+      "firstPublishedAt": "2026-11-24T07:59:01Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-dsh-v0.4.1",
+          "publishedAt": "2026-11-24T07:59:01Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.4.1",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.4.1/gian-proxy-dsh-0.4.1-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "97b689812d911ac8dd35ff616918325f89acca9ed48457ec8446a2c9078d1b0d",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-dsh-v0.4.1/gian-proxy-dsh-0.4.1-darwin-arm64.tar.gz",
+            "sha256": "d4fe9959e2b146b3be9164c758485716b3a9eec634f2f70b8bfb9f4157863eb7",
+            "size": 226472
+          },
+          "runtimeDeclaration": {
+            "id": "deepseek-harness",
+            "versions": [
+              "0.2.2-rc.5"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [
+            {
+              "id": "@gian/dsh-bridge",
+              "version": "0.1.10",
+              "basis": "bundled-package-source"
+            }
+          ],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Upgrade the managed DeepSeek Harness Runtime from 0.2.2-rc.3 to 0.2.2-rc.5 with the bundled Bridge 0.1.12 and synced Agent presets. Launch DSH without telemetry or the Session-log upload, in the Agent Home. Serve sessions on per-session lanes in the Proxy and the Bridge, fence execution past a request deadline, stop the DSH process group on shutdown or crash, keep DSH's own failure text, count cached prompt tokens as input, report context occupancy, and announce only real catalog changes. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-dsh-v0.4.1",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-dsh-v0.4.1/packages/proxies/dsh-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.3.13",
       "firstPublishedAt": "2026-11-13T19:12:49Z",
