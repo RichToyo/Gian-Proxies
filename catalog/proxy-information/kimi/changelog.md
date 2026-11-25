@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.5.0**, Runtime **2.7.2**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.5.1**, Runtime **2.7.2**. These are distribution targets, not this machine's installed state.
+
+## 0.5.1
+
+First published: 2026-11-25T08:44:58Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.5.1): 2026-11-25T08:44:58Z.
+- CLI: 2.7.2 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Keep Kimi conversations able to continue: stop a Kimi server left behind by a Proxy that was killed, which kept every session lock and refused each later turn; re-attach a session whose stuck turn the Host recovered by stopping that turn instead of refusing; keep a steer that Kimi runs as the next native turn in the same Gian turn so its reply is not dropped; and report an unsupported Kimi Code version as a Runtime problem with how to fix it. The managed Runtime stays Kimi Code 2.7.2. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.5.1) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.5.1/packages/proxies/kimi-proxy/README.md)
 
 ## 0.5.0
 
