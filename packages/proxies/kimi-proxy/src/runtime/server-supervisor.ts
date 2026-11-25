@@ -14,12 +14,18 @@
  *
  * The proxy always runs its own dedicated instance: reusing a user-started
  * `kimi web` would couple Gian sessions to a process the user can close.
+ *
+ * The server must not outlive the Proxy: a leftover server keeps its session
+ * locks and every later turn is refused with 40931. A small watchdog stops it
+ * when the Proxy is gone, and leftovers of earlier Proxies are reclaimed
+ * before a new server starts (see orphan-servers.ts).
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { isAbsolute } from 'node:path';
 
-import { kimiChildEnvironment } from './home.js';
+import { kimiChildEnvironment, resolveKimiCodeHome } from './home.js';
+import { KIMI_SERVER_WATCHDOG, reclaimOrphanedKimiServers } from './orphan-servers.js';
 import { KimiServerRestClient } from './rest-client.js';
 
 export interface KimiServerEndpoint {
@@ -38,6 +44,7 @@ export interface SupervisorOptions {
   endpoint?: KimiServerEndpoint;
   env?: NodeJS.ProcessEnv;
   startupTimeoutMs?: number;
+  debug?: (message: string) => void;
 }
 
 export interface KimiServerSupervisorResult {
@@ -65,6 +72,19 @@ export function parseReadyLine(line: string): KimiServerEndpoint {
   return { baseUrl: origin.origin, token: ready.token };
 }
 
+/** Stops the server if this Proxy process disappears without stopping it. */
+function startServerWatchdog(serverPid: number | undefined): void {
+  if (serverPid === undefined || process.platform === 'win32') return;
+  try {
+    const watchdog = spawn('/bin/sh', ['-c', KIMI_SERVER_WATCHDOG, 'gian-kimi-watchdog', String(process.pid), String(serverPid)], {
+      stdio: 'ignore',
+      detached: true,
+    });
+    watchdog.on('error', () => undefined);
+    watchdog.unref();
+  } catch { /* the reclaim on the next start still covers a leftover server */ }
+}
+
 export class KimiServerSupervisor {
   constructor(private readonly options: SupervisorOptions) {}
 
@@ -79,15 +99,20 @@ export class KimiServerSupervisor {
     }
     const kimiBin = this.options.kimiBin;
     if (!isAbsolute(kimiBin)) throw new Error(`Kimi binary path must be absolute: ${kimiBin}`);
+    const env = this.options.env ?? process.env;
+    await reclaimOrphanedKimiServers(resolveKimiCodeHome(env), {
+      debug: this.options.debug ?? (message => { process.stderr.write(`${message}\n`); }),
+    }).catch(() => []);
     const child: ChildProcess = spawn(kimiBin, [
       'web', '--json', '--no-open',
       '--port', '0',
       '--host', '127.0.0.1',
       '--log-level', 'silent',
     ], {
-      env: kimiChildEnvironment(this.options.env ?? process.env),
+      env: kimiChildEnvironment(env),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    startServerWatchdog(child.pid);
     let stdout = '';
     let stderr = '';
     const tail = () => `${stderr}${stdout}`.trim().slice(-OUTPUT_TAIL);

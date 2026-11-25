@@ -52,6 +52,10 @@ export class KimiConversationTurn {
   private finalizing = false;
   private admitted: boolean;
   private resynchronizing = false;
+  /** Steers this turn waits for: prompt ID → the native turn that runs it
+   *  (null until its opener is seen). Kimi may run a steer as the next native
+   *  turn; this Gian turn ends only after that turn ends. */
+  private readonly steers = new Map<string, string | null>();
 
   constructor(private readonly context: { sessionId: string; nativeSessionId: string; streamId: string;
     turnId: string; promptId: string; nextSequence: () => number; emit: (notification: Notification) => void;
@@ -66,6 +70,21 @@ export class KimiConversationTurn {
     } });
     this.binding = new KimiConversationBinding(context.nativeSessionId, context.promptId, frame => this.bound(frame), taskId => this.tasks.ownsTask(taskId));
   }
+
+  /** Register a steer before it is submitted, so its native turn is ours. */
+  addSteer(promptId: string): void {
+    if (this.finished) throw new Error('Kimi turn has already finished.');
+    this.steers.set(promptId, null); this.binding.addSteerPrompt(promptId); this.revision += 1;
+  }
+
+  /** The steer was refused or withdrawn: it runs nowhere. */
+  dropSteer(promptId: string): void {
+    this.steers.delete(promptId); this.binding.removeSteerPrompt(promptId); this.revision += 1;
+    this.maybeFinish();
+  }
+
+  /** Prompt IDs an interrupt or fence must abort besides the opening one. */
+  steerPromptIds(): string[] { return [...this.steers.keys()]; }
 
   receive(frame: Frame): void {
     if (this.finished || frame.session_id !== this.context.nativeSessionId
@@ -203,6 +222,12 @@ export class KimiConversationTurn {
 
   private bound(frame: Frame): void {
     if (!id(frame.event_created_at)) throw new Error('Kimi conversation frame has no native event time.');
+    if (this.steers.size > 0 && (frame.type === 'item.started' || frame.type === 'item.ended') && object(frame.item)
+      && frame.item.type === 'user_message' && Array.isArray(frame.item.prompt_ids) && id(frame.turn_id)) {
+      for (const promptId of frame.item.prompt_ids) {
+        if (typeof promptId === 'string' && this.steers.has(promptId)) this.steers.set(promptId, frame.turn_id);
+      }
+    }
     if (frame.type === 'turns') {
       if (!Array.isArray(frame.turns)) throw new Error('Invalid Kimi conversation snapshot.');
       const match = frame.turns.find(turn => object(turn) && Array.isArray(turn.items) && turn.items.some(item => object(item)
@@ -213,6 +238,16 @@ export class KimiConversationTurn {
       const start = frame.turns.indexOf(match) + 1;
       for (const candidate of frame.turns.slice(start)) {
         if (!object(candidate) || !id(candidate.turn_id) || !Array.isArray(candidate.items)) throw new Error('Invalid Kimi continuation snapshot.');
+        const steerOpener = candidate.items.find(item => object(item) && item.type === 'user_message' && Array.isArray(item.prompt_ids)
+          && item.prompt_ids.some(promptId => typeof promptId === 'string' && this.steers.has(promptId)));
+        if (object(steerOpener)) {
+          for (const promptId of steerOpener.prompt_ids as unknown[]) {
+            if (typeof promptId === 'string' && this.steers.has(promptId)) this.steers.set(promptId, candidate.turn_id);
+          }
+          this.binding.claimSteerTurn(candidate.turn_id);
+          this.hydrateSnapshotTurn(candidate, frame.event_created_at);
+          continue;
+        }
         const notice = candidate.items.find(item => object(item) && item.type === 'notification' && id(item.task_id)
           && object(item.source) && item.source.kind === 'background_task' && item.source.id === item.task_id);
         if (!object(notice) || !id(notice.task_id)) continue;
@@ -275,6 +310,7 @@ export class KimiConversationTurn {
       this.failure = conversationTurnError(turn.error, typeof turn.end_reason === 'string' ? turn.end_reason : undefined);
     }
     if (turn.end_reason === 'max_steps') this.anyNativeLimit = true;
+    for (const [promptId, nativeTurn] of this.steers) if (nativeTurn === turn.turn_id) this.steers.delete(promptId);
     this.settlement.turnFinished();
   }
 
@@ -379,7 +415,7 @@ export class KimiConversationTurn {
 
   private readyToFinish(): boolean {
     return this.admitted && !this.resynchronizing && !this.finished && !this.interruptPending && !this.fencePending && this.nativeEnd !== null
-      && this.settlement.canFinish(this.hasPendingInteractions());
+      && this.steers.size === 0 && this.settlement.canFinish(this.hasPendingInteractions());
   }
 
   private async finalize(): Promise<void> {

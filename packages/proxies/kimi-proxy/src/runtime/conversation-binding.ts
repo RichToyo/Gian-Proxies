@@ -17,6 +17,10 @@ export class KimiConversationBinding {
   private readonly excluded = new Set<string>();
   private bufferedCount = 0;
   private bufferedBytes = 0;
+  /** Prompts steered into this turn. Kimi can end the running native turn
+   *  at a step boundary and run a steer as the next native turn; that turn
+   *  is opened by the steer's prompt ID and belongs to this Gian turn. */
+  private readonly steerPrompts = new Set<string>();
 
   constructor(private readonly sessionId: string, private readonly promptId: string,
     private readonly deliver: (frame: Frame) => void, private readonly ownsTask: (taskId: string) => boolean = () => false) {
@@ -24,6 +28,17 @@ export class KimiConversationBinding {
   }
 
   isBound(): boolean { return this.nativeTurnId !== null; }
+
+  addSteerPrompt(promptId: string): void { if (promptId) this.steerPrompts.add(promptId); }
+  removeSteerPrompt(promptId: string): void { this.steerPrompts.delete(promptId); }
+
+  /** A native turn opened by one of this turn's steer prompts. */
+  claimSteerTurn(turnId: string): void {
+    if (!turnId) return;
+    if (this.excluded.delete(turnId)) { /* opened before the steer was registered */ }
+    if (this.buffered.has(turnId)) this.claimContinuation(turnId);
+    else this.ownedTurns.add(turnId);
+  }
   hasUnbound(): boolean { return this.buffered.size > 0; }
 
   bindSnapshotContinuation(turnId: string, taskId: string): boolean {
@@ -64,6 +79,10 @@ export class KimiConversationBinding {
       const promptIds = frame.item.prompt_ids;
       if (!Array.isArray(promptIds) || !promptIds.every(value => typeof value === 'string' && value !== '')) {
         throw new Error('Kimi turn opener has invalid prompt IDs.');
+      }
+      if (!promptIds.includes(this.promptId) && promptIds.some(id => this.steerPrompts.has(id as string))) {
+        this.claimContinuation(nativeId);
+        return;
       }
       if (!promptIds.includes(this.promptId)) {
         if (this.excluded.size >= MAX_BUFFERED_FRAMES) throw new Error('Kimi native turn exclusion budget exceeded.');

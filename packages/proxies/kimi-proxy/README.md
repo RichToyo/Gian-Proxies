@@ -12,7 +12,7 @@ API**: a supervised `kimi web --json` child, its REST routes and the
 node dist/src/cli/spawn.js --kimi-bin /absolute/path/to/kimi
 ```
 
-Proxy **0.5.0**, targeting the
+Proxy **0.5.1**, targeting the
 official Kimi Code Runtime **2.7.2** (`@moonshot-ai/kimi-code@2.7.2`,
 darwin-arm64). Hosted qualification and publication are still required.
 
@@ -45,6 +45,15 @@ versions. Reasons:
   silent port+1 fallback of a fixed port. Startup failure reports the CLI's
   stderr tail. A crashed server marks sessions `stale` with a retryable
   `runtime.error`; the next request starts a new server.
+- The server must not outlive the Proxy: it keeps the lock of every session
+  it opened, and a new server is then refused with 40931 on every turn. A
+  small shell watchdog stops the server when its Proxy process is gone. A
+  starting Proxy, and a turn refused with 40931, stop leftovers of earlier
+  Proxies: a `kimi-code` process adopted by launchd (parent pid 1) that holds
+  a "Kimi Code Web" session lock on this host. A user's terminal Kimi or a
+  server with a live parent is never touched.
+- `GIAN_KIMI_TRACE_FRAMES=1` writes every native conversation frame to the
+  Proxy's stderr (first 2000 characters each) for diagnosis.
 - `GIAN_AGENT_HOME` (absolute) becomes `KIMI_CODE_HOME` inside the Proxy for
   every reader: the version check, `kimi web`, the probe, customization
   scans and quota. The Host's own `KIMI_CODE_HOME` is only a fallback.
@@ -60,7 +69,8 @@ src/protocol/v2-adapter.ts       gian.proxy surface, ledgers, catalog, per-sessi
 src/core/service.ts              sessions, turns, interactions, fork/Side Chat,
                                  replay, native list/rename/delete
 src/runtime/kimi-runtime.ts      version gate + lazy conversation runtime
-src/runtime/server-supervisor.ts `kimi web --json` spawn/ready/stop
+src/runtime/server-supervisor.ts `kimi web --json` spawn/ready/stop, watchdog
+src/runtime/orphan-servers.ts    leftover servers of killed Proxies
 src/runtime/conversation-*.ts    channel, binding, settlement, turn projection,
                                  replay, usage, errors
 src/runtime/home.ts, versions.ts home mapping and supported versions
@@ -100,10 +110,26 @@ elicitation (no server route).
 - Other REST business codes map in `normalizeKimiError` (40401
   `SESSION_NOT_FOUND`, 40901/40931 `SESSION_BUSY`, 40927/40932 `CONFLICT`,
   …) and keep the native code in `details`.
+- An unsupported Kimi Code version is `RUNTIME_UNAVAILABLE` with the
+  supported versions and how to install one.
+
+## Recovery and steering
+
+- The Host re-attaches a session it still had here only after it stopped
+  following that stream (its recovery of a stuck or orphaned turn, a session
+  fault). A turn that stream still owned is abandoned: it is stopped natively,
+  together with any question or approval it waits on, and the re-attach
+  waits up to 10 s for Kimi to report the session idle. It is refused with a
+  retryable `SESSION_BUSY` only while Kimi still runs other work.
+- Kimi can end the running native turn at its next step boundary and run a
+  steer as the next native turn. The steer's prompt ID is registered before
+  it is sent, that native turn belongs to the same Gian turn, and the Gian
+  turn ends only after it. A steer Kimi refuses is withdrawn; an interrupt or
+  fence also aborts the turn's steers.
 
 ## Verification
 
-- `pnpm --filter @gian/kimi-proxy test`: 111 tests. Unit tests for every
+- `pnpm --filter @gian/kimi-proxy test`: 118 tests. Unit tests for every
   conversation component, plus an end-to-end suite that drives the real CLI
   through the kit against a fake Kimi 2.7 server (`test/fixtures/
   fake-kimi-server.mjs`) with Host conformance validation.
@@ -111,5 +137,10 @@ elicitation (no server route).
   `--version`, the `--json` ready line, healthz, `kap.md`, session
   create/get/subscribe/fork, `/messages` 404 and `/children` 40001, and the
   built Proxy's initialize/catalog/create/replay/rename/close/native.list/probe.
-- NOT RUN here: authenticated model turns (the coordinator runs them with an
-  OpenAI API key).
+- Real smoke regression (`scripts/real-smoke.mjs`): the built Proxy driven
+  like the Host against the real Kimi Code 2.7.2 with an OpenAI API key in an
+  isolated home: plain, back-to-back and long conversations, approvals,
+  questions, interrupts at every stage, steers at every stage, background
+  commands and subagents, plans, diffs, compaction, two sessions at once,
+  replay, Host re-attach and recovery of stuck turns, and Proxy crash and
+  graceful restarts.

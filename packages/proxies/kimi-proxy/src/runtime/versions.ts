@@ -8,6 +8,8 @@
  * in-turn steers (fixed in 2.7.1). Unknown versions, including later 2.7.x
  * patches, are refused rather than assumed compatible: Kimi has changed its
  * event protocol in a patch release before (2.6.2). */
+import { KimiProtocolError } from '../transport/protocol.js';
+
 export const SUPPORTED_KIMI_VERSIONS: readonly string[] = Object.freeze(['2.7.1', '2.7.2']);
 export const MANAGED_KIMI_VERSION = '2.7.2';
 
@@ -18,9 +20,18 @@ export function parseKimiVersion(text: string): string | null {
 export function unsupportedKimiVersionMessage(version: string): string {
   return `Kimi Code ${version} is not supported by this Proxy. Use Kimi Code `
     + `${SUPPORTED_KIMI_VERSIONS.join(' or ')} (the managed Runtime is ${MANAGED_KIMI_VERSION}); `
-    + 'other versions speak a different local server protocol.';
+    + 'other versions speak a different local server protocol. For your own Kimi Code, install '
+    + `${MANAGED_KIMI_VERSION} (curl -fsSL https://code.kimi.com/kimi-code/install.sh | KIMI_VERSION=${MANAGED_KIMI_VERSION} bash), `
+    + 'or add a Kimi Agent that uses the Gian-managed Runtime.';
+}
+
+/** An unsupported Runtime is a Runtime problem the user can fix, not an
+ *  internal Proxy failure. */
+export function unsupportedKimiVersionError(version: string): KimiProtocolError {
+  return new KimiProtocolError('RUNTIME_UNAVAILABLE', unsupportedKimiVersionMessage(version), false,
+    { version, supportedVersions: [...SUPPORTED_KIMI_VERSIONS] });
 }
 
 export function assertSupportedKimiVersion(version: string): void {
-  if (!SUPPORTED_KIMI_VERSIONS.includes(version)) throw new Error(unsupportedKimiVersionMessage(version));
+  if (!SUPPORTED_KIMI_VERSIONS.includes(version)) throw unsupportedKimiVersionError(version);
 }

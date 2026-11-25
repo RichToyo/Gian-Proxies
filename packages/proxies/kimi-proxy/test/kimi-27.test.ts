@@ -32,6 +32,7 @@ test('only reviewed 2.7 releases are supported', () => {
   assertSupportedKimiVersion('2.7.2');
   for (const version of ['2.7.0', '2.6.3', '2.3.3', '2.7.3', '2.7.2-canary.1']) {
     assert.throws(() => assertSupportedKimiVersion(version), /is not supported by this Proxy\. Use Kimi Code 2\.7\.1 or 2\.7\.2/);
+    assert.throws(() => assertSupportedKimiVersion(version), (error: Error & { domainCode?: string }) => error.domainCode === 'RUNTIME_UNAVAILABLE');
   }
 });
 

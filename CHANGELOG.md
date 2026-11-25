@@ -1,5 +1,16 @@
 # Gian Proxies Changelog
 
+## Kimi Proxy 0.5.1 candidate - 2026-11-25
+
+Fixes for conversations that stopped continuing or lost replies with 0.5.0, found by a real Kimi Code 2.7.2 smoke regression (questions, approvals, interrupts, steers, background work, Proxy restarts and Host recovery).
+
+- A Kimi server left behind by a Proxy that was killed (crash, force quit, an update that stopped the Proxy hard) kept every session lock, so each later turn failed with `SESSION_BUSY` ("This session is in use by another Kimi Code Web instance"). A watchdog now stops the server when its Proxy is gone, and a starting Proxy, or a turn refused with that lock, stops such leftovers (a `kimi-code` "Kimi Code Web" lock holder adopted by launchd on this Mac) and continues.
+- When the Host recovers a stuck turn it re-attaches the session; 0.5.0 refused with "The native session is busy; refusing to rebind" while that turn still waited on a question or approval or still ran, and the conversation could not continue. The abandoned turn is now stopped natively and the session re-attaches.
+- A steer that Kimi runs as the next native turn (it ends the running turn at its next step) now stays in the same Gian turn; 0.5.0 completed the turn first and dropped the steered reply. Interrupting such a turn also aborts its steer.
+- An unsupported Kimi Code version reports `RUNTIME_UNAVAILABLE` with how to fix it, instead of `INTERNAL`.
+- Runtime unchanged: Kimi Code 2.7.2.
+- Exact-artifact hosted qualification and publication remain required.
+
 ## Claude Proxy 0.4.3 candidate - 2026-11-24
 
 - Keep the Claude Code process while a Bash command or subagent started in the background, or a run Claude starts on its own when one finishes, is in progress. The 10-minute idle stop used to kill them. The runtime now follows Claude's `background_tasks_changed` list and its in-progress runs, and starts the idle clock only when nothing runs. Runs Claude starts on its own reach Gian through native history replay.

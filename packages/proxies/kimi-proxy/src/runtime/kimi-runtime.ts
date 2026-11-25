@@ -28,6 +28,9 @@ export class KimiRuntime {
     return this.selected.rest;
   }
 
+  /** Pid of this Proxy's own Kimi server, or null before it starts. */
+  get serverPid(): number | null { return this.selected?.serverPid ?? null; }
+
   async start(): Promise<void> {
     if (this.stopped) throw new Error('Kimi runtime is stopped.');
     if (this.starting) return this.starting;

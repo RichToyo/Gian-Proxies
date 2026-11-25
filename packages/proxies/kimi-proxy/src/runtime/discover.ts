@@ -6,7 +6,7 @@ import { runBoundedCommand } from '@gian/proxy-protocol/node';
 
 import { kimiChildEnvironment, resolveKimiCodeHome } from './home.js';
 import { KimiDataVersionError, KimiSessionStoreGuard } from './session-store.js';
-import { parseKimiVersion, SUPPORTED_KIMI_VERSIONS, unsupportedKimiVersionMessage } from './versions.js';
+import { parseKimiVersion, SUPPORTED_KIMI_VERSIONS, unsupportedKimiVersionError } from './versions.js';
 
 const COMMAND = 'kimi';
 const SETUP_URL = 'https://code.kimi.com/kimi-code/install.sh';
@@ -181,7 +181,7 @@ export async function probeKimiRuntime(path: string): Promise<{
   const decision = await evaluateKimiStore(path, 'read-only');
   // Discovery offers PATH and user installs too; only reviewed 2.7 server
   // protocols are accepted, so the choice fails here, not mid-turn.
-  if (!SUPPORTED_KIMI_VERSIONS.includes(decision.version)) throw new Error(unsupportedKimiVersionMessage(decision.version));
+  if (!SUPPORTED_KIMI_VERSIONS.includes(decision.version)) throw unsupportedKimiVersionError(decision.version);
   return {
     runtimeId: 'kimi',
     displayName: 'Kimi Code',

@@ -23,6 +23,8 @@ import { fetchConversationHistory } from '../runtime/conversation-history.js';
 import { buildConversationReplay, groupConversationTurns } from '../runtime/conversation-replay.js';
 import { conversationInputMetadata } from '../runtime/conversation-input-metadata.js';
 import { KimiApiError, KimiTransportError } from '../runtime/rest-client.js';
+import { resolveKimiCodeHome } from '../runtime/home.js';
+import { reclaimOrphanedKimiServers } from '../runtime/orphan-servers.js';
 import { KimiProtocolError } from '../transport/protocol.js';
 
 export type OuterNotification = { method: string; params: Record<string, unknown> };
@@ -32,6 +34,8 @@ export interface KimiServiceOptions {
   dataDir?: string | null;
   /** Test seam / externally managed endpoint: skips spawning `kimi web`. */
   endpoint?: { baseUrl: string; token: string };
+  /** How long a Host re-attach waits for Kimi to settle an abandoned turn. */
+  rebindIdleWaitMs?: number;
 }
 
 export interface SessionRecord {
@@ -79,6 +83,9 @@ function nowIso(): string {
 }
 
 /** 2.7 replaced `busy` with `activity` (idle | turn | background). */
+/** How long a Host re-attach waits for Kimi to settle an abandoned turn. */
+const REBIND_IDLE_WAIT_MS = 10_000;
+
 function nativeBusy(info: KimiSessionInfo): boolean {
   return (info.activity !== undefined && info.activity !== 'idle')
     || info.pending_interaction === 'approval' || info.pending_interaction === 'question';
@@ -213,6 +220,7 @@ export class KimiProxyService {
   // ---- runtime events ----
 
   private handleConversationFrame(frame: Record<string, unknown>): void {
+    if (process.env.GIAN_KIMI_TRACE_FRAMES === '1') process.stderr.write(`[kimi-frame] ${JSON.stringify(frame).slice(0, 2000)}\n`);
     const nativeId = typeof frame.session_id === 'string' ? frame.session_id : '';
     const gianId = this.byNative.get(nativeId);
     const record = gianId === undefined ? undefined : this.records.get(gianId);
@@ -307,13 +315,20 @@ export class KimiProxyService {
     await this.ensureStarted();
     const existing = this.records.get(params.sessionId);
     if (existing !== undefined) {
-      // Rebind path (proxy-side restart): the native identity must match.
+      // Rebind path: the native identity must match.
       if (params.nativeSessionId !== undefined && params.nativeSessionId !== existing.nativeSessionId) {
         throw new KimiProtocolError('CONFLICT', 'Session id names a different native session.');
       }
-      const info = await this.readNativeSession(existing.nativeSessionId);
-      if (nativeBusy(info) || existing.activeTurn !== null) {
-        throw new KimiProtocolError('SESSION_BUSY', 'The native session is busy; refusing to rebind.');
+      // The Host re-attaches a session it still had here only after it
+      // stopped following that stream: its recovery of a stuck or orphaned
+      // turn, a session fault, a lost stream. A turn the old stream still
+      // owned is abandoned, so it is stopped natively (with any question or
+      // approval it waits on) instead of refusing the Host, which left the
+      // conversation unable to continue.
+      if (existing.activeTurn !== null) await this.abandonActiveTurn(existing);
+      const info = await this.waitForNativeIdle(existing.nativeSessionId);
+      if (nativeBusy(info)) {
+        throw new KimiProtocolError('SESSION_BUSY', 'Kimi is still running other work in this session (another Kimi client or a background task); try again when it finishes.', true);
       }
       existing.streamId = `stream-${sha32([params.sessionId, nowIso()])}`;
       this.sequences.set(params.sessionId, 0);
@@ -582,17 +597,25 @@ export class KimiProxyService {
     record.conversationTurn = turn;
     try {
       for (const snapshot of record.conversationSnapshots) turn.receive(snapshot);
+      const promptBody = { content: conversationPromptContent(built), prompt_id: promptId, metadata: conversationInputMetadata(promptId, params.input),
+        ...(built.skills.length > 0 ? { skills: built.skills } : {}),
+        ...(params.config.model !== undefined ? { model: params.config.model } : {}),
+        ...(params.config.thinking !== undefined ? { thinking: params.config.thinking } : {}),
+        ...(params.config.approval_mode !== undefined ? { permission_mode: params.config.approval_mode } : {}) };
       const response = await this.runtime.rest.request<{ prompt_id: string; status: string }>(
-        'POST', `/api/v1/sessions/${encodeURIComponent(record.nativeSessionId)}/prompts`, {
-          json: { content: conversationPromptContent(built), prompt_id: promptId, metadata: conversationInputMetadata(promptId, params.input),
-            ...(built.skills.length > 0 ? { skills: built.skills } : {}),
-            ...(params.config.model !== undefined ? { model: params.config.model } : {}),
-            ...(params.config.thinking !== undefined ? { thinking: params.config.thinking } : {}),
-            ...(params.config.approval_mode !== undefined ? { permission_mode: params.config.approval_mode } : {}) },
-        },
-      ).catch((error: unknown) => {
+        'POST', `/api/v1/sessions/${encodeURIComponent(record.nativeSessionId)}/prompts`, { json: promptBody },
+      ).catch(async (error: unknown) => {
         if (error instanceof KimiApiError && error.code === 40927) {
           throw new KimiProtocolError('CONFLICT', 'The Kimi server already accepted this turn (prompt id conflict).');
+        }
+        // 40931: another Kimi server holds this session's lock. A server left
+        // behind by a Proxy that was killed is stopped and the same prompt is
+        // sent once more; Kimi refused it, so it never started.
+        if (error instanceof KimiApiError && error.code === 40931
+          && (await this.reclaimSessionLock(record.nativeSessionId)).length > 0) {
+          return this.runtime.rest.request<{ prompt_id: string; status: string }>(
+            'POST', `/api/v1/sessions/${encodeURIComponent(record.nativeSessionId)}/prompts`, { json: promptBody },
+          );
         }
         throw error;
       });
@@ -668,6 +691,12 @@ export class KimiProxyService {
     }
     const built = buildPromptInput(params.input);
     const promptId = `gian-${sha32(['steer', record.nativeSessionId, params.turnId, built])}`;
+    // Registered before it is sent: Kimi may end the running native turn at
+    // its next step boundary and run the steer as the next native turn, which
+    // then belongs to this Gian turn.
+    const conversation = record.conversationTurn;
+    conversation?.addSteer(promptId);
+    const withdraw = () => { if (record.conversationTurn === conversation) conversation?.dropSteer(promptId); };
     const submitted = await this.runtime.rest.request<{ status: 'running' | 'queued' | 'blocked' | 'failed' }>(
       'POST',
       `/api/v1/sessions/${encodeURIComponent(record.nativeSessionId)}/prompts`,
@@ -679,9 +708,11 @@ export class KimiProxyService {
         // Identical steer replay: the queued prompt already exists.
         return { status: 'queued' as const };
       }
+      withdraw();
       throw error;
     });
     if (submitted.status !== 'queued') {
+      withdraw();
       // The native loop was idle, so the steer would run as a turn of its
       // own that no Gian turn owns: withdraw it.
       if (submitted.status === 'running') await this.abortNativePrompt(record, promptId);
@@ -691,7 +722,10 @@ export class KimiProxyService {
       'POST',
       `/api/v1/sessions/${encodeURIComponent(record.nativeSessionId)}/prompts:steer`,
       { json: { prompt_ids: [promptId] } },
-    ).catch((error: unknown) => {
+    ).catch(async (error: unknown) => {
+      // Not steered: the queued prompt would run as a turn of its own.
+      await this.abortNativePrompt(record, promptId);
+      withdraw();
       if (error instanceof KimiApiError && (error.code === 40402 || error.code === 40401)) {
         throw new KimiProtocolError('TURN_NOT_FOUND', 'The Kimi session has no active turn to steer into.');
       }
@@ -712,11 +746,17 @@ export class KimiProxyService {
     try {
       const result = await this.runtime.rest.request<{ aborted: boolean }>('POST',
         `/api/v1/sessions/${encodeURIComponent(record.nativeSessionId)}/prompts/${encodeURIComponent(turn.promptId)}:abort`, { json: {} });
+      // A steer this turn owns may be the native turn that is running now.
+      let aborted = result.aborted === true;
+      for (const steerId of active.steerPromptIds()) {
+        if (await this.abortNativePrompt(record, steerId)) aborted = true;
+        if (record.conversationTurn === active) active.dropSteer(steerId);
+      }
       if (record.conversationTurn !== active || record.activeTurn !== turn) {
         throw new KimiProtocolError('CONFLICT', 'Kimi continued while interruption was being acknowledged.', true);
       }
-      active.finishInterrupt(result.aborted === true);
-      if (!result.aborted) throw new KimiProtocolError('CONFLICT', 'Kimi did not confirm interruption; native work may still be running.', true);
+      active.finishInterrupt(aborted);
+      if (!aborted) throw new KimiProtocolError('CONFLICT', 'Kimi did not confirm interruption; native work may still be running.', true);
       turn.interruptAccepted = true;
     } catch (error) {
       if (record.conversationTurn === active && record.activeTurn === turn) {
@@ -729,6 +769,43 @@ export class KimiProxyService {
       if (active.finishQueuedInterrupt(nowIso())) return;
     }
     this.armInterruptWatchdog(record, params.turnId);
+  }
+
+  /** Stop a leftover Kimi server (from a Proxy that was killed) that still
+   *  holds this session's lock. Returns the pids stopped. */
+  private async reclaimSessionLock(nativeSessionId: string): Promise<number[]> {
+    const own = this.runtime.serverPid;
+    return reclaimOrphanedKimiServers(resolveKimiCodeHome(process.env), {
+      nativeSessionIds: [nativeSessionId],
+      ...(own !== null ? { keep: [own] } : {}),
+      debug: message => { process.stderr.write(`${message}\n`); },
+    }).catch(() => []);
+  }
+
+  /** Stop the turn of a stream the Host no longer follows and release it. */
+  private async abandonActiveTurn(record: SessionRecord): Promise<void> {
+    const turn = record.activeTurn;
+    if (turn === null) return;
+    this.clearInterruptTimer(record.sessionId);
+    await this.fenceActiveTurn(record, turn.gianTurnId, 'The Host re-attached this session and no longer follows this turn.');
+    if (record.activeTurn?.gianTurnId !== turn.gianTurnId) return;
+    // A fence or interrupt was already settling this turn: abort it here and
+    // release it without waiting for a terminal nobody reads any more.
+    await this.abortNativePrompt(record, turn.promptId);
+    if (record.activeTurn?.gianTurnId === turn.gianTurnId) {
+      this.onTurnFinalizedById(record.sessionId, turn.gianTurnId);
+      record.conversationTurn = null;
+    }
+  }
+
+  /** Native activity can lag an abort by a moment; wait for it briefly. */
+  private async waitForNativeIdle(nativeSessionId: string): Promise<KimiSessionInfo> {
+    const deadline = Date.now() + (this.options.rebindIdleWaitMs ?? REBIND_IDLE_WAIT_MS);
+    for (;;) {
+      const info = await this.readNativeSession(nativeSessionId);
+      if (!nativeBusy(info) || Date.now() >= deadline) return info;
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
   }
 
   private async promptIsActive(record: SessionRecord, promptId: string): Promise<boolean> {
@@ -780,7 +857,10 @@ export class KimiProxyService {
     const conversation = record.conversationTurn;
     const promptId = record.activeTurn.promptId;
     if (!conversation.beginFence()) return;
-    const aborted = await this.abortNativePrompt(record, promptId);
+    let aborted = await this.abortNativePrompt(record, promptId);
+    for (const steerId of conversation.steerPromptIds()) {
+      if (await this.abortNativePrompt(record, steerId)) aborted = true;
+    }
     if (record.conversationTurn !== conversation || record.activeTurn?.gianTurnId !== gianTurnId) return;
     this.setState(record, 'stale');
     conversation.fail(`${message} ${aborted ? 'The native abort was accepted, but containment was not confirmed.'
