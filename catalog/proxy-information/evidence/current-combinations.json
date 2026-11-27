@@ -1,6 +1,6 @@
 {
-  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.76.0",
-  "sequence": 76,
+  "catalog": "https://github.com/RichToyo/Gian-Proxies/releases/tag/catalog-v1.77.0",
+  "sequence": 77,
   "sourceId": "gian-official",
   "plugins": [
     {
@@ -60,22 +60,22 @@
     {
       "id": "kimi",
       "displayName": "Kimi Code",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "protocolRange": ">=2.2 <3.0",
       "processScope": "shared",
       "combination": {
         "certificate": {
-          "id": "proxies-be004b19f03d94c24540607abf79eb28f9ee9687-45578502815-1",
-          "sha256": "ec690201ab7a08af1371a4ec1037076953c24c7d550601554fb65ca0573832f0"
+          "id": "proxies-af060e5767afd9ff2c97fd351a371805890ab798-46029077548-1",
+          "sha256": "2061bd9c1d71e0f685954b654dd87bf0c5d29664ac04076c0acae647a870f259"
         },
         "companions": [],
-        "generationId": "kimi-0.5.1-runtime-2.7.2",
+        "generationId": "kimi-0.5.2-runtime-2.7.2",
         "runtime": {
           "kind": "native-binary",
           "runtimeId": "kimi",
           "version": "2.7.2",
           "asset": {
-            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.1/kimi-2.7.2-darwin-arm64.tar.gz",
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.2/kimi-2.7.2-darwin-arm64.tar.gz",
             "sha256": "46cb6bf4afe3a6d7931e0a47418035fde53a43b286329c8dabb5f71bfc9e71b4",
             "size": 61167615
           },

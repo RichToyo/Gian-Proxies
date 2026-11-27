@@ -1,8 +1,50 @@
 {
   "schemaVersion": 1,
   "pluginId": "kimi",
-  "currentVersion": "0.5.1",
+  "currentVersion": "0.5.2",
   "entries": [
+    {
+      "version": "0.5.2",
+      "firstPublishedAt": "2026-11-27T15:59:05Z",
+      "evidenceCoverage": "detailed",
+      "distributions": [
+        {
+          "repository": "RichToyo/Gian-Proxies",
+          "tag": "proxy-kimi-v0.5.2",
+          "publishedAt": "2026-11-27T15:59:05Z",
+          "releaseUrl": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.5.2",
+          "manifestUrl": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.2/gian-proxy-kimi-0.5.2-darwin-arm64.tar.gz.manifest.json",
+          "manifestSha256": "07918d9bcad3adb93bc32c41e32722868ab85127e56229d990004e1aecad970a",
+          "archive": {
+            "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.2/gian-proxy-kimi-0.5.2-darwin-arm64.tar.gz",
+            "sha256": "f8b79c88f37dfc1fe3afff7993ea0df3429766f4b991e1449b4f2618beffc2ab",
+            "size": 225372
+          },
+          "runtimeDeclaration": {
+            "id": "kimi",
+            "versions": [
+              "2.7.2"
+            ],
+            "basis": "verified-declaration"
+          },
+          "companionDeclarations": [],
+          "protocolRange": ">=2.2 <3.0",
+          "manifestSchema": 4,
+          "processScope": "shared"
+        }
+      ],
+      "changes": [
+        {
+          "category": "changed",
+          "text": "Never end a Kimi turn with work still open, which the Host rejects by protocol and answers by quarantining the turn: close a background task whose end was lost across a reconnect, and close the running tools, tasks and text of a fenced, unconfirmed-interrupt or Host-abandoned turn before its terminal. Send nothing on a stream the Host replaced, and never repeat an event ID on a stream. Retains the 0.5.1 fixes for leftover Kimi servers, Host re-attach and steering. The managed Runtime stays Kimi Code 2.7.2. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed.",
+          "evidence": [
+            "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.5.2",
+            "https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.5.2/packages/proxies/kimi-proxy/README.md"
+          ]
+        }
+      ],
+      "unknowns": []
+    },
     {
       "version": "0.5.1",
       "firstPublishedAt": "2026-11-25T08:44:58Z",

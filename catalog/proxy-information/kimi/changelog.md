@@ -2,7 +2,18 @@
 
 Generated from the structured changelog, newest Proxy version first. Original publication and later repository distributions are recorded separately; missing historical details are not invented.
 
-Release combination snapshot: Proxy **0.5.1**, Runtime **2.7.2**. These are distribution targets, not this machine's installed state.
+Release combination snapshot: Proxy **0.5.2**, Runtime **2.7.2**. These are distribution targets, not this machine's installed state.
+
+## 0.5.2
+
+First published: 2026-11-27T15:59:05Z (UTC).
+
+- [RichToyo/Gian-Proxies distribution](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.5.2): 2026-11-27T15:59:05Z.
+- CLI: 2.7.2 (Manifest compatibility declaration, not local installation state).
+
+### Changed
+
+- Never end a Kimi turn with work still open, which the Host rejects by protocol and answers by quarantining the turn: close a background task whose end was lost across a reconnect, and close the running tools, tasks and text of a fenced, unconfirmed-interrupt or Host-abandoned turn before its terminal. Send nothing on a stream the Host replaced, and never repeat an event ID on a stream. Retains the 0.5.1 fixes for leftover Kimi servers, Host re-attach and steering. The managed Runtime stays Kimi Code 2.7.2. Use Proxy Protocol SDK 1.0.5 and the shared proxy-kit wire server. Exact artifacts pass hosted qualification; real account, Provider and Desktop acceptance are not claimed. [Source 1](https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.5.2) [Source 2](https://github.com/RichToyo/Gian-Proxies/blob/proxy-kimi-v0.5.2/packages/proxies/kimi-proxy/README.md)
 
 ## 0.5.1
 

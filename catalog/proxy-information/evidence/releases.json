@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-11-25T08:46:15.217Z",
+  "capturedAt": "2026-11-27T15:59:32.519Z",
   "repositories": [
     "RichLogic/Gian",
     "RichLogic/Gian-Proxies"
@@ -5027,6 +5027,44 @@
         {
           "name": "kimi-2.7.2-darwin-arm64.tar.gz",
           "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.1/kimi-2.7.2-darwin-arm64.tar.gz",
+          "size": 61167615,
+          "digest": "sha256:46cb6bf4afe3a6d7931e0a47418035fde53a43b286329c8dabb5f71bfc9e71b4"
+        }
+      ]
+    },
+    {
+      "tag": "proxy-kimi-v0.5.2",
+      "date": "2026-11-27T15:59:05Z",
+      "url": "https://github.com/RichToyo/Gian-Proxies/releases/tag/proxy-kimi-v0.5.2",
+      "body": "Independent Proxy 0.5.2. Exact hosted artifacts from proxies-af060e5767afd9ff2c97fd351a371805890ab798-46029077548-1. DSH includes its Bridge. ZCode includes a managed CLI Runtime built from its pinned upstream Git commit. No App or real-provider acceptance is claimed.",
+      "assets": [
+        {
+          "name": "certificate.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.2/certificate.json",
+          "size": 4102,
+          "digest": "sha256:2061bd9c1d71e0f685954b654dd87bf0c5d29664ac04076c0acae647a870f259"
+        },
+        {
+          "name": "gian-proxy-kimi-0.5.2-darwin-arm64.tar.gz",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.2/gian-proxy-kimi-0.5.2-darwin-arm64.tar.gz",
+          "size": 225372,
+          "digest": "sha256:f8b79c88f37dfc1fe3afff7993ea0df3429766f4b991e1449b4f2618beffc2ab"
+        },
+        {
+          "name": "gian-proxy-kimi-0.5.2-darwin-arm64.tar.gz.manifest.json",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.2/gian-proxy-kimi-0.5.2-darwin-arm64.tar.gz.manifest.json",
+          "size": 788,
+          "digest": "sha256:07918d9bcad3adb93bc32c41e32722868ab85127e56229d990004e1aecad970a"
+        },
+        {
+          "name": "gian-proxy-kimi-0.5.2-darwin-arm64.tar.gz.sha256",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.2/gian-proxy-kimi-0.5.2-darwin-arm64.tar.gz.sha256",
+          "size": 108,
+          "digest": "sha256:761566ae17c2250901debb50d20598e35055a6db9f42c3fb992ba1ec81ec8c2e"
+        },
+        {
+          "name": "kimi-2.7.2-darwin-arm64.tar.gz",
+          "url": "https://github.com/RichToyo/Gian-Proxies/releases/download/proxy-kimi-v0.5.2/kimi-2.7.2-darwin-arm64.tar.gz",
           "size": 61167615,
           "digest": "sha256:46cb6bf4afe3a6d7931e0a47418035fde53a43b286329c8dabb5f71bfc9e71b4"
         }
