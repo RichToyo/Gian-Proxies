@@ -3,6 +3,6 @@
   "providers": [
     "kimi"
   ],
-  "baseCatalogTag": "catalog-v1.75.0",
+  "baseCatalogTag": "catalog-v1.76.0",
   "baseCatalogRepository": "RichToyo/Gian-Proxies"
 }

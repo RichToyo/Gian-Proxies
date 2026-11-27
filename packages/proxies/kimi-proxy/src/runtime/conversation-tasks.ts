@@ -13,6 +13,8 @@ export class KimiConversationTasks {
   private readonly observed = new Map<string, Frame>();
   private readonly lastEvent = new Map<string, string>();
   private readonly ownedTasks = new Set<string>();
+  /** Owned tasks last projected as running. */
+  private readonly projectedRunning = new Set<string>();
   constructor(private readonly context: { sessionId: string; nativeSessionId: string; streamId: string;
     turnId: string; promptId: string; nextSequence: () => number; emit: (notification: Notification) => void;
     onOwnedTask?: (taskId: string) => void }) {}
@@ -32,9 +34,22 @@ export class KimiConversationTasks {
     if (frame.session_id !== this.context.nativeSessionId || frame.agent_id !== 'main') return;
     if (frame.type === 'task.list') {
       if (!Array.isArray(frame.tasks)) throw new Error('Invalid Kimi task snapshot.');
+      const listed = new Set<string>();
       for (const task of frame.tasks) {
         if (!object(task)) throw new Error('Invalid Kimi task.');
+        if (id(task.task_id)) listed.add(task.task_id);
         this.observe({ ...task, event_created_at: id(task.started_at) ? task.started_at : new Date().toISOString() });
+      }
+      // The snapshot lists every running task. One this turn showed as
+      // running that is no longer listed has ended, and its own end frame was
+      // lost (a reconnect): close it so the turn never ends with it open.
+      for (const taskId of [...this.projectedRunning]) {
+        if (listed.has(taskId)) continue;
+        const last = this.observed.get(taskId);
+        if (!last) continue;
+        this.project({ ...last, status: 'ended', outcome: 'completed',
+          result_summary: 'Kimi no longer lists this task as running; its own end was not received.',
+          event_created_at: id(frame.event_created_at) ? frame.event_created_at : new Date().toISOString() });
       }
     } else if (frame.type === 'task') this.observe(frame);
   }
@@ -73,6 +88,7 @@ export class KimiConversationTasks {
     const eventId = `evt-${digest([this.context.nativeSessionId, this.context.promptId, task.task_id, data])}`;
     if (this.lastEvent.get(task.task_id) === eventId) return;
     this.lastEvent.set(task.task_id, eventId);
+    if (status === 'running') this.projectedRunning.add(task.task_id); else this.projectedRunning.delete(task.task_id);
     this.context.emit({ method: 'activity.updated', params: { eventId, data, emittedAt: task.event_created_at,
       sessionId: this.context.sessionId, streamId: this.context.streamId, turnId: this.context.turnId,
       sourceTurnId: this.context.promptId, sequence: this.context.nextSequence() } });

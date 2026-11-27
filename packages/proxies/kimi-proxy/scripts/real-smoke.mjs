@@ -13,6 +13,7 @@ import { execSync, spawn } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { HostProtocolValidator } from '@gian/proxy-protocol/conformance';
 
 const [entry, kimiBin, only] = process.argv.slice(2);
 const selected = only ? new Set(only.split(',')) : null;
@@ -49,11 +50,23 @@ const ASK = { model: 'openai/gpt-5-mini', thinking: 'low', approval_mode: 'manua
 // ---- Host stand-in ----
 let proxy = null; let reqNo = 0;
 const allErrors = []; // every domain error and failed turn seen
+// Every frame also passes the Host's own conformance validator: a violation is
+// what makes the App quarantine the session or turn.
+const violations = [];
+let currentScenario = 'setup';
+const PLUGIN_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 function startProxy() {
   const child = spawn(process.execPath, [entry, '--kimi-bin', kimiBin], { env, stdio: ['pipe', 'pipe', 'pipe'] });
-  const p = { child, pending: new Map(), notes: [], listeners: new Set(), stderr: '' };
+  const p = { child, pending: new Map(), notes: [], listeners: new Set(), stderr: '',
+    validator: new HostProtocolValidator({ pluginId: 'kimi', pluginVersion: PLUGIN_VERSION, processScope: 'shared' }) };
   child.stderr.on('data', (d) => { p.stderr = (p.stderr + d).slice(-20000); appendFileSync(join(H, 'proxy-stderr.log'), redact(String(d))); });
   createInterface({ input: child.stdout }).on('line', (line) => {
+    try { p.validator.acceptLine(line); } catch (error) {
+      const message = `${error?.message ?? error}`;
+      violations.push({ scenario: currentScenario, message });
+      console.log(`FAIL  [${currentScenario}] Host protocol conformance  (${redact(message).slice(0, 300)})`);
+      results.push({ scenario: currentScenario, name: 'Host protocol conformance', ok: false });
+    }
     let m; try { m = JSON.parse(line); } catch { return; }
     if (m.id !== undefined && p.pending.has(m.id)) {
       const { resolve, reject } = p.pending.get(m.id); p.pending.delete(m.id);
@@ -76,7 +89,9 @@ function request(method, params, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => { p.pending.delete(id); reject(new Error(`timeout: ${method}`)); }, timeoutMs);
     p.pending.set(id, { resolve: (v) => { clearTimeout(t); resolve(v); }, reject: (e) => { clearTimeout(t); allErrors.push(`${method}: ${e.message}`); reject(e); } });
-    p.child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+    const frame = { jsonrpc: '2.0', id, method, params };
+    try { p.validator.registerRequest(frame); } catch (error) { console.log(`INFO  request ${method} rejected by the Host validator: ${error?.message ?? error}`); }
+    p.child.stdin.write(JSON.stringify(frame) + '\n');
   });
 }
 function waitFor(pred, label, ms = 240000) {
@@ -89,7 +104,9 @@ function waitFor(pred, label, ms = 240000) {
   });
 }
 async function initialize() {
+  // What the Host does for every Proxy process before it creates sessions.
   await request('initialize', { protocol: { name: 'gian.proxy', versions: ['2.3'] }, host: { name: 'gian-smoke', version: '0.0.0' } });
+  await request('catalog.list', {});
 }
 const sessions = {};
 async function create(sid, { native, cwd = join(H, 'ws') } = {}) {
@@ -139,8 +156,17 @@ const results = [];
 const check = (scenario, name, ok, detail = '') => { results.push({ scenario, name, ok }); console.log(`${ok ? 'PASS' : 'FAIL'}  [${scenario}] ${name}${detail ? `  (${redact(detail).slice(0, 300)})` : ''}`); };
 const ok = (e) => e.method === 'turn.completed';
 const desc = (e) => `${e.method}${e.stopReason ? `/${e.stopReason}` : ''}${e.error ? ` [${e.error.domainCode}] ${e.error.message}` : ''} ${JSON.stringify((e.text ?? '').slice(0, 60))}`;
-async function recoverable(scenario, sid, label) {
-  try { const e = await turn(sid, 'Reply with exactly: ok', AUTO); check(scenario, `${label}: next turn completes`, ok(e) && /ok/i.test(e.text), desc(e)); return ok(e); }
+// `interruptedAnswer` matches the reply to the interrupted request: when the
+// interrupt lands before any answer text exists, Kimi drops the reasoning and
+// the model answers that request on the next turn (native behavior).
+async function recoverable(scenario, sid, label, interruptedAnswer = null) {
+  try {
+    const e = await turn(sid, 'Reply with exactly: ok', AUTO);
+    const answeredOld = interruptedAnswer !== null && interruptedAnswer.test(e.text.trim());
+    check(scenario, `${label}: next turn completes`, ok(e) && (/ok/i.test(e.text) || answeredOld), desc(e));
+    if (answeredOld) console.log(`INFO  [${scenario}] ${label}: the model answered the interrupted request`);
+    return ok(e);
+  }
   catch (error) { check(scenario, `${label}: next turn completes`, false, error.message); return false; }
 }
 
@@ -163,7 +189,7 @@ const scenarios = {
       let ack = null; try { const t0 = Date.now(); await interrupt(s, id); ack = Date.now() - t0; } catch (e) { ack = e.message; }
       const e = await endOf(id, 60000).catch((err) => ({ method: 'none', error: { message: err.message } }));
       check(s, `round ${i}: interrupt during text ends the turn`, e.method !== 'none' && (e.stopReason === 'interrupted' || e.stopReason === 'cancelled'), `ack=${ack} ${desc(e)}`);
-      await recoverable(s, s, `round ${i}`);
+      await recoverable(s, s, `round ${i}`, /^1\s+2\s+3\b/);
     }
   },
   async interruptStress() {
@@ -400,15 +426,17 @@ const scenarios = {
 proxy = startProxy();
 try {
   await initialize();
-  await request('catalog.list', {});
   for (const [name, fn] of Object.entries(scenarios)) {
     if (selected && !selected.has(name)) continue;
     const t0 = Date.now();
+    currentScenario = name;
     console.log(`--- ${name}`);
     try { await fn(); } catch (error) { check(name, 'scenario ran to the end', false, error.message); }
     console.log(`    (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
   }
 } finally {
+  results.push({ scenario: 'all', name: 'no Host protocol violations', ok: violations.length === 0 });
+  console.log(`${violations.length === 0 ? 'PASS' : 'FAIL'}  [all] no Host protocol violations  (${violations.length})`);
   const failed = results.filter((r) => !r.ok);
   console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
   if (allErrors.length) console.log(`errors seen (${allErrors.length}):\n  ${[...new Set(allErrors.map(redact))].slice(0, 40).join('\n  ')}`);

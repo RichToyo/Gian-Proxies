@@ -12,7 +12,7 @@ API**: a supervised `kimi web --json` child, its REST routes and the
 node dist/src/cli/spawn.js --kimi-bin /absolute/path/to/kimi
 ```
 
-Proxy **0.5.1**, targeting the
+Proxy **0.5.2**, targeting the
 official Kimi Code Runtime **2.7.2** (`@moonshot-ai/kimi-code@2.7.2`,
 darwin-arm64). Hosted qualification and publication are still required.
 
@@ -115,6 +115,21 @@ elicitation (no server route).
 
 ## Recovery and steering
 
+- A turn never ends with work open: gian.proxy requires every activity that
+  entered `running`, every running step and every content stream to be
+  terminal before `turn.completed` / `turn.failed`, or the Host quarantines
+  the turn. The turn closes whatever Kimi left open right before its
+  terminal (`succeeded` when it completed, `cancelled` when it was
+  interrupted, fenced or abandoned, `failed` when it failed). A task that a
+  later `task.list` snapshot no longer lists has ended even when its own end
+  frame was lost (a reconnect), and is closed then.
+- Nothing is sent on a stream the Host replaced (a re-attach): the Host
+  validates every later event against the new stream. While a re-attach
+  stops the abandoned turn the session sends nothing at all; the new stream
+  starts afterwards at sequence 1. Event IDs, which
+  derive from content, are made unique on a stream: the Host treats a
+  repeated ID as a resend that does not advance the sequence.
+
 - The Host re-attaches a session it still had here only after it stopped
   following that stream (its recovery of a stuck or orphaned turn, a session
   fault). A turn that stream still owned is abandoned: it is stopped natively,
@@ -129,7 +144,7 @@ elicitation (no server route).
 
 ## Verification
 
-- `pnpm --filter @gian/kimi-proxy test`: 118 tests. Unit tests for every
+- `pnpm --filter @gian/kimi-proxy test`: 121 tests. Unit tests for every
   conversation component, plus an end-to-end suite that drives the real CLI
   through the kit against a fake Kimi 2.7 server (`test/fixtures/
   fake-kimi-server.mjs`) with Host conformance validation.
@@ -139,7 +154,8 @@ elicitation (no server route).
   built Proxy's initialize/catalog/create/replay/rename/close/native.list/probe.
 - Real smoke regression (`scripts/real-smoke.mjs`): the built Proxy driven
   like the Host against the real Kimi Code 2.7.2 with an OpenAI API key in an
-  isolated home: plain, back-to-back and long conversations, approvals,
+  isolated home, with every frame checked by the Host's own
+  `HostProtocolValidator` (a violation is what quarantines a turn in Gian): plain, back-to-back and long conversations, approvals,
   questions, interrupts at every stage, steers at every stage, background
   commands and subagents, plans, diffs, compaction, two sessions at once,
   replay, Host re-attach and recovery of stuck turns, and Proxy crash and

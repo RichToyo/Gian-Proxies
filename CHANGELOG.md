@@ -1,5 +1,14 @@
 # Gian Proxies Changelog
 
+## Kimi Proxy 0.5.2 candidate - 2026-11-26
+
+- A turn could end while a background Bash task it had shown as `running` was still open (its end frame was lost across a reconnect), and a fenced, interrupted-and-unconfirmed or Host-abandoned turn ended without closing its running tools, tasks or text. The Host rejects such a terminal by protocol and quarantined the turn. The turn now closes whatever is still open right before `turn.completed` or `turn.failed`, and a task that Kimi no longer lists as running is closed when the snapshot arrives.
+- After the Host re-attached a session, 0.5.1 still sent the abandoned turn's closing events on the stream the Host had replaced; the Host faults the session on any old-stream event. Nothing is sent on a replaced stream any more, and stopping the abandoned turn sends nothing on the new stream either (its session state carried the old stream's sequence); the new stream starts at sequence 1.
+- A state that repeated inside a turn (Kimi retrying the same attempt of a second model request) was sent under the same event ID again; the Host treats that as a resend that does not advance the sequence and faulted every later event of the session. Event IDs are now unique on a stream.
+- The real smoke regression now checks every frame with the Host's own protocol validator. All 22 scenarios ran with Kimi Code 2.7.2 without a single protocol violation.
+- Runtime unchanged: Kimi Code 2.7.2.
+- Exact-artifact hosted qualification and publication remain required.
+
 ## Kimi Proxy 0.5.1 candidate - 2026-11-25
 
 Fixes for conversations that stopped continuing or lost replies with 0.5.0, found by a real Kimi Code 2.7.2 smoke regression (questions, approvals, interrupts, steers, background work, Proxy restarts and Host recovery).

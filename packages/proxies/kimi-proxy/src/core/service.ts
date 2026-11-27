@@ -40,6 +40,9 @@ export interface KimiServiceOptions {
 
 export interface SessionRecord {
   sessionId: string;
+  /** A Host re-attach is stopping the turn of a stream the Host dropped:
+   *  nothing of this session is sent meanwhile. */
+  muted?: boolean;
   streamId: string;
   nativeSessionId: string;
   cwd: string;
@@ -82,10 +85,13 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-/** 2.7 replaced `busy` with `activity` (idle | turn | background). */
+/** Event IDs remembered per stream to keep them unique. */
+const SENT_EVENT_ID_LIMIT = 100_000;
+
 /** How long a Host re-attach waits for Kimi to settle an abandoned turn. */
 const REBIND_IDLE_WAIT_MS = 10_000;
 
+/** 2.7 replaced `busy` with `activity` (idle | turn | background). */
 function nativeBusy(info: KimiSessionInfo): boolean {
   return (info.activity !== undefined && info.activity !== 'idle')
     || info.pending_interaction === 'approval' || info.pending_interaction === 'question';
@@ -107,6 +113,8 @@ export class KimiProxyService {
   private readonly interruptTimers = new Map<string, NodeJS.Timeout>();
   private readonly reconnectTimers = new Map<string, NodeJS.Timeout>();
   private emitSink: (notification: OuterNotification) => void = () => undefined;
+  /** Event IDs already sent, per stream, with how often each was sent. */
+  private readonly sentEventIds = new Map<string, Map<string, number>>();
   private stopped = false;
 
   constructor(private readonly options: KimiServiceOptions) {
@@ -121,7 +129,37 @@ export class KimiProxyService {
   }
 
   setEmitSink(sink: (notification: OuterNotification) => void): void {
-    this.emitSink = sink;
+    // A stream the Host replaced (a re-attach) is over for it: the Host
+    // validates every later event against the new stream and faults the
+    // session on any old-stream event. Nothing is sent on a stale stream.
+    this.emitSink = notification => {
+      const params = notification.params;
+      const sessionId = typeof params.sessionId === 'string' ? params.sessionId : null;
+      const streamId = typeof params.streamId === 'string' ? params.streamId : null;
+      const record = sessionId === null ? undefined : this.records.get(sessionId);
+      if (record !== undefined && (record.muted === true || (streamId !== null && streamId !== record.streamId))) return;
+      sink(this.uniqueEventId(notification, streamId));
+    };
+  }
+
+  /** An event ID is never sent twice on a stream. Event IDs derive from
+   *  their content, so a state that repeats inside a turn (Kimi retrying the
+   *  same attempt again, an update back to an earlier value) would repeat
+   *  one; the Host treats a repeated ID as a resend that does not advance
+   *  the sequence, and faults on every later event. A repeat is sent under a
+   *  numbered ID instead; the first keeps the ID replay matches. */
+  private uniqueEventId(notification: OuterNotification, streamId: string | null): OuterNotification {
+    const eventId = notification.params.eventId;
+    if (streamId === null || typeof eventId !== 'string') return notification;
+    let sent = this.sentEventIds.get(streamId);
+    if (sent === undefined) { sent = new Map(); this.sentEventIds.set(streamId, sent); }
+    const count = sent.get(eventId) ?? 0;
+    sent.set(eventId, count + 1);
+    if (sent.size > SENT_EVENT_ID_LIMIT) {
+      for (const id of sent.keys()) { sent.delete(id); if (sent.size <= SENT_EVENT_ID_LIMIT / 2) break; }
+    }
+    if (count === 0) return notification;
+    return { ...notification, params: { ...notification.params, eventId: `${eventId}~${count + 1}` } };
   }
 
   private nextSequence(sessionId: string): number {
@@ -325,8 +363,18 @@ export class KimiProxyService {
       // owned is abandoned, so it is stopped natively (with any question or
       // approval it waits on) instead of refusing the Host, which left the
       // conversation unable to continue.
-      if (existing.activeTurn !== null) await this.abandonActiveTurn(existing);
-      const info = await this.waitForNativeIdle(existing.nativeSessionId);
+      // The Host has dropped the old stream, and it validates any event of
+      // this session against the stream this re-attach returns. Stopping the
+      // abandoned turn therefore sends nothing at all; the new stream starts
+      // afterwards at sequence 1.
+      existing.muted = true;
+      let info: KimiSessionInfo;
+      try {
+        if (existing.activeTurn !== null) await this.abandonActiveTurn(existing);
+        info = await this.waitForNativeIdle(existing.nativeSessionId);
+      } finally {
+        existing.muted = false;
+      }
       if (nativeBusy(info)) {
         throw new KimiProtocolError('SESSION_BUSY', 'Kimi is still running other work in this session (another Kimi client or a background task); try again when it finishes.', true);
       }

@@ -79,14 +79,22 @@ test('a Host re-attach stops the turn it abandoned instead of refusing, and the 
     await service.startTurn({ sessionId: 's', streamId: snapshot.streamId as string, turnId: 't1', input: [{ type: 'text', text: 'ask me' }], config: {} });
     await settle();
     // The Host's recovery: it stops following t1 and brings the session up again.
+    const before = events.length;
     const again = await service.createSession({ sessionId: 's', cwd: '/workspace', nativeSessionId: 'native' });
     assert.notEqual(again.snapshot.streamId, snapshot.streamId);
     assert.equal(aborted.length, 1, 'the abandoned native prompt was aborted');
-    assert.ok(events.some(event => event.method === 'turn.failed' && event.params.turnId === 't1'), 'the abandoned turn is closed on its old stream');
-    events.length = 0;
+    // The Host validates every later event against the new stream and faults
+    // the session on an old-stream event: nothing is sent on the old stream.
+    // Stopping the abandoned turn (its fence, its session state) sends nothing
+    // at all: the Host knows only the stream this re-attach returns, and an
+    // event on it before that would carry the old stream's sequence.
+    assert.deepEqual(events.slice(before).map(event => event.method), [], 'nothing is sent while the abandoned turn is stopped');
     await service.startTurn({ sessionId: 's', streamId: again.snapshot.streamId as string, turnId: 't2', input: [{ type: 'text', text: 'go on' }], config: {} });
     await settle();
-    assert.ok(events.some(event => event.method === 'turn.completed' && event.params.turnId === 't2'));
+    const later = events.slice(before);
+    assert.ok(later.some(event => event.method === 'turn.completed' && event.params.turnId === 't2'));
+    assert.ok(later.every(event => event.params.streamId === again.snapshot.streamId), 'everything after the re-attach is on the new stream');
+    assert.deepEqual(later.map(event => event.params.sequence), later.map((_, index) => index + 1), 'the new stream runs 1, 2, 3, … without a gap');
     for (const event of events) proxyNotificationSchema.parse({ jsonrpc: '2.0', ...event });
   } finally { await service.shutdown(); }
 });
@@ -170,4 +178,47 @@ test('the binding claims a native turn opened by a registered steer and still ex
   binding.receive(f({ type: 'item.delta', turn_id: 'foreign', item_id: 'y', field: 'text', delta: 'not ours' }));
   assert.deepEqual(delivered.map(frame => frame.turn_id ?? (frame.turn as { turn_id?: string })?.turn_id),
     ['first', 'first', 'second', 'second', 'second']);
+});
+
+test('a state that repeats inside a turn is sent under a new event ID, never a repeated one', async t => {
+  const socket = new FakeSocket();
+  t.mock.method(WsSocket, 'connect', async () => socket as unknown as WsSocket);
+  t.mock.method(KimiServerRestClient.prototype, 'request', async function <T>(method: string, path: string, options: RestRequestOptions = {}): Promise<T> {
+    if (path === '/api/v1/sessions' && method === 'POST') return { id: 'native' } as T;
+    if (path.endsWith('/prompts') && method === 'POST') {
+      const promptId = (options.json as { prompt_id: string }).prompt_id;
+      queueMicrotask(() => {
+        socket.frame({ type: 'turn.started', turn: { turn_id: 'native-turn' } });
+        socket.frame({ type: 'item.started', turn_id: 'native-turn', item: { type: 'user_message', item_id: promptId, placement: 'opener', prompt_ids: [promptId] } });
+        // Kimi retries the same attempt of two different model requests.
+        for (let step = 1; step <= 2; step += 1) {
+          socket.frame({ type: 'turn.updated', turn_id: 'native-turn', retry: { next_attempt: 2, max_attempts: 10, delay_ms: 1000, error: { message: 'fetch failed' } } });
+          socket.frame({ type: 'turn.updated', turn_id: 'native-turn', step: { index: step, outcome: 'completed' } });
+        }
+        socket.frame({ type: 'item.started', turn_id: 'native-turn', item: { type: 'assistant_message', item_id: 'm:1', status: 'running', text: 'done' } });
+        socket.frame({ type: 'item.ended', turn_id: 'native-turn', item: { type: 'assistant_message', item_id: 'm:1', status: 'ended', text: 'done' } });
+        socket.frame({ type: 'turn.ended', turn: { turn_id: 'native-turn', status: 'ended', outcome: 'completed' } });
+        socket.frame({ type: 'agent', status: 'idle' });
+      });
+      return { prompt_id: promptId, status: 'running' } as T;
+    }
+    if (path.endsWith('/file-history/changes')) return { recorded: false, changes: [] } as T;
+    throw new Error(`Unexpected fixture request: ${method} ${path}`);
+  });
+  const service = new KimiProxyService({ kimiBin: '/fixture', endpoint: { baseUrl: 'http://127.0.0.1:1', token: 'fixture' } });
+  const events: Array<{ method: string; params: Record<string, unknown> }> = [];
+  service.setEmitSink(event => events.push(event));
+  try {
+    const { snapshot } = await service.createSession({ sessionId: 's', cwd: '/workspace' });
+    await service.startTurn({ sessionId: 's', streamId: snapshot.streamId as string, turnId: 't1', input: [{ type: 'text', text: 'go' }], config: {} });
+    await settle(60);
+    const stream = events.filter(event => event.params.streamId === snapshot.streamId);
+    const retries = stream.filter(event => String((event.params.data as { activityId?: string }).activityId ?? '').startsWith('retry:'));
+    assert.equal(retries.length, 4, 'two retry episodes, each opened and closed');
+    const ids = stream.map(event => event.params.eventId);
+    assert.equal(new Set(ids).size, ids.length, 'no event ID repeats on the stream');
+    const sequences = stream.map(event => event.params.sequence as number);
+    assert.deepEqual(sequences, sequences.map((_, index) => sequences[0]! + index), 'sequences are contiguous');
+    assert.ok(stream.some(event => event.method === 'turn.completed'));
+  } finally { await service.shutdown(); }
 });

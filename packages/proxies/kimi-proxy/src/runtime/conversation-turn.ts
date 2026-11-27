@@ -8,6 +8,7 @@ import { approvalResponse, interactionEndpoint, questionResponse, type NativeQue
 import { KimiConversationSettlement } from './conversation-settlement.js';
 import { KimiConversationTools } from './conversation-tools.js';
 import { KimiConversationTasks } from './conversation-tasks.js';
+import { KimiOpenWork, type OpenWorkOutcome } from './conversation-open-work.js';
 import { conversationTurnError, type GianError } from './conversation-error.js';
 import { conversationUsageEventSource, sumConversationUsage } from './conversation-usage.js';
 import { projectConversationItem } from './conversation-item.js';
@@ -56,10 +57,16 @@ export class KimiConversationTurn {
    *  (null until its opener is seen). Kimi may run a steer as the next native
    *  turn; this Gian turn ends only after that turn ends. */
   private readonly steers = new Map<string, string | null>();
+  /** Everything this turn reported open; closed before its terminal. */
+  private readonly openWork = new KimiOpenWork();
 
   constructor(private readonly context: { sessionId: string; nativeSessionId: string; streamId: string;
     turnId: string; promptId: string; nextSequence: () => number; emit: (notification: Notification) => void;
     onFinalized: () => void; onResynced?: () => void; fetchDiff?: (turnNumber: number) => Promise<Diff | null>; holdUntilAdmitted?: boolean }) {
+    // Every emission (this turn's and its trackers') is recorded first, so
+    // the terminal can close what is still open.
+    const forward = context.emit;
+    context.emit = notification => { this.openWork.observe(notification); forward(notification); };
     this.admitted = context.holdUntilAdmitted !== true;
     this.settlement = new KimiConversationSettlement(context.nativeSessionId);
     this.ownership = new KimiInteractionOwnership(context.nativeSessionId, frame => this.interaction(frame));
@@ -189,6 +196,8 @@ export class KimiConversationTurn {
       { interactionId, outcome: 'runtime_ended' }, emittedAt);
     this.pending.clear();
     this.responding.clear(); this.endedWhileResponding.clear();
+    // The native work was aborted or abandoned: what is still open stopped.
+    this.closeOpenWork('cancelled', emittedAt);
     this.context.emit({ method: 'turn.failed', params: {
       eventId: terminalEventIdFor(this.context.nativeSessionId, this.context.promptId, 'turn.failed'),
       sessionId: this.context.sessionId, streamId: this.context.streamId, turnId: this.context.turnId,
@@ -451,6 +460,7 @@ export class KimiConversationTurn {
     const failed = this.anyNativeFailure;
     const method = failed ? 'turn.failed' : 'turn.completed';
     this.closeRetries(failed ? 'failed' : end.outcome === 'interrupted' ? 'cancelled' : 'succeeded', end.emittedAt);
+    this.closeOpenWork(failed ? 'failed' : end.outcome === 'interrupted' ? 'cancelled' : 'succeeded', end.emittedAt);
     const data = failed ? { error: this.failure ?? conversationTurnError(undefined, end.reason) }
       : { stopReason: this.anyNativeLimit ? 'limit_reached' : end.outcome === 'interrupted' ? (this.interruptAccepted ? 'interrupted' : 'cancelled')
         : end.reason === 'blocked' ? 'other' : 'completed' };
@@ -458,6 +468,14 @@ export class KimiConversationTurn {
       sessionId: this.context.sessionId, streamId: this.context.streamId, turnId: this.context.turnId,
       sourceTurnId: this.context.promptId, sequence: this.context.nextSequence(), emittedAt: end.emittedAt, data } });
     this.context.onFinalized();
+  }
+
+  /** Close what Kimi left open (a task end lost across a reconnect, work of
+   *  a fenced or abandoned turn): the Host requires it before the terminal. */
+  private closeOpenWork(outcome: OpenWorkOutcome, emittedAt: string): void {
+    for (const event of this.openWork.closing(outcome)) {
+      this.emit(event.method, ['close-open-work', event.method, event.key, outcome], event.data, emittedAt);
+    }
   }
 
   private emit(method: string, source: unknown, data: Frame, emittedAt: string): void {
